@@ -10,11 +10,14 @@
 //! order varying between runs), so every timestamp is shifted by that stream's
 //! `start_offset_ms`.
 
+pub mod chunker;
+
 use std::path::Path;
 
 use transcribe_rs::onnx::parakeet::{ParakeetModel, ParakeetParams, TimestampGranularity};
 use transcribe_rs::onnx::Quantization;
 
+use self::chunker::{chunk_by_silence, ChunkConfig};
 use crate::audio::resample::{to_16k, TARGET_SAMPLE_RATE};
 use crate::audio::StreamSource;
 use crate::models::{require_installed, ModelError, PARAKEET_V3_INT8};
@@ -91,6 +94,50 @@ impl Transcriber {
 
         let samples = to_16k(&samples, rate)?;
 
+        // Chunk before transcribing. Feeding a whole stream in one call makes
+        // the engine emit a single unbounded segment whenever the speaker does
+        // not pause — measured in M2, where 30s of continuous speech produced
+        // exactly one segment. Chunking also skips silence entirely, so a
+        // quiet meeting costs proportionally less to transcribe.
+        let chunks = chunk_by_silence(&samples, &ChunkConfig::default());
+        let prefix = match source {
+            StreamSource::Microphone => "mic",
+            StreamSource::System => "sys",
+        };
+
+        let mut out = Vec::new();
+        for chunk in &chunks {
+            let chunk_offset_ms = start_offset_ms + chunk.start_ms(TARGET_SAMPLE_RATE);
+            for seg in self.transcribe_chunk(&chunk.samples)? {
+                // Skip empty results rather than emitting blank segments.
+                let text = seg.text.trim();
+                if text.is_empty() {
+                    continue;
+                }
+                out.push(Segment {
+                    // Numbered across the whole stream, so ids stay unique and
+                    // stable regardless of how the audio was chunked.
+                    id: format!("{prefix}_{:04}", out.len()),
+                    start_ms: chunk_offset_ms + secs_to_ms(seg.start),
+                    end_ms: chunk_offset_ms + secs_to_ms(seg.end),
+                    text: text.to_string(),
+                    source,
+                });
+            }
+        }
+
+        Ok(out)
+    }
+
+    /// Transcribe one chunk, returning engine-relative segments.
+    ///
+    /// A chunk that yields flat text with no segment timings still becomes one
+    /// segment spanning the chunk — dropping the words would be worse than an
+    /// imprecise timestamp, and the chunk is already bounded in length.
+    fn transcribe_chunk(
+        &mut self,
+        samples: &[f32],
+    ) -> Result<Vec<transcribe_rs::TranscriptionSegment>, TranscribeError> {
         // Segment granularity, not the default Token. Token granularity emits
         // one segment per sub-word piece — "et", "'", "s", "k" — which is
         // useless as a transcript and would make evidence citations
@@ -102,43 +149,24 @@ impl Transcriber {
         };
         let result = self
             .model
-            .transcribe_with(&samples, &params)
+            .transcribe_with(samples, &params)
             .map_err(|e| TranscribeError::Engine(e.to_string()))?;
 
-        let prefix = match source {
-            StreamSource::Microphone => "mic",
-            StreamSource::System => "sys",
-        };
-
-        // No segments means the engine returned only flat text. Emit one
-        // segment spanning the stream rather than discarding the words.
-        let raw = result.segments.unwrap_or_default();
-        if raw.is_empty() {
-            if result.text.trim().is_empty() {
-                return Ok(Vec::new());
+        if let Some(segments) = result.segments {
+            if !segments.is_empty() {
+                return Ok(segments);
             }
-            let duration_ms = (samples.len() as u64 * 1000) / u64::from(TARGET_SAMPLE_RATE);
-            return Ok(vec![Segment {
-                id: format!("{prefix}_0000"),
-                start_ms: start_offset_ms,
-                end_ms: start_offset_ms + duration_ms,
-                text: result.text.trim().to_string(),
-                source,
-            }]);
         }
 
-        Ok(raw
-            .into_iter()
-            .enumerate()
-            .filter(|(_, s)| !s.text.trim().is_empty())
-            .map(|(i, s)| Segment {
-                id: format!("{prefix}_{i:04}"),
-                start_ms: start_offset_ms + secs_to_ms(s.start),
-                end_ms: start_offset_ms + secs_to_ms(s.end),
-                text: s.text.trim().to_string(),
-                source,
-            })
-            .collect())
+        if result.text.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+
+        Ok(vec![transcribe_rs::TranscriptionSegment {
+            start: 0.0,
+            end: samples.len() as f32 / TARGET_SAMPLE_RATE as f32,
+            text: result.text,
+        }])
     }
 }
 

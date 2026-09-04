@@ -29,6 +29,14 @@ cpal = "0.18"
 hound = "3.5.1"
 scopeguard = "1.2.0"
 crossbeam-channel = "0.5.16"
+transcribe-rs = { version = "0.3.11", features = ["onnx"] }
+rubato = "1.0.1"
+audioadapter-buffers = "2.0.0"
+audioadapter = "2.0.1"
+ureq = "3.2.1"
+tar = "0.4.46"
+flate2 = "1.1.10"
+dirs = "6.0.0"
 
 # NOTE — added in M1/M2, not before. Listing them now would mean pinning
 # versions this project has never compiled. See the plan's build sequence.

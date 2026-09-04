@@ -32,6 +32,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 pub mod mic;
+pub mod resample;
 pub mod session;
 pub mod wav;
 

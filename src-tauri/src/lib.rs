@@ -14,6 +14,8 @@
 //!   M6  llm        — LlmProvider trait, Ollama implementation
 
 pub mod audio;
+pub mod models;
+pub mod transcribe;
 
 /// Smoke-test command, so the IPC bridge is proven end to end before any real
 /// capability depends on it. Replaced by `commands.rs` in M1.

@@ -1,0 +1,239 @@
+//! Windows system-audio capture via WASAPI loopback.
+//!
+//! `cpal` cannot do this on Windows — loopback support was implemented in
+//! RustAudio/cpal#339, subsequently lost, and is still open as issue #476 —
+//! so the `wasapi` crate is used directly. The approach follows Voicebox
+//! (`jamiepine/voicebox`, MIT), which is the only audited project with a
+//! working Rust loopback implementation. See NOTICE.
+//!
+//! # How loopback is actually enabled
+//!
+//! There is no explicit "loopback" flag to set. The `wasapi` crate infers it
+//! from the combination of *device direction* and *stream direction*
+//! (`api.rs`, `initialize_client`):
+//!
+//! ```text
+//! (Direction::Render, Direction::Capture, ShareMode::Shared) => AUDCLNT_STREAMFLAGS_LOOPBACK
+//! ```
+//!
+//! So: take the default **Render** (playback) device, then initialise it for
+//! **Capture** in **shared** mode. Exclusive mode is rejected outright by the
+//! crate, which matches the Windows API — loopback cannot capture an
+//! exclusive-mode stream.
+//!
+//! Event-driven timing *does* combine with loopback: the crate applies
+//! `AUDCLNT_STREAMFLAGS_EVENTCALLBACK` unconditionally for `Events*` modes,
+//! including alongside the loopback flag. Polling is unnecessary.
+//!
+//! # COM threading
+//!
+//! WASAPI objects are COM objects and are **not `Send`**. Every one of them
+//! must be created and used on the same thread, and that thread must
+//! initialise and uninitialise COM itself. That is why this function owns its
+//! whole lifecycle and blocks — it cannot hand a client to anyone else.
+
+use std::path::PathBuf;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::time::Instant;
+
+use wasapi::{initialize_mta, DeviceEnumerator, Direction, SampleType, StreamMode, WaveFormat};
+
+use super::wav::WavSink;
+use super::{downmix_to_mono, AudioError, StopSignal, StreamFormat, StreamStats};
+
+/// How long to block on the audio event before re-checking the stop flag.
+///
+/// A timeout rather than an indefinite wait: a silent render device may not
+/// signal for a long time, and without this the thread would not notice that
+/// the meeting had ended. 100 ms bounds shutdown latency at a tenth of a
+/// second while keeping the loop essentially idle.
+const EVENT_TIMEOUT_MS: u32 = 100;
+
+/// Capture system audio until `stop` is signalled.
+///
+/// Blocks the calling thread and must be given one of its own — it owns a COM
+/// apartment for its entire duration.
+pub fn run_capture(
+    path: PathBuf,
+    stats: Arc<StreamStats>,
+    stop: StopSignal,
+    clock: Instant,
+) -> Result<StreamFormat, AudioError> {
+    // Multi-threaded apartment. Never do this on a UI thread.
+    initialize_mta()
+        .ok()
+        .map_err(|e| AudioError::Backend(format!("COM initialisation failed: {e}")))?;
+
+    // COM must be uninitialised on the same thread, on every exit path
+    // including the `?` early returns below.
+    let _com_guard = scopeguard::guard((), |_| wasapi::deinitialize());
+
+    let enumerator =
+        DeviceEnumerator::new().map_err(|e| AudioError::Backend(format!("enumerator: {e}")))?;
+
+    // Render device + Capture direction is what makes this loopback.
+    let device = enumerator
+        .get_default_device(&Direction::Render)
+        .map_err(|_| AudioError::NoDevice("system audio (render) device"))?;
+
+    let mut audio_client = device
+        .get_iaudioclient()
+        .map_err(|e| AudioError::Backend(format!("audio client: {e}")))?;
+
+    // Ask for the device's own mix format. Requesting anything else risks the
+    // engine refusing initialisation on some hardware.
+    let mix_format = audio_client
+        .get_mixformat()
+        .map_err(|e| AudioError::Backend(format!("mix format: {e}")))?;
+
+    let device_name = device
+        .get_friendlyname()
+        .unwrap_or_else(|_| "<unnamed>".into());
+
+    let source_channels = mix_format.get_nchannels();
+    let format = StreamFormat {
+        sample_rate: mix_format.get_samplespersec(),
+        source_channels,
+        device_name,
+    };
+
+    // Capture as 32-bit float regardless of what the device reports natively.
+    // `autoconvert: true` makes the audio engine handle the conversion, which
+    // removes the need to branch on bit depth in the read loop — and avoids
+    // the silent-drop bug that comes from handling only one width.
+    let desired_format = WaveFormat::new(
+        32,
+        32,
+        &SampleType::Float,
+        format.sample_rate as usize,
+        source_channels as usize,
+        None,
+    );
+
+    let (_default_period, min_period) = audio_client
+        .get_device_period()
+        .map_err(|e| AudioError::Backend(format!("device period: {e}")))?;
+
+    let mode = StreamMode::EventsShared {
+        autoconvert: true,
+        buffer_duration_hns: min_period,
+    };
+
+    audio_client
+        .initialize_client(&desired_format, &Direction::Capture, &mode)
+        .map_err(|e| AudioError::Backend(format!("initialize loopback client: {e}")))?;
+
+    let h_event = audio_client
+        .set_get_eventhandle()
+        .map_err(|e| AudioError::Backend(format!("event handle: {e}")))?;
+
+    let capture_client = audio_client
+        .get_audiocaptureclient()
+        .map_err(|e| AudioError::Backend(format!("capture client: {e}")))?;
+
+    audio_client
+        .start_stream()
+        .map_err(|e| AudioError::Backend(format!("start stream: {e}")))?;
+
+    // Stop the device on every exit path, so a `?` below cannot leave the
+    // endpoint running and block the next session from opening it.
+    let _stream_guard = scopeguard::guard((), |_| {
+        audio_client.stop_stream().ok();
+    });
+
+    let mut sink = WavSink::create(&path, format.sample_rate)?;
+    let mut byte_buf: Vec<u8> = Vec::new();
+
+    while !stop.is_stopped() {
+        // Drain every packet currently queued before waiting again.
+        loop {
+            let frames = match capture_client.get_next_packet_size() {
+                Ok(Some(frames)) if frames > 0 => frames,
+                // Ok(None) is exclusive mode, which loopback never is.
+                Ok(_) => break,
+                Err(e) => return Err(AudioError::Backend(format!("packet size: {e}"))),
+            };
+
+            let needed = frames as usize * source_channels as usize * 4; // f32
+            byte_buf.resize(needed, 0);
+
+            let (frames_read, _info) = capture_client
+                .read_from_device(&mut byte_buf)
+                .map_err(|e| AudioError::Backend(format!("read: {e}")))?;
+
+            if frames_read == 0 {
+                break;
+            }
+
+            // Loopback opens materially later than the microphone; this offset
+            // is what lets the two files be aligned afterwards.
+            stats.mark_first_sample(clock);
+
+            let valid = frames_read as usize * source_channels as usize;
+            let interleaved = bytes_to_f32(&byte_buf, valid);
+            let mono = downmix_to_mono(&interleaved, source_channels);
+
+            stats.record_level(&mono);
+            sink.write(&mono)?;
+            stats
+                .frames_captured
+                .fetch_add(mono.len() as u64, Ordering::Relaxed);
+        }
+
+        // A timeout here is normal and expected: silence means no event.
+        let _ = h_event.wait_for_event(EVENT_TIMEOUT_MS);
+    }
+
+    sink.finalize()?;
+    Ok(format)
+}
+
+/// Reinterpret an interleaved little-endian f32 byte buffer as samples.
+///
+/// `count` is the number of *samples* known to be valid, which may be fewer
+/// than the buffer holds — the buffer is reused across packets and is only
+/// ever grown, so its tail is stale data from a previous, larger packet.
+fn bytes_to_f32(bytes: &[u8], count: usize) -> Vec<f32> {
+    bytes
+        .chunks_exact(4)
+        .take(count)
+        .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decodes_little_endian_floats() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&1.0f32.to_le_bytes());
+        bytes.extend_from_slice(&(-0.5f32).to_le_bytes());
+        assert_eq!(bytes_to_f32(&bytes, 2), vec![1.0, -0.5]);
+    }
+
+    #[test]
+    fn ignores_stale_tail_beyond_the_valid_count() {
+        // The byte buffer is reused and only grows, so a short packet leaves
+        // the previous packet's audio in the tail. Replaying it would inject
+        // a stutter into the recording.
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&0.25f32.to_le_bytes());
+        bytes.extend_from_slice(&9.0f32.to_le_bytes()); // stale
+        assert_eq!(bytes_to_f32(&bytes, 1), vec![0.25]);
+    }
+
+    #[test]
+    fn ignores_a_trailing_partial_sample() {
+        let mut bytes = 1.0f32.to_le_bytes().to_vec();
+        bytes.extend_from_slice(&[0x00, 0x01]); // 2 stray bytes
+        assert_eq!(bytes_to_f32(&bytes, 4), vec![1.0]);
+    }
+
+    #[test]
+    fn empty_buffer_yields_no_samples() {
+        assert!(bytes_to_f32(&[], 8).is_empty());
+    }
+}

@@ -1,0 +1,25 @@
+# Normalise all text to LF in the repository AND in the working tree.
+#
+# Without this, core.autocrlf=true on Windows makes cargo and other tools
+# rewrite files with CRLF, which git then reports as modified even when the
+# content is byte-identical. Rust, shell scripts and CI YAML all want LF.
+* text=auto eol=lf
+
+# Explicitly binary — never touch these.
+*.png   binary
+*.ico   binary
+*.icns  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+
+# Model weights and audio, should they ever be added deliberately.
+*.onnx  binary
+*.gguf  binary
+*.bin   binary
+*.wav   binary
+
+# Generated — collapse in diffs and mark as such on GitHub.
+pnpm-lock.yaml      linguist-generated=true -diff
+src-tauri/Cargo.lock linguist-generated=true -diff

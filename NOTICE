@@ -42,6 +42,19 @@ Used as a library for Windows system-audio loopback capture. cpal does not
 support WASAPI loopback (see RustAudio/cpal#476), so this is used directly.
 
 --------------------------------------------------------------------------------
+Voicebox — https://github.com/jamiepine/voicebox
+MIT License. Copyright (c) 2026 Voicebox Contributors.
+
+Its tauri/src-tauri/src/audio_capture/ module is the reference and basis for
+TRACE's system-audio capture: WASAPI loopback on Windows (windows.rs) and
+ScreenCaptureKit on macOS (macos.rs). TRACE adapts the capture approach and the
+COM-threading pattern rather than vendoring the files, and replaces its
+unbounded sample buffer with a bounded ring buffer suitable for long meetings.
+
+No other part of Voicebox is used. It is a voice-studio application with a
+Python/FastAPI backend, which TRACE deliberately does not adopt.
+
+--------------------------------------------------------------------------------
 heed — https://github.com/isjunrod/heed
 MIT License.
 

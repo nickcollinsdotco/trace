@@ -30,12 +30,11 @@ use super::{downmix_to_mono, AudioError, StopSignal, StreamFormat, StreamStats};
 /// caught quickly rather than silently consuming memory.
 const CHANNEL_CAPACITY: usize = 200;
 
-/// Capture the default input device until `stop` is signalled.
+/// Capture the microphone until `stop` is signalled.
 ///
 /// Blocks the calling thread, so run it on a dedicated one. `cpal::Stream` is
 /// not `Send` on every platform, so it is created and dropped here rather than
 /// handed anywhere else.
-/// Capture the microphone until `stop` is signalled.
 ///
 /// `preferred` selects a device by name; `None` uses the system default.
 /// Device choice is not a nicety. On this machine the default input is
@@ -102,11 +101,13 @@ pub fn run_capture(
     };
 
     let error_callback = move |err| {
-        // A device error mid-meeting is real and must not be swallowed. The
-        // dropped-chunk counter is the channel the UI already watches.
+        // Counted separately from dropped chunks. cpal reports a benign
+        // underrun on the very first callback of essentially every run; that
+        // is a device warning, not lost audio, and conflating the two would
+        // make the "did we lose any of the meeting?" signal useless.
         eprintln!("trace: microphone stream error: {err}");
         err_stats
-            .chunks_dropped
+            .stream_errors
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     };
 

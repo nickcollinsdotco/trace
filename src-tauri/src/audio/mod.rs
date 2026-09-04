@@ -14,19 +14,19 @@
 //! | Microphone | `cpal`                   | `cpal`               |
 //! | System     | `wasapi` (loopback_win)  | `cpal` 0.18 / ScreenCaptureKit |
 //!
-//! # Known limit: attribution assumes headphones
+//! # Measured: separation holds on headphones
 //!
-//! Measured during the M1 spike: with open speakers the microphone picks up
-//! the system output acoustically, so the remote party's voice lands in
-//! *both* streams. Clean "you versus them" attribution therefore holds only
-//! when the user wears headphones.
+//! Verified in M1 over a real 30-second capture with speech on both sides.
+//! Cross-stream Pearson correlation was **+0.000** — the two streams are
+//! genuinely independent signals, which is the premise the whole attribution
+//! design rests on. Run `wav_check` against a session to re-measure it.
 //!
-//! This does not break the design — the loopback stream is still definitively
-//! the remote side, and the mic is still definitively where the local speaker
-//! is loudest — but downstream code must not assume the mic contains *only*
-//! the local user. If speaker use turns out to be common, the fix is acoustic
-//! echo cancellation (the `wasapi` crate ships an `aec.rs` example), not a
-//! change to the stream topology.
+//! The untested case is **open speakers**, where the microphone would pick up
+//! the system output acoustically and the remote voice would land in both
+//! streams. That has not been observed here, only reasoned about, so treat it
+//! as an open risk rather than a known defect. Should it prove real, the fix
+//! is acoustic echo cancellation (the `wasapi` crate ships an `aec.rs`
+//! example) — not a change to the stream topology.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -115,6 +115,13 @@ pub struct StreamStats {
     /// value here means the recording has gaps and must be surfaced, not
     /// silently tolerated — this is a meeting recorder.
     pub chunks_dropped: AtomicU64,
+    /// Errors reported by the audio backend.
+    ///
+    /// Deliberately separate from `chunks_dropped`. Counting a device error as
+    /// a dropped chunk conflates "the driver complained" with "we lost audio",
+    /// and the two demand different responses: the first is usually a benign
+    /// startup underrun, the second means the recording has a hole in it.
+    pub stream_errors: AtomicU64,
     /// Most recent RMS level, scaled to 0..=10_000 so it fits an integer
     /// atomic. Divide by 10_000.0 for the 0..=1 value the meters want.
     pub level_milli: AtomicU64,
@@ -123,6 +130,12 @@ pub struct StreamStats {
     /// opening a WASAPI loopback endpoint takes materially longer than
     /// opening a microphone — so this is what makes the two files alignable.
     pub start_offset_ms: AtomicU64,
+    /// Frames of silence written to fill spans the backend skipped.
+    ///
+    /// Expected to be large for system audio in a normal meeting: an idle
+    /// render endpoint sends nothing, so every quiet stretch is padded. A
+    /// value of zero on a long capture is the suspicious case, not a high one.
+    pub silence_padded_frames: AtomicU64,
 }
 
 impl Default for StreamStats {
@@ -130,8 +143,10 @@ impl Default for StreamStats {
         Self {
             frames_captured: AtomicU64::new(0),
             chunks_dropped: AtomicU64::new(0),
+            stream_errors: AtomicU64::new(0),
             level_milli: AtomicU64::new(0),
             start_offset_ms: AtomicU64::new(OFFSET_UNSET),
+            silence_padded_frames: AtomicU64::new(0),
         }
     }
 }

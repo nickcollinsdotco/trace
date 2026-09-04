@@ -145,6 +145,26 @@ pub fn run_capture(
     let mut sink = WavSink::create(&path, format.sample_rate)?;
     let mut byte_buf: Vec<u8> = Vec::new();
 
+    // Wall-clock instant at which this stream's first sample arrived. Gaps are
+    // measured against this.
+    //
+    // An idle render endpoint delivers *no packets at all*, not silent ones.
+    // Measured: 32s capture with audio at 0-3s and 24-29s produced a system
+    // file only 11.16s long — the second burst landed at ~11s instead of ~24s.
+    // Uncorrected, that desynchronises the transcripts completely.
+    //
+    // `BufferInfo.index` looks like the natural fix and is not: it counts
+    // frames *delivered*, so it does not advance while the endpoint is idle
+    // and reports no gap at all. `BufferInfo.timestamp` is a QPC value, but is
+    // explicitly unreliable when the engine sets TIMESTAMP_ERROR. The session
+    // clock is the one time source that always advances.
+    let mut stream_start: Option<std::time::Instant> = None;
+
+    // Only correct discrepancies larger than this. Wall clock and device clock
+    // drift slightly against each other; padding every packet would chase that
+    // drift and inject constant micro-gaps. Real idle gaps are seconds long.
+    let gap_threshold_frames = u64::from(format.sample_rate) / 2; // 500 ms
+
     while !stop.is_stopped() {
         // Drain every packet currently queued before waiting again.
         loop {
@@ -169,6 +189,30 @@ pub fn run_capture(
             // Loopback opens materially later than the microphone; this offset
             // is what lets the two files be aligned afterwards.
             stats.mark_first_sample(clock);
+
+            // Fill any span the engine skipped, so that frame index stays
+            // proportional to elapsed time and the file remains a faithful
+            // timeline rather than a concatenation of the noisy parts.
+            match stream_start {
+                // First packet only establishes the baseline. Silence *before*
+                // the stream started is carried by `start_offset_ms`, not by
+                // padding, so that the file begins at real audio.
+                None => stream_start = Some(std::time::Instant::now()),
+                Some(started) => {
+                    let elapsed_frames = (started.elapsed().as_millis() as u64)
+                        .saturating_mul(u64::from(format.sample_rate))
+                        / 1000;
+                    let written = sink.frames_written();
+
+                    if elapsed_frames > written.saturating_add(gap_threshold_frames) {
+                        let gap = elapsed_frames - written;
+                        sink.write_silence(gap)?;
+                        stats
+                            .silence_padded_frames
+                            .fetch_add(gap, Ordering::Relaxed);
+                    }
+                }
+            }
 
             let valid = frames_read as usize * source_channels as usize;
             let interleaved = bytes_to_f32(&byte_buf, valid);

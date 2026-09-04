@@ -18,8 +18,18 @@
 //!
 //! Each stream therefore records the offset, from a single session clock, at
 //! which its *first* sample arrived. Downstream, a segment's true session time
-//! is `stream_offset_ms + (frame_index / sample_rate)`. That is the only
-//! honest way to relate two independently-clocked recordings.
+//! is:
+//!
+//! ```text
+//! session_time = stream_offset_ms + (frame_index / sample_rate)
+//! ```
+//!
+//! That formula is only valid because each backend guarantees frame index
+//! stays proportional to elapsed time. For WASAPI loopback that guarantee is
+//! not free: an idle render endpoint delivers no packets at all, so quiet
+//! spans are padded with silence (see `loopback_win`). Without that padding a
+//! 32s capture with two bursts of audio produced an 11s file, placing the
+//! second burst 13 seconds early.
 //!
 //! # Partial failure
 //!
@@ -45,6 +55,8 @@ pub struct StreamOutcome {
     pub sample_rate: u32,
     pub frames_captured: u64,
     pub chunks_dropped: u64,
+    pub stream_errors: u64,
+    pub silence_padded_frames: u64,
     /// Offset from session start at which this stream's first sample arrived.
     pub start_offset_ms: u64,
     /// `None` on success; the failure reason otherwise.
@@ -57,7 +69,21 @@ impl StreamOutcome {
         self.error.is_none() && self.frames_captured > 0
     }
 
+    /// Wall-clock span the file covers.
+    ///
+    /// Includes padded silence, because that is what makes the file a
+    /// timeline. `frames_captured` alone counts only frames the device
+    /// actually delivered, which for system audio in a quiet meeting can be a
+    /// small fraction of the elapsed time.
     pub fn duration_secs(&self) -> f64 {
+        if self.sample_rate == 0 {
+            return 0.0;
+        }
+        (self.frames_captured + self.silence_padded_frames) as f64 / self.sample_rate as f64
+    }
+
+    /// Seconds of audio the device genuinely delivered, excluding padding.
+    pub fn active_secs(&self) -> f64 {
         if self.sample_rate == 0 {
             return 0.0;
         }
@@ -192,6 +218,8 @@ impl CaptureSession {
                     sample_rate,
                     frames_captured: stats.frames_captured.load(Ordering::Relaxed),
                     chunks_dropped: stats.chunks_dropped.load(Ordering::Relaxed),
+                    stream_errors: stats.stream_errors.load(Ordering::Relaxed),
+                    silence_padded_frames: stats.silence_padded_frames.load(Ordering::Relaxed),
                     start_offset_ms: stats.start_offset_ms().unwrap_or(0),
                     error,
                 }
@@ -250,6 +278,8 @@ mod tests {
             sample_rate: rate,
             frames_captured: frames,
             chunks_dropped: 0,
+            stream_errors: 0,
+            silence_padded_frames: 0,
             start_offset_ms: 0,
             error: error.map(String::from),
         }
@@ -276,6 +306,17 @@ mod tests {
     fn duration_is_derived_from_the_streams_own_rate() {
         assert!((outcome(48_000, 48_000, None).duration_secs() - 1.0).abs() < f64::EPSILON);
         assert!((outcome(16_000, 16_000, None).duration_secs() - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn duration_counts_padded_silence_but_active_time_does_not() {
+        // A quiet meeting: the render endpoint delivered 10s of real audio
+        // across a 60s call, the rest padded. The file spans 60s; only 10s of
+        // it is audio the device actually sent.
+        let mut o = outcome(480_000, 48_000, None);
+        o.silence_padded_frames = 2_400_000;
+        assert!((o.duration_secs() - 60.0).abs() < 1e-9);
+        assert!((o.active_secs() - 10.0).abs() < 1e-9);
     }
 
     #[test]

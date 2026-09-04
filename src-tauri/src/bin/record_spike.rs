@@ -79,10 +79,29 @@ fn main() {
                 println!("      file          {}", stream.path.display());
                 println!("      sample rate   {} Hz", stream.sample_rate);
                 println!("      frames        {}", stream.frames_captured);
-                println!("      duration      {:.2}s", stream.duration_secs());
+                println!(
+                    "      duration      {:.2}s  ({:.2}s of real audio)",
+                    stream.duration_secs(),
+                    stream.active_secs()
+                );
                 println!("      start offset  {} ms", stream.start_offset_ms);
                 if stream.chunks_dropped > 0 {
-                    println!("      DROPPED       {} chunks", stream.chunks_dropped);
+                    println!(
+                        "      LOST AUDIO    {} chunks dropped",
+                        stream.chunks_dropped
+                    );
+                }
+                if stream.silence_padded_frames > 0 {
+                    println!(
+                        "      gap padding   {:.2}s of silence filled",
+                        stream.silence_padded_frames as f64 / stream.sample_rate.max(1) as f64
+                    );
+                }
+                if stream.stream_errors > 0 {
+                    println!(
+                        "      device warns  {} (no audio necessarily lost)",
+                        stream.stream_errors
+                    );
                 }
                 if stream.frames_captured == 0 {
                     println!("      WARNING       opened but captured silence");

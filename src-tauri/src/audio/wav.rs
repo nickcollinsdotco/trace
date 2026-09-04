@@ -63,6 +63,25 @@ impl WavSink {
         Ok(())
     }
 
+    /// Append `frames` of digital silence.
+    ///
+    /// Used to fill gaps where a backend delivered no audio but time still
+    /// passed. WASAPI loopback does exactly this: an idle render endpoint
+    /// produces *no packets at all* rather than silent ones, so without
+    /// padding, every quiet stretch in a meeting would be cut out of the file
+    /// and everything after it would shift earlier in time.
+    pub fn write_silence(&mut self, frames: u64) -> Result<(), AudioError> {
+        let Some(writer) = self.writer.as_mut() else {
+            return Ok(());
+        };
+
+        for _ in 0..frames {
+            writer.write_sample(0i16)?;
+        }
+        self.frames_written += frames;
+        Ok(())
+    }
+
     pub fn frames_written(&self) -> u64 {
         self.frames_written
     }

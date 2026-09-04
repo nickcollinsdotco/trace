@@ -6,9 +6,9 @@
    ██║   ██║  ██║██║  ██║╚██████╗███████╗
    ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝
 
-          MEETING INTELLIGENCE SYSTEM
+       MEETING INTELLIGENCE SYSTEM 
 
-        ···▂▃▅▆▄▃▂▁▂▄▆▇▅▃▂▁···
+· · · · · · · · · · · · · · · · · · · · · · · ·
 
         [ OK ] AUDIO INPUT
         [ OK ] TRANSCRIPTION ENGINE
@@ -17,34 +17,22 @@
         [ -- ] AWAITING SESSION
 
         TRACE // BUILD 0.1.0
-                                                
 
-┌─ SESSION ────────────────────────────────────────────────────┐
-│                                                              │
-│  ● CAPTURING                                                 │
-│                                                              │
-│  00:32:41                                                    │
-│                                                              │
-│  MIC      ████████████████████░░░░  -12 dB                   │
-│  SYSTEM   ████████████░░░░░░░░░░░  -21 dB                    │
-│                                                              │
-│  TRANSCRIPT                                                  │
-│  ────────────────────────────────────────────────────────    │
-│  184 segments                                                │
-│  02 speakers                                                 │
-│  01 unresolved                                               │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
+· · · · · · · · · · · · · · · · · · · · · · · ·
+```
 
-      ·   ·      ·
-  ·   │   │  ·   │
-  │   │   │  │   │   ·
-  │ │ │ │ │ │ │ │ │ │
-──┼─┼─┼─┼─┼─┼─┼─┼─┼────
-  │ │ │ │ │ │ │ │ │ │
-  │   │   │  │   │
-  ·   │   │  ·   │
-      ·   ·      ·
+# TRACE
+
+```Conversations leave traces.```
+
+A lightweight, local-first meeting companion for capturing conversations,
+transcribing them, and turning them into useful notes.
 
 
-···▂▃▅▆▄▃▂▁▂▄▆▇▅▃▂▁···
+## Status
+
+`EARLY DEVELOPMENT`
+
+## Stack
+
+Tauri · React · TypeScript · Whisper · Markdown

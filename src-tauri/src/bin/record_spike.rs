@@ -93,7 +93,8 @@ fn main() {
 
     println!();
     if summary.captured_anything() {
-        println!("open both files in Audacity and confirm each holds the right side.");
+        println!("Now check the result:");
+        println!("  cargo run --bin wav_check -- \"{}\"", dir.display());
     } else {
         println!("NOTHING CAPTURED — both streams failed.");
         std::process::exit(1);

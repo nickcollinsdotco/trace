@@ -48,6 +48,7 @@ pub fn run_capture(
     stop: StopSignal,
     clock: Instant,
     preferred: Option<String>,
+    tap: Option<super::AudioTapSender>,
 ) -> Result<StreamFormat, AudioError> {
     let host = cpal::default_host();
 
@@ -122,7 +123,16 @@ pub fn run_capture(
     // the tail of the meeting is not truncated.
     while !stop.is_stopped() {
         match rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(chunk) => write_chunk(&mut sink, &chunk, &stats)?,
+            Ok(chunk) => {
+                write_chunk(&mut sink, &chunk, &stats)?;
+                offer_to_tap(
+                    tap.as_ref(),
+                    super::StreamSource::Microphone,
+                    format.sample_rate,
+                    &chunk,
+                    &stats,
+                );
+            }
             Err(crossbeam_channel::RecvTimeoutError::Timeout) => continue,
             Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
         }
@@ -131,6 +141,13 @@ pub fn run_capture(
     drop(stream); // stop the device before draining, so the queue is finite
     while let Ok(chunk) = rx.try_recv() {
         write_chunk(&mut sink, &chunk, &stats)?;
+        offer_to_tap(
+            tap.as_ref(),
+            super::StreamSource::Microphone,
+            format.sample_rate,
+            &chunk,
+            &stats,
+        );
     }
 
     sink.finalize()?;
@@ -143,6 +160,27 @@ fn write_chunk(sink: &mut WavSink, chunk: &[f32], stats: &StreamStats) -> Result
         .frames_captured
         .fetch_add(chunk.len() as u64, std::sync::atomic::Ordering::Relaxed);
     Ok(())
+}
+
+/// Offer a block to the live tap, if one is attached.
+///
+/// Deliberately `try_send`: the WAV write above has already happened, so a
+/// backed-up consumer costs a provisional live segment, never recorded audio.
+fn offer_to_tap(
+    tap: Option<&super::AudioTapSender>,
+    source: super::StreamSource,
+    sample_rate: u32,
+    samples: &[f32],
+    stats: &StreamStats,
+) {
+    let Some(tap) = tap else { return };
+    let _ = tap.try_send(super::CapturedAudio {
+        source,
+        sample_rate,
+        samples: samples.to_vec(),
+        leading_silence_frames: 0,
+        start_offset_ms: stats.start_offset_ms().unwrap_or(0),
+    });
 }
 
 /// Build an input stream for whichever sample format the device negotiated.

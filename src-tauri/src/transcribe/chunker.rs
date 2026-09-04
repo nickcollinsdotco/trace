@@ -76,6 +76,58 @@ pub struct ChunkConfig {
     pub pad_samples: usize,
 }
 
+impl ChunkConfig {
+    /// Policy for the live transcript, which optimises for latency.
+    ///
+    /// Nothing in a chunk can be shown until the whole chunk closes, so the
+    /// length ceiling *is* the worst-case lag. Measured with the offline
+    /// defaults: a 13.4 s chunk took 648 ms to transcribe but its first
+    /// segment was already ~12 s stale by the time it appeared. Inference was
+    /// never the bottleneck — it runs at roughly 20x realtime — the ceiling
+    /// was.
+    ///
+    /// Shorter chunks cost the model some surrounding context, which is a real
+    /// but acceptable accuracy trade for a *provisional* transcript. The final
+    /// pass re-runs with the offline defaults and supersedes it.
+    pub fn live(sample_rate: u32) -> Self {
+        let base = Self::for_rate(sample_rate);
+        let scale = |seconds: usize| seconds * sample_rate.max(1) as usize;
+        Self {
+            soft_max_samples: scale(4),
+            hard_max_samples: scale(7),
+            ..base
+        }
+    }
+
+    /// The default policy expressed at an arbitrary sample rate.
+    ///
+    /// Live chunking runs on the capture stream at its native rate, so that
+    /// only bounded chunks — never the whole stream — need resampling. Doing
+    /// it the other way round would require a resampler that holds state
+    /// across callbacks, and any discontinuity at a block boundary would land
+    /// directly in the audio the model sees.
+    pub fn for_rate(sample_rate: u32) -> Self {
+        let d = Self::default();
+        if sample_rate == 0 || sample_rate == TARGET_SAMPLE_RATE {
+            return d;
+        }
+
+        let scale = |n: usize| n * sample_rate as usize / TARGET_SAMPLE_RATE as usize;
+        Self {
+            sample_rate,
+            // Frame size scales so a frame is still 30 ms of audio.
+            frame_size: scale(d.frame_size).max(1),
+            min_samples: scale(d.min_samples),
+            soft_max_samples: scale(d.soft_max_samples),
+            hard_max_samples: scale(d.hard_max_samples),
+            pad_samples: scale(d.pad_samples),
+            // Thresholds are rate-independent: silence_frames counts frames,
+            // and RMS does not change with sample rate.
+            ..d
+        }
+    }
+}
+
 impl Default for ChunkConfig {
     fn default() -> Self {
         let rate = TARGET_SAMPLE_RATE as usize;

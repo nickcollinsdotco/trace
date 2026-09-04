@@ -52,7 +52,7 @@ fn main() {
         println!("  mic device {d}");
     }
 
-    let session = CaptureSession::start(&session_id, &dir, mic_device);
+    let session = CaptureSession::start(&session_id, &dir, mic_device, None);
 
     // Print levels once a second, so a dead stream is obvious while recording
     // rather than only in the summary.

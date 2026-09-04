@@ -59,6 +59,7 @@ pub fn run_capture(
     stats: Arc<StreamStats>,
     stop: StopSignal,
     clock: Instant,
+    tap: Option<super::AudioTapSender>,
 ) -> Result<StreamFormat, AudioError> {
     // Multi-threaded apartment. Never do this on a UI thread.
     initialize_mta()
@@ -165,6 +166,9 @@ pub fn run_capture(
     // drift and inject constant micro-gaps. Real idle gaps are seconds long.
     let gap_threshold_frames = u64::from(format.sample_rate) / 2; // 500 ms
 
+    // Silence padded since the last block handed to the tap.
+    let mut pending_silence: u64 = 0;
+
     while !stop.is_stopped() {
         // Drain every packet currently queued before waiting again.
         loop {
@@ -210,6 +214,13 @@ pub fn run_capture(
                         stats
                             .silence_padded_frames
                             .fetch_add(gap, Ordering::Relaxed);
+
+                        // The tap must know about the padding too, or a live
+                        // consumer sees system audio as one unbroken run of
+                        // speech with no gaps to split on and can only break at
+                        // its length ceiling — measured as segments arriving up
+                        // to 16s late. Carried as a count on the next block.
+                        pending_silence += gap;
                     }
                 }
             }
@@ -223,6 +234,18 @@ pub fn run_capture(
             stats
                 .frames_captured
                 .fetch_add(mono.len() as u64, Ordering::Relaxed);
+
+            // try_send: a backed-up consumer must not stall capture. The WAV
+            // write above has already happened either way.
+            if let Some(tap) = tap.as_ref() {
+                let _ = tap.try_send(super::CapturedAudio {
+                    source: super::StreamSource::System,
+                    sample_rate: format.sample_rate,
+                    samples: mono.clone(),
+                    leading_silence_frames: std::mem::take(&mut pending_silence),
+                    start_offset_ms: stats.start_offset_ms().unwrap_or(0),
+                });
+            }
         }
 
         // A timeout here is normal and expected: silence means no event.

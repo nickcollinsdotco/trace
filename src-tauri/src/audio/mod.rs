@@ -356,3 +356,31 @@ pub fn list_output_devices() -> Vec<DeviceInfo> {
         })
         .unwrap_or_default()
 }
+
+/// A block of captured audio, handed to any live consumer.
+///
+/// Defined here rather than in `transcribe` so the capture layer stays
+/// independent of what happens to the audio downstream.
+#[derive(Debug, Clone)]
+pub struct CapturedAudio {
+    pub source: StreamSource,
+    pub sample_rate: u32,
+    /// Mono samples at `sample_rate`, exactly as written to the WAV.
+    pub samples: Vec<f32>,
+    /// Frames of silence that precede `samples` and were never materialised.
+    ///
+    /// WASAPI loopback emits nothing while the render endpoint is idle, so
+    /// quiet spans are padded. Shipping that padding as real samples floods
+    /// the tap — measured: it pushed the worker into dropping audio. Sending
+    /// the gap length instead costs nothing and lets the consumer synthesise
+    /// it locally.
+    pub leading_silence_frames: u64,
+    /// This stream's offset from the session clock, for timeline alignment.
+    pub start_offset_ms: u64,
+}
+
+/// Channel a capture thread pushes live audio into.
+///
+/// Bounded and non-blocking at the send site: a slow consumer must never stall
+/// capture. The WAV on disk remains complete regardless of what the tap drops.
+pub type AudioTapSender = crossbeam_channel::Sender<CapturedAudio>;

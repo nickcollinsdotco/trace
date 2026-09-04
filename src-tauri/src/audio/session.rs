@@ -131,6 +131,7 @@ impl CaptureSession {
         session_id: impl Into<String>,
         directory: impl AsRef<Path>,
         mic_device: Option<String>,
+        tap: Option<super::AudioTapSender>,
     ) -> Self {
         let session_id = session_id.into();
         let directory = directory.as_ref().to_path_buf();
@@ -145,8 +146,11 @@ impl CaptureSession {
             &directory,
             &stop,
             clock,
-            move |path, stats, stop, clock| {
-                super::mic::run_capture(path, stats, stop, clock, mic_device)
+            {
+                let tap = tap.clone();
+                move |path, stats, stop, clock| {
+                    super::mic::run_capture(path, stats, stop, clock, mic_device, tap)
+                }
             },
         )];
 
@@ -156,7 +160,9 @@ impl CaptureSession {
             &directory,
             &stop,
             clock,
-            super::loopback_win::run_capture,
+            move |path, stats, stop, clock| {
+                super::loopback_win::run_capture(path, stats, stop, clock, tap)
+            },
         ));
 
         Self {

@@ -1,0 +1,62 @@
+{
+  "name": "trace",
+  "version": "0.1.0",
+  "description": "Local-first meeting capture and intelligence. Conversations leave traces.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@biomejs/biome",
+      "@tailwindcss/oxide"
+    ]
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "check": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "pnpm lint && pnpm check && pnpm test"
+  },
+  "dependencies": {
+    "@fontsource-variable/geist": "^5",
+    "@fontsource-variable/geist-mono": "^5",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-os": "^2",
+    "react": "^19",
+    "react-dom": "^19",
+    "zustand": "^5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2",
+    "@tailwindcss/vite": "^4",
+    "@tauri-apps/cli": "^2",
+    "@testing-library/dom": "^10",
+    "@testing-library/jest-dom": "^6",
+    "@testing-library/react": "^16",
+    "@testing-library/user-event": "^14",
+    "@types/node": "^26.4.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5",
+    "jsdom": "^26",
+    "tailwindcss": "^4",
+    "typescript": "^5.9",
+    "vite": "^7",
+    "vitest": "^3"
+  }
+}

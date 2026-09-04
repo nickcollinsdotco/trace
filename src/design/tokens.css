@@ -1,0 +1,181 @@
+/*
+ * TRACE — design tokens
+ *
+ * Ratio target from docs/05-DESIGN-DIRECTION.md:
+ *   80% modern premium interface / 15% terminal-system language / 5% strange discoveries.
+ *
+ * Two rules that keep dark UI from going muddy, and that everything below obeys:
+ *   1. Depth comes from a STRICT four-step surface ladder plus hairline borders.
+ *      Never from glows, never from a fifth ad-hoc grey.
+ *   2. Nothing is pure black (#000) or pure white (#fff). Both flatten a dark UI.
+ */
+
+@theme {
+  /* ---------------------------------------------------------------------
+   * Surfaces — the elevation ladder. Four steps, no improvising a fifth.
+   * Very slightly blue-neutral; a pure-grey dark UI reads as dead.
+   * ------------------------------------------------------------------ */
+  --color-surface-0: #0a0b0d; /* app ground */
+  --color-surface-1: #101216; /* panel */
+  --color-surface-2: #16191f; /* card, input */
+  --color-surface-3: #1e222a; /* popover, menu, tooltip */
+
+  /* Hairlines. 1px borders do most of the separation work. */
+  --color-line: rgb(255 255 255 / 7%);
+  --color-line-strong: rgb(255 255 255 / 13%);
+
+  /* ---------------------------------------------------------------------
+   * Text — a three-step hierarchy. Off-white, never #fff.
+   * ------------------------------------------------------------------ */
+  --color-ink: #e6e8ea; /* primary */
+  --color-ink-muted: #9ba3ae; /* secondary, metadata */
+  --color-ink-faint: #6b7480; /* tertiary, timestamps, hints */
+
+  /* ---------------------------------------------------------------------
+   * Phosphor accent — GREEN, and green means one thing: the system is live.
+   * Amber is reserved for warning and red for error, so the semantic slots
+   * stay clean. Desaturated well below neon to avoid the hacker cliche.
+   * ------------------------------------------------------------------ */
+  --color-phosphor: #4fd98a; /* primary accent, ~8:1 on surface-0 */
+  --color-phosphor-bright: #7bf0ab; /* hover, focus, cursor */
+  --color-phosphor-muted: #2e8b57; /* de-emphasised accent text */
+  --color-phosphor-dim: rgb(79 217 138 / 12%); /* tint fills, selection */
+
+  /* State. Amber warns, red fails. Neither is ever decorative. */
+  --color-warn: #f5a524;
+  --color-warn-dim: rgb(245 165 36 / 12%);
+  --color-error: #f0553d;
+  --color-error-dim: rgb(240 85 61 / 12%);
+
+  /* ---------------------------------------------------------------------
+   * Type — modern sans for reading, monospace for system language.
+   * Monospace belongs on transcripts, timers, metadata, status and keys.
+   * It does NOT belong on generated prose. See docs/05-DESIGN-DIRECTION.md.
+   * ------------------------------------------------------------------ */
+  --font-sans:
+    "Geist Variable", ui-sans-serif, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono:
+    "Geist Mono Variable", ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+
+  --text-2xs: 0.6875rem; /* 11px — system labels, [ OK ] chips */
+  --text-xs: 0.75rem; /* 12px — metadata, timestamps */
+  --text-sm: 0.8125rem; /* 13px — UI default */
+  --text-base: 0.9375rem; /* 15px — transcript */
+  --text-lg: 1.0625rem; /* 17px — reading-mode body */
+  --text-xl: 1.375rem; /* 22px — section titles */
+  --text-2xl: 1.75rem; /* 28px — meeting title */
+
+  /* Terminal labels are uppercase and tracked out. */
+  --tracking-system: 0.08em;
+  --tracking-wide: 0.02em;
+
+  /* ---------------------------------------------------------------------
+   * Radii — small. Instruments have tight corners, not pills.
+   * ------------------------------------------------------------------ */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* ---------------------------------------------------------------------
+   * Shadows — layered and extremely restrained. Depth, never glow.
+   * ------------------------------------------------------------------ */
+  --shadow-subtle: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 12px rgb(0 0 0 / 35%);
+  --shadow-overlay: 0 2px 4px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 50%);
+
+  /* ---------------------------------------------------------------------
+   * Motion — communicates system state. Never decorative.
+   *
+   * NOTE: `--duration-*` is NOT a Tailwind v4 theme namespace, so these do not
+   * generate `duration-*` utilities. They exist for use via var() in CSS
+   * animations below. In markup use Tailwind's numeric `duration-120`.
+   * ------------------------------------------------------------------ */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+}
+
+/*
+ * Reading mode gets a longer measure and larger type. Capture mode stays
+ * dense and instrument-like. This is the "key visual tension" from the design
+ * doc, expressed as two token overrides rather than two stylesheets.
+ */
+[data-mode="reading"] {
+  --measure: 68ch;
+  --content-leading: 1.65;
+}
+
+[data-mode="capture"] {
+  --measure: 100%;
+  --content-leading: 1.45;
+}
+
+/* ---------------------------------------------------------------------
+ * Base
+ * ------------------------------------------------------------------ */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface-0);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* A capture tool should not feel like a web page. */
+body {
+  user-select: none;
+  cursor: default;
+  overscroll-behavior: none;
+}
+
+/* ...but anything the user might legitimately want to copy must be selectable. */
+[data-selectable],
+input,
+textarea,
+[contenteditable] {
+  user-select: text;
+  cursor: auto;
+}
+
+/* Focus is always visible and always phosphor. Never remove it. */
+:focus-visible {
+  outline: 2px solid var(--color-phosphor);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+::selection {
+  background: var(--color-phosphor-dim);
+  color: var(--color-ink);
+}
+
+/* Scrollbars, made quiet. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+/* ---------------------------------------------------------------------
+ * Motion accessibility. The design doc requires this, not as a courtesy
+ * but because scanlines and pulses are genuinely hostile to some people.
+ * ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

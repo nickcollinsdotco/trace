@@ -1,0 +1,152 @@
+/*
+ * TRACE — terminal grammar primitives
+ *
+ * A deliberately SMALL, approved set. Per docs/09-EASTER-EGGS.md the retro
+ * layer must read as believable system output, not scattered decoration.
+ * If a primitive isn't defined here, it doesn't go in the product.
+ *
+ * Only things that are genuinely easier in CSS live here — keyframes, the
+ * self-extending section rule, the scanline texture. Everything else is a
+ * React component in src/components/ui/.
+ */
+
+/* ---------------------------------------------------------------------
+ * The block cursor. The primary brand microinteraction: TRACE_
+ * ------------------------------------------------------------------ */
+@keyframes trace-cursor-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.trace-cursor::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 0.12em;
+  vertical-align: text-bottom;
+  background: var(--color-phosphor);
+  animation: trace-cursor-blink 1.06s steps(1) infinite;
+}
+
+/* ---------------------------------------------------------------------
+ * Recording pulse. Communicates one thing: audio is being captured.
+ * Deliberately slow — a fast blink reads as an error, not a state.
+ * ------------------------------------------------------------------ */
+@keyframes trace-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.86);
+  }
+}
+
+.trace-pulse {
+  animation: trace-pulse 2s var(--ease-out) infinite;
+}
+
+/*
+ * Reduced-motion users still need to know they are being recorded. The
+ * global reduce rule kills the animation, so restore a static, unmissable
+ * indicator rather than leaving them with an ambiguous dot.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .trace-pulse {
+    opacity: 1;
+    box-shadow: 0 0 0 3px var(--color-phosphor-dim);
+  }
+}
+
+/* ---------------------------------------------------------------------
+ * Section framing:  ┌ 01  SUMMARY ─────────────────────────────
+ *
+ * The rule extends to fill whatever width remains. One system, used
+ * consistently, per docs/09-EASTER-EGGS.md §12.
+ * ------------------------------------------------------------------ */
+.trace-rule {
+  flex: 1 1 auto;
+  height: 1px;
+  min-width: 1.5rem;
+  background: var(--color-line);
+}
+
+/* ---------------------------------------------------------------------
+ * Segment arrival. New transcript lines fade up rather than snapping in,
+ * so a live transcript doesn't feel like a jittering log.
+ * ------------------------------------------------------------------ */
+@keyframes trace-segment-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.trace-segment-in {
+  animation: trace-segment-in var(--duration-base) var(--ease-out);
+}
+
+/* ---------------------------------------------------------------------
+ * Scanline texture. Applied ONLY to deliberate full-screen moments (boot,
+ * processing) — never to working surfaces, never over body text.
+ *
+ * A 2px repeating gradient at ~3% is cheap and does not touch the GPU the
+ * way a canvas or backdrop-filter would.
+ * ------------------------------------------------------------------ */
+.trace-scanlines {
+  position: relative;
+}
+
+.trace-scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgb(255 255 255 / 3%) 0px,
+    rgb(255 255 255 / 3%) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* Honour both the OS setting and the in-app toggle. */
+@media (prefers-reduced-motion: reduce) {
+  .trace-scanlines::after {
+    display: none;
+  }
+}
+
+[data-crt="off"] .trace-scanlines::after {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------
+ * Dotted leader:  reading notes.................. OK
+ * The dots fill the gap, so the ✓ column stays aligned at any width.
+ * ------------------------------------------------------------------ */
+.trace-leader {
+  flex: 1 1 auto;
+  min-width: 1rem;
+  overflow: hidden;
+  color: var(--color-ink-faint);
+  white-space: nowrap;
+}
+
+.trace-leader::after {
+  content: " ....................................................................";
+}

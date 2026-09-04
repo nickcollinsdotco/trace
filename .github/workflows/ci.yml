@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch makes the previous run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint and format check
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm check
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  rust:
+    name: Rust
+    # Windows-only for v1. Add macos-latest here once the ScreenCaptureKit
+    # loopback path lands — see the plan's platform decision.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # tauri::generate_context! reads frontendDist, so dist/ must exist before
+      # the Rust crate will compile. Cheapest possible stand-in.
+      - name: Stub frontend dist
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Set-Content dist/index.html '<!doctype html><title>ci</title>'
+
+      - name: Format check
+        working-directory: src-tauri
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test

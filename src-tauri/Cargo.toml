@@ -1,0 +1,48 @@
+[package]
+name = "trace"
+version = "0.1.0"
+description = "Local-first meeting capture and intelligence"
+authors = ["Nick"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.77.2"
+
+# The library is what Tauri links; main.rs is a thin launcher. This split is
+# what lets integration tests exercise the app without starting a window.
+[lib]
+name = "trace_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-os = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+# NOTE — added in M1/M2, not before. Listing them now would mean pinning
+# versions this project has never compiled. See the plan's build sequence.
+#   cpal          — microphone capture
+#   wasapi        — Windows system-audio loopback (cpal does NOT support this)
+#   hound         — WAV writing
+#   rubato        — resampling to 16 kHz for the ASR models
+#   vad-rs        — voice activity detection, drives the streaming chunker
+#   transcribe-rs — Parakeet/Whisper behind one trait (MIT, see NOTICE)
+
+[features]
+# Keeps release builds from popping a console window on Windows.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

@@ -1,0 +1,65 @@
+TRACE
+Copyright (c) 2026 Nick
+Licensed under the MIT License. See LICENSE.
+
+================================================================================
+Third-party components
+================================================================================
+
+TRACE builds on prior open-source work rather than reimplementing solved
+problems. The projects below are used as libraries and/or as direct technical
+references. All are MIT or MIT/Apache-2.0 licensed, which permits commercial
+use with attribution.
+
+--------------------------------------------------------------------------------
+Handy — https://github.com/cjpais/Handy
+MIT License. Copyright (c) Handy contributors.
+
+Used as a technical reference for the Tauri 2 + Rust + React architecture,
+the audio/transcription module boundaries, typed IPC via specta, and local
+model management. TRACE does not fork or vendor Handy's code; it is a
+different product (meeting capture, not push-to-talk dictation).
+
+--------------------------------------------------------------------------------
+transcribe-rs — https://crates.io/crates/transcribe-rs
+MIT License. Copyright (c) CJ Pais.
+
+Used as a library. Provides the unified `SpeechModel` interface over Parakeet,
+Whisper and other ONNX/GGML engines, which is the TranscriptionProvider
+abstraction TRACE's specs called for.
+
+--------------------------------------------------------------------------------
+cpal — https://github.com/RustAudio/cpal
+Apache-2.0 License.
+
+Used as a library for cross-platform microphone capture.
+
+--------------------------------------------------------------------------------
+wasapi-rs — https://github.com/HEnquist/wasapi-rs
+MIT License. Copyright (c) Henrik Enquist.
+
+Used as a library for Windows system-audio loopback capture. cpal does not
+support WASAPI loopback (see RustAudio/cpal#476), so this is used directly.
+
+--------------------------------------------------------------------------------
+heed — https://github.com/isjunrod/heed
+MIT License.
+
+Architectural reference only; no code used. Independently validated the
+dual-channel microphone/system-audio separation and the live-pass plus
+accurate-re-pass transcription design.
+
+--------------------------------------------------------------------------------
+MeetingBro — https://github.com/armpro24-blip/MeetingBro
+MIT License.
+
+Behavioural reference only; no code used. Confirmed device-level WASAPI
+loopback as the correct Windows system-audio approach.
+
+--------------------------------------------------------------------------------
+Models
+
+Speech recognition uses NVIDIA Parakeet models, distributed under their own
+licence terms from NVIDIA / Hugging Face. Local language models are supplied
+by the user's own Ollama installation and are subject to each model's licence.
+No model weights are bundled with TRACE; all are downloaded on first run.

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- TRACE mark: the block cursor, which is the brand microinteraction.
+       Near-black ground, single phosphor accent, nothing else. -->
+  <rect width="1024" height="1024" rx="224" fill="#0A0B0D"/>
+  <rect x="176" y="176" width="672" height="672" rx="120" fill="none" stroke="#16191F" stroke-width="8"/>
+  <!-- T -->
+  <rect x="288" y="368" width="352" height="72" rx="8" fill="#E6E8EA"/>
+  <rect x="428" y="368" width="72" height="288" rx="8" fill="#E6E8EA"/>
+  <!-- the cursor -->
+  <rect x="576" y="536" width="120" height="120" rx="8" fill="#4FD98A"/>
+</svg>

@@ -98,12 +98,43 @@ pub fn write_note(
     Ok(path)
 }
 
-/// Remove a session's working directory once its note is safely written.
+/// Remove a session directory entirely, journal included.
 ///
-/// Deliberately separate from `write_note` and never automatic: the journal is
-/// the only copy until the Markdown exists, so discarding it is a decision the
-/// caller makes after confirming the note is on disk.
+/// For sessions the user chose to discard. Never automatic after a successful
+/// save — see `discard_session_audio`.
 pub fn discard_session(session_dir: &std::path::Path) -> Result<(), StoreError> {
     std::fs::remove_dir_all(session_dir)?;
     Ok(())
+}
+
+/// Delete a finished session's audio but keep its journal.
+///
+/// The two have wildly different costs and lifetimes. Audio is roughly 690 MB
+/// per hour and is useless once transcribed; the journal is a few kilobytes
+/// and is the only structured record of the meeting once the Markdown has been
+/// written — the note body is deliberately never re-parsed, so without the
+/// journal there is nothing to regenerate notes *from*.
+///
+/// Keeping it is what makes regeneration possible at negligible cost.
+pub fn discard_session_audio(session_dir: &std::path::Path) -> Result<(), StoreError> {
+    let entries = match std::fs::read_dir(session_dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(()),
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "wav") {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+    Ok(())
+}
+
+/// Locate the journal behind a saved note.
+///
+/// The note's frontmatter carries the session id it came from, which is what
+/// links a Markdown file back to its structured record.
+pub fn session_for_note(notes_root: &std::path::Path, session_id: &str) -> PathBuf {
+    paths::session_dir(notes_root, session_id)
 }

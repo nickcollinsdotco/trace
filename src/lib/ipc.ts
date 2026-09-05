@@ -138,6 +138,8 @@ export const ipc = {
   discardSession: (sessionDir: string) => call<void>("discard_session", { sessionDir }),
 
   revealNotesFolder: () => call<string>("reveal_notes_folder"),
+  regenerateNotes: (notePath: string) => call<void>("regenerate_notes", { notePath }),
+  noteIsEnhanced: (path: string) => call<boolean>("note_is_enhanced", { path }),
 };
 
 /* ------------------------------------------------------------------ *

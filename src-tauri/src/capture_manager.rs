@@ -382,6 +382,11 @@ impl CaptureManager {
 /// simply has no generated sections. A missing summary is a disappointment;
 /// a lost meeting is not, and this must never risk the second to attempt the
 /// first.
+/// Re-run synthesis for an already-saved note.
+pub fn regenerate(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::path::Path) {
+    synthesize(app, session_dir, note_path);
+}
+
 fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::path::Path) {
     let Some(provider) = default_provider() else {
         return;
@@ -474,7 +479,7 @@ fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summar
             // Loading a second engine only after the live one has been dropped
             // keeps peak memory to one model rather than two.
             let Ok(mut engine) = Transcriber::load() else {
-                let _ = store::discard_session(&session_dir);
+                let _ = store::discard_session_audio(&session_dir);
                 return;
             };
 
@@ -501,7 +506,7 @@ fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summar
             }
 
             if segments.is_empty() {
-                let _ = store::discard_session(&session_dir);
+                let _ = store::discard_session_audio(&session_dir);
                 return;
             }
 
@@ -532,8 +537,10 @@ fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summar
             // the rougher version would bake those errors into the notes.
             synthesize(&app, &session_dir, &note_path);
 
-            // Now the journal and audio are genuinely expendable.
-            let _ = store::discard_session(&session_dir);
+            // Audio is expendable now; the journal is not. It is the only
+            // structured record left once the note is written, and is what
+            // makes regenerating notes possible later.
+            let _ = store::discard_session_audio(&session_dir);
         })
         .ok();
 }

@@ -1,20 +1,35 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SystemLabel } from "../../components/ui/terminal";
-import { ipc } from "../../lib/ipc";
+import { hasBackend, ipc } from "../../lib/ipc";
 import { RefinementNotice } from "./RefinementNotice";
+import { splitSections } from "./sections";
 import { useNoteRefinement } from "./useNoteRefinement";
 
 /**
  * Reading mode — quiet, editorial, high readability.
  *
- * The counterpart to capture mode's density. The Markdown is rendered with a
- * small hand-written formatter rather than a library: notes only ever contain
- * the handful of constructs TRACE itself writes, and a full Markdown pipeline
- * would be a large dependency serving no purpose here.
+ * The Markdown is rendered with a small hand-written formatter rather than a
+ * library: notes only ever contain the handful of constructs TRACE itself
+ * writes, and a full Markdown pipeline would be a large dependency serving no
+ * purpose here.
  */
+
+/**
+ * Which half of the note is shown.
+ *
+ * The user's typed notes and the model's output are different kinds of thing —
+ * one was written by a person and is never altered, the other is generated and
+ * can be regenerated or ignored. Presenting them as one undifferentiated
+ * document makes it impossible to tell which is which, which is exactly the
+ * confusion a tool like this must not create.
+ */
+type View = "enhanced" | "mine";
+
 export function NoteScreen({ path, onBack }: { path: string; onBack: () => void }) {
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<View | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     void ipc
@@ -26,6 +41,28 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
   // Stable, so the subscription is not torn down and rebuilt on every render.
   const reload = useCallback((t: string) => setText(t), []);
   const stage = useNoteRefinement(path, reload);
+
+  const sections = useMemo(() => (text === null ? null : splitSections(text)), [text]);
+
+  // Default to whichever half exists rather than forcing a choice.
+  useEffect(() => {
+    if (view !== null || sections === null) return;
+    setView(sections.hasEnhanced ? "enhanced" : "mine");
+  }, [sections, view]);
+
+  async function regenerate() {
+    setRegenerating(true);
+    setError(null);
+    try {
+      await ipc.regenerateNotes(path);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  const active = view ?? "mine";
 
   return (
     <div data-mode="reading" className="h-full overflow-y-auto">
@@ -39,14 +76,60 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
             &lt; Meetings
           </button>
           <span aria-hidden className="trace-rule" />
+
+          {sections && (
+            <ViewToggle
+              view={active}
+              hasEnhanced={sections.hasEnhanced}
+              onChange={setView}
+              onRegenerate={regenerate}
+              regenerating={regenerating}
+            />
+          )}
         </div>
 
         {error && <p className="font-mono text-xs text-error">&gt; {error}</p>}
         {text === null && !error && (
           <p className="font-mono text-xs text-ink-faint">&gt; reading…</p>
         )}
+
         <RefinementNotice stage={stage} />
-        {text !== null && <NoteBody markdown={text} />}
+
+        {sections && (
+          <>
+            <NoteBody markdown={sections.head} />
+
+            {active === "enhanced" ? (
+              sections.hasEnhanced ? (
+                <NoteBody markdown={sections.enhanced} />
+              ) : (
+                <NotEnhancedYet onRegenerate={regenerate} regenerating={regenerating} />
+              )
+            ) : sections.hasNotes ? (
+              <NoteBody markdown={sections.notes} />
+            ) : (
+              <p className="font-mono text-xs text-ink-faint">
+                &gt; no notes were typed during this meeting.
+              </p>
+            )}
+
+            {/* The transcript sits under both views: it is the evidence for
+                the enhanced half and the context for the user's own. Collapsed
+                so it does not bury either. */}
+            {sections.transcript && (
+              <details className="mt-4">
+                <summary className="cursor-pointer list-none">
+                  <SystemLabel tone="muted">Transcript</SystemLabel>
+                </summary>
+                <div className="mt-4">
+                  <NoteBody markdown={sections.transcript} />
+                </div>
+              </details>
+            )}
+
+            {sections.footer && <NoteBody markdown={sections.footer} />}
+          </>
+        )}
 
         {text !== null && (
           <p className="pt-6 font-mono text-2xs text-ink-faint" data-selectable>
@@ -54,6 +137,98 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+function ViewToggle({
+  view,
+  hasEnhanced,
+  onChange,
+  onRegenerate,
+  regenerating,
+}: {
+  view: View;
+  hasEnhanced: boolean;
+  onChange: (v: View) => void;
+  onRegenerate: () => void;
+  regenerating: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <Segment active={view === "mine"} onClick={() => onChange("mine")}>
+        My notes
+      </Segment>
+      <Segment active={view === "enhanced"} onClick={() => onChange("enhanced")}>
+        {/* Marked as generated wherever it appears, so the distinction is
+            never something the reader has to remember. */}
+        <span aria-hidden>✦</span> Enhanced
+      </Segment>
+
+      {hasEnhanced && hasBackend() && (
+        <button
+          type="button"
+          onClick={onRegenerate}
+          disabled={regenerating}
+          title="Generate the notes again from the transcript"
+          className="ml-1 rounded-sm px-2 py-1 font-mono text-2xs text-ink-faint transition-colors duration-120 hover:text-phosphor disabled:opacity-50"
+        >
+          {regenerating ? "…" : "↻"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Segment({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-sm border px-2.5 py-1 font-mono text-2xs uppercase tracking-system transition-colors duration-120 ${
+        active
+          ? "border-phosphor bg-phosphor-dim text-phosphor"
+          : "border-transparent text-ink-faint hover:text-ink"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function NotEnhancedYet({
+  onRegenerate,
+  regenerating,
+}: {
+  onRegenerate: () => void;
+  regenerating: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-start gap-3 py-8">
+      <p className="font-mono text-xs text-ink-faint">&gt; no generated notes for this meeting.</p>
+      <p className="text-sm text-ink-muted">
+        Notes are written automatically when a meeting ends. This one has none — the model may not
+        have been available at the time.
+      </p>
+      {hasBackend() && (
+        <button
+          type="button"
+          onClick={onRegenerate}
+          disabled={regenerating}
+          className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor transition-colors duration-120 hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+        >
+          {regenerating ? "Generating…" : "Generate now"}
+        </button>
+      )}
     </div>
   );
 }

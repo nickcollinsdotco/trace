@@ -46,6 +46,8 @@ pub fn run() {
             commands::recover_session,
             commands::discard_session,
             commands::reveal_notes_folder,
+            commands::regenerate_notes,
+            commands::note_is_enhanced,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TRACE");

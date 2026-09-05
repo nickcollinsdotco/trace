@@ -373,3 +373,49 @@ mod tests {
         assert_eq!(frontmatter_field(md, "project"), None);
     }
 }
+
+/// Regenerate the structured notes for a saved meeting.
+///
+/// Reads the session id from the note's frontmatter, replays that journal, and
+/// runs synthesis again — so this works on the original transcript rather than
+/// on the rendered Markdown, which is deliberately never re-parsed.
+///
+/// Fails clearly when the journal is gone: notes recovered from a much older
+/// version, or discarded manually, cannot be regenerated and the user should
+/// be told rather than shown a silent no-op.
+#[tauri::command]
+pub async fn regenerate_notes(
+    app: AppHandle,
+    manager: State<'_, CaptureManager>,
+    note_path: String,
+) -> CmdResult<()> {
+    let root = manager.notes_root().map_err(err)?;
+    let path = PathBuf::from(&note_path);
+
+    let text = std::fs::read_to_string(&path).map_err(err)?;
+    let session_id =
+        frontmatter_field(&text, "id").ok_or_else(|| "this note has no session id".to_string())?;
+
+    let session_dir = store::session_for_note(&root, &session_id);
+    if !session_dir.join("session.jsonl").exists() {
+        return Err(
+            "the original transcript record for this meeting is no longer available".into(),
+        );
+    }
+
+    // Off the async runtime: synthesis on a long meeting is seconds to
+    // minutes of blocking work.
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::capture_manager::regenerate(&app, &session_dir, &path);
+    })
+    .await
+    .map_err(err)
+}
+
+/// Whether a saved note already has generated sections.
+#[tauri::command]
+pub fn note_is_enhanced(path: String) -> bool {
+    std::fs::read_to_string(PathBuf::from(path))
+        .map(|text| text.contains("\n## Summary\n"))
+        .unwrap_or(false)
+}

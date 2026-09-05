@@ -41,7 +41,7 @@ pub enum TranscribeError {
 }
 
 /// One transcribed span, positioned on the session timeline.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Segment {
     /// Stable, citable identifier — synthesis references these (`seg_0412`).
     pub id: String,

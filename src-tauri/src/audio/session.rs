@@ -47,7 +47,7 @@ use std::time::Instant;
 use super::{AudioError, StopSignal, StreamFormat, StreamSource, StreamStats};
 
 /// What one stream did over the course of a session.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StreamOutcome {
     pub source: StreamSource,
     pub path: PathBuf,
@@ -91,7 +91,7 @@ impl StreamOutcome {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SessionSummary {
     pub session_id: String,
     pub directory: PathBuf,

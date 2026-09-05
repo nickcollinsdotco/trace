@@ -14,7 +14,10 @@
 //!   M6  llm        — LlmProvider trait, Ollama implementation
 
 pub mod audio;
+/// Meeting domain types. Distinct from `models`, which manages ASR model files.
+pub mod meeting;
 pub mod models;
+pub mod store;
 pub mod transcribe;
 
 /// Smoke-test command, so the IPC bridge is proven end to end before any real

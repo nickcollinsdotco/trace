@@ -144,7 +144,7 @@ export function Meter({
 }: {
   label: string;
   level: number;
-  db?: number;
+  db?: number | undefined;
 }) {
   const clamped = Math.min(1, Math.max(0, level));
   const filled = Math.round(clamped * METER_CELLS);

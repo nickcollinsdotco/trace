@@ -7,6 +7,9 @@ license = "MIT"
 edition = "2021"
 rust-version = "1.77.2"
 
+# The spike binaries make `cargo run` ambiguous; the app is the default.
+default-run = "trace"
+
 # The library is what Tauri links; main.rs is a thin launcher. This split is
 # what lets integration tests exercise the app without starting a window.
 [lib]

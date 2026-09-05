@@ -1,31 +1,23 @@
 //! TRACE — local-first meeting capture.
 //!
 //! The Rust surface is kept deliberately small: audio capture, transcription,
-//! LLM FFI and file writes. Everything else is TypeScript. See the architecture
-//! plan — the goal is a small, well-made instrument, not a Rust application
-//! with a web skin.
+//! persistence and the command bridge. Everything else is TypeScript.
 //!
-//! Module layout arrives with its milestone rather than up front, so this file
-//! grows one `mod` at a time:
-//!   M1  audio      — cpal microphone + wasapi loopback, two independent streams
-//!   M2  transcribe — transcribe-rs (Parakeet default)
-//!   M3  transcribe::chunker — VAD-driven streaming
-//!   M4  store      — session journal, Markdown, atomic writes
-//!   M6  llm        — LlmProvider trait, Ollama implementation
+//! ```text
+//! mic + system audio -> transcription -> journal -> Markdown
+//!        (audio)          (transcribe)   (store)    (store)
+//! ```
 
 pub mod audio;
+pub mod capture_manager;
+pub mod commands;
 /// Meeting domain types. Distinct from `models`, which manages ASR model files.
 pub mod meeting;
 pub mod models;
 pub mod store;
 pub mod transcribe;
 
-/// Smoke-test command, so the IPC bridge is proven end to end before any real
-/// capability depends on it. Replaced by `commands.rs` in M1.
-#[tauri::command]
-fn ping() -> &'static str {
-    "trace"
-}
+use capture_manager::CaptureManager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -34,17 +26,26 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
-        .invoke_handler(tauri::generate_handler![ping])
+        // One meeting at a time, owned by the app rather than any window.
+        .manage(CaptureManager::default())
+        .invoke_handler(tauri::generate_handler![
+            commands::list_input_devices,
+            commands::list_output_devices,
+            commands::model_status,
+            commands::install_model,
+            commands::start_capture,
+            commands::capture_status,
+            commands::update_notes,
+            commands::set_title,
+            commands::stop_capture,
+            commands::list_notes,
+            commands::read_note,
+            commands::notes_root,
+            commands::recoverable_sessions,
+            commands::recover_session,
+            commands::discard_session,
+            commands::reveal_notes_folder,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running TRACE");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ping_returns_identity() {
-        assert_eq!(ping(), "trace");
-    }
 }

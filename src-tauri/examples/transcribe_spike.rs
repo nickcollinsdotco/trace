@@ -1,7 +1,7 @@
 //! M2 verification harness: transcribe a captured session.
 //!
 //! ```text
-//! cargo run --release --bin transcribe_spike -- <session directory>
+//! cargo run --release --example transcribe_spike -- <session directory>
 //! ```
 //!
 //! Downloads the model on first run. Use `--release`: int8 ONNX inference in a

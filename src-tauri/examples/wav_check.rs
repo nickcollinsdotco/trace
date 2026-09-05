@@ -7,7 +7,7 @@
 //! both files contain the same thing and the attribution is worthless.
 //!
 //! ```text
-//! cargo run --bin wav_check -- <session directory>
+//! cargo run --example wav_check -- <session directory>
 //! ```
 
 use std::path::{Path, PathBuf};

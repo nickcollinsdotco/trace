@@ -1,7 +1,7 @@
 //! M3 verification harness: live transcription during capture.
 //!
 //! ```text
-//! cargo run --release --bin live_spike -- 30 "Microphone (3- Arctis Nova 7)"
+//! cargo run --release --example live_spike -- 30 "Microphone (3- Arctis Nova 7)"
 //! ```
 //!
 //! Prints segments as they are produced, not at the end. The point is to see
@@ -123,7 +123,7 @@ fn main() {
     }
     println!("\n  full-quality pass:");
     println!(
-        "    cargo run --release --bin transcribe_spike -- \"{}\"",
+        "    cargo run --release --example transcribe_spike -- \"{}\"",
         dir.display()
     );
 }

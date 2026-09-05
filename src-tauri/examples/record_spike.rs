@@ -5,7 +5,7 @@
 //! without waiting on any UI wiring.
 //!
 //! ```text
-//! cargo run --bin record_spike -- 30
+//! cargo run --example record_spike -- 30
 //! ```
 //!
 //! This is a spike tool, not a product surface. It should be deleted once the
@@ -113,7 +113,7 @@ fn main() {
     println!();
     if summary.captured_anything() {
         println!("Now check the result:");
-        println!("  cargo run --bin wav_check -- \"{}\"", dir.display());
+        println!("  cargo run --example wav_check -- \"{}\"", dir.display());
     } else {
         println!("NOTHING CAPTURED — both streams failed.");
         std::process::exit(1);

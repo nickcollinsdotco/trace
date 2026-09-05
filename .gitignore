@@ -164,3 +164,5 @@ vite.config.ts.timestamp-*
 /.claude/skills/grill-me
 /.claude/skills/grilling
 /.claude/skills/web-design-guidelines
+/.claude/skills/prototype
+/.claude/skills/emil-design-eng

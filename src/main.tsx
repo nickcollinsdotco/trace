@@ -38,6 +38,14 @@ function mount() {
 }
 
 if (import.meta.env.DEV) {
+  // The Tauri window has no address bar, so the gallery needs a way in that
+  // does not involve typing a URL.
+  window.addEventListener("keydown", (e) => {
+    if (!e.ctrlKey || !e.shiftKey || e.key.toLowerCase() !== "g") return;
+    e.preventDefault();
+    location.hash = isGallery() ? "" : "gallery";
+  });
+
   let wasGallery = isGallery();
   window.addEventListener("hashchange", () => {
     // Only remount when crossing the boundary; the gallery owns its own hash

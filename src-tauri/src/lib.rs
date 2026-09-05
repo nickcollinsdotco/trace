@@ -15,6 +15,7 @@ pub mod commands;
 pub mod meeting;
 pub mod models;
 pub mod store;
+pub mod synthesis;
 pub mod transcribe;
 
 use capture_manager::CaptureManager;

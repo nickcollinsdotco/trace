@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ProcessingLine } from "../../components/ui/Processing";
 import {
   type CaptureState,
   Elapsed,
@@ -119,7 +120,11 @@ export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => v
             ) : undefined
           }
         >
-          <TranscriptView segments={capture.segments} />
+          <TranscriptView
+            segments={capture.segments}
+            pendingSpeechMs={capture.status?.pendingSpeechMs ?? 0}
+            inFlight={capture.status?.inFlight ?? 0}
+          />
         </Section>
 
         <Section title="Signal">
@@ -235,7 +240,15 @@ function SetupPanel({
   );
 }
 
-function TranscriptView({ segments }: { segments: LiveSegment[] }) {
+function TranscriptView({
+  segments,
+  pendingSpeechMs,
+  inFlight,
+}: {
+  segments: LiveSegment[];
+  pendingSpeechMs: number;
+  inFlight: number;
+}) {
   const endRef = useRef<HTMLDivElement>(null);
 
   // Follow the transcript as it grows. Meetings run long and manually
@@ -246,10 +259,13 @@ function TranscriptView({ segments }: { segments: LiveSegment[] }) {
 
   if (segments.length === 0) {
     return (
-      <p className="font-mono text-xs text-ink-faint">
-        &gt; awaiting signal
-        <span className="trace-cursor" />
-      </p>
+      <div className="flex flex-col gap-2">
+        <p className="font-mono text-xs text-ink-faint">
+          &gt; awaiting signal
+          <span className="trace-cursor" />
+        </p>
+        <ProcessingLine pendingSpeechMs={pendingSpeechMs} inFlight={inFlight} />
+      </div>
     );
   }
 
@@ -266,6 +282,7 @@ function TranscriptView({ segments }: { segments: LiveSegment[] }) {
           <span className="text-ink">{segment.text}</span>
         </div>
       ))}
+      <ProcessingLine pendingSpeechMs={pendingSpeechMs} inFlight={inFlight} />
       <div ref={endRef} />
     </div>
   );

@@ -147,6 +147,11 @@
   white-space: nowrap;
 }
 
+.trace-leader-inline::after {
+  content: "............";
+  color: var(--color-ink-faint);
+}
+
 .trace-leader::after {
   content: " ....................................................................";
 }

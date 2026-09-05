@@ -208,6 +208,18 @@ impl StreamingChunker {
     pub fn buffered_samples(&self) -> usize {
         self.buffer.len()
     }
+
+    /// Speech held back waiting for the current chunk to close.
+    ///
+    /// This is the latency the user actually feels: words already spoken that
+    /// cannot be shown until a boundary is found. Surfacing it lets the UI say
+    /// "still listening" honestly rather than implying nothing is happening.
+    pub fn pending_speech_samples(&self) -> usize {
+        if !self.saw_speech {
+            return 0;
+        }
+        self.speech_end.saturating_sub(self.speech_start)
+    }
 }
 
 #[cfg(test)]

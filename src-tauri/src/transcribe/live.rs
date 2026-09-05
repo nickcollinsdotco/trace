@@ -20,7 +20,7 @@
 //! [`super::chunker`] agree on boundaries, that re-pass refines text rather
 //! than reshuffling the transcript.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
@@ -72,6 +72,18 @@ pub enum LiveEvent {
 /// segment rather than any recorded audio.
 const QUEUE_CAPACITY: usize = 4000;
 
+/// What the worker is doing right now.
+///
+/// Polled by the UI so it can show that speech is being worked on rather than
+/// leaving the user staring at a transcript that has silently stopped growing.
+#[derive(Debug, Default)]
+pub struct Activity {
+    /// Chunks currently being transcribed.
+    pub in_flight: AtomicU64,
+    /// Milliseconds of speech buffered, waiting for a chunk boundary.
+    pub pending_speech_ms: AtomicU64,
+}
+
 /// A running live-transcription worker.
 pub struct LiveTranscriber {
     tx: Sender<AudioTap>,
@@ -79,6 +91,7 @@ pub struct LiveTranscriber {
     stop: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
     dropped: Arc<AtomicBool>,
+    activity: Arc<Activity>,
 }
 
 impl LiveTranscriber {
@@ -91,11 +104,13 @@ impl LiveTranscriber {
         let (event_tx, events) = bounded::<LiveEvent>(256);
         let stop = Arc::new(AtomicBool::new(false));
         let dropped = Arc::new(AtomicBool::new(false));
+        let activity = Arc::new(Activity::default());
 
         let worker_stop = Arc::clone(&stop);
+        let worker_activity = Arc::clone(&activity);
         let handle = std::thread::Builder::new()
             .name("trace-live-transcribe".into())
-            .spawn(move || worker(&mut engine, rx, event_tx, worker_stop))
+            .spawn(move || worker(&mut engine, rx, event_tx, worker_stop, worker_activity))
             .expect("failed to spawn transcription worker");
 
         Self {
@@ -104,6 +119,7 @@ impl LiveTranscriber {
             stop,
             handle: Some(handle),
             dropped,
+            activity,
         }
     }
 
@@ -128,6 +144,11 @@ impl LiveTranscriber {
 
     /// Whether any audio was ever discarded, so the UI can be honest that the
     /// live transcript has holes the final one will not.
+    /// What the worker is currently doing, for the UI.
+    pub fn activity(&self) -> &Activity {
+        &self.activity
+    }
+
     pub fn dropped_audio(&self) -> bool {
         self.dropped.load(Ordering::Relaxed)
     }
@@ -149,6 +170,7 @@ fn worker(
     rx: Receiver<AudioTap>,
     events: Sender<LiveEvent>,
     stop: Arc<AtomicBool>,
+    activity: Arc<Activity>,
 ) {
     // One chunker per stream: the microphone and the system audio have
     // independent silence patterns and must be segmented separately.
@@ -178,8 +200,17 @@ fn worker(
         let mut produced = chunker.push_silence(tap.leading_silence_frames);
         produced.extend(chunker.push(&tap.samples));
 
+        // Report speech held back waiting for a boundary. Both streams
+        // contribute, so take whichever is furthest behind.
+        let pending_samples = chunker.pending_speech_samples();
+        let pending_ms = (pending_samples as u64 * 1000) / u64::from(rate.max(1));
+        activity
+            .pending_speech_ms
+            .store(pending_ms, Ordering::Relaxed);
+
         for chunk in produced {
             let chunk_start_ms = offset + chunk.start_ms(rate);
+            activity.in_flight.fetch_add(1, Ordering::Relaxed);
             emit(
                 engine,
                 &events,
@@ -189,6 +220,7 @@ fn worker(
                 rate,
                 chunk_start_ms,
             );
+            activity.in_flight.fetch_sub(1, Ordering::Relaxed);
         }
 
         if stop.load(Ordering::Relaxed) {

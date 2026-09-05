@@ -60,6 +60,12 @@ pub struct CaptureStatus {
     /// False when no model is installed; capture still works, transcription
     /// simply does not happen until the model is downloaded.
     pub transcribing: bool,
+    /// Chunks currently being transcribed.
+    pub in_flight: u64,
+    /// Speech already spoken but not yet shown, because its chunk has not
+    /// closed. This is the latency the user perceives, and reporting it lets
+    /// the UI say the system is working rather than appearing stalled.
+    pub pending_speech_ms: u64,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -178,6 +184,8 @@ impl CaptureManager {
             segment_count: 0,
             dropped_audio: false,
             transcribing,
+            in_flight: 0,
+            pending_speech_ms: 0,
         };
 
         *guard = Some(Active {
@@ -217,6 +225,24 @@ impl CaptureManager {
                 .map(|l| l.dropped_audio())
                 .unwrap_or(false),
             transcribing: active.live.is_some(),
+            in_flight: active
+                .live
+                .as_ref()
+                .map(|l| {
+                    l.activity()
+                        .in_flight
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                })
+                .unwrap_or(0),
+            pending_speech_ms: active
+                .live
+                .as_ref()
+                .map(|l| {
+                    l.activity()
+                        .pending_speech_ms
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                })
+                .unwrap_or(0),
         })
     }
 

@@ -47,6 +47,10 @@ export interface CaptureStatus {
   segmentCount: number;
   /** The live transcript has holes the final pass will not. */
   droppedAudio: boolean;
+  /** Chunks currently being transcribed. */
+  inFlight: number;
+  /** Speech spoken but not yet shown, because its chunk has not closed. */
+  pendingSpeechMs: number;
   /** False when no model is installed — capture still works. */
   transcribing: boolean;
 }

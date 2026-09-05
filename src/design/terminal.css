@@ -155,3 +155,18 @@
 .trace-leader::after {
   content: " ....................................................................";
 }
+
+/* ---------------------------------------------------------------------
+ * System label — the workhorse:  NOTES   TRANSCRIPT   SIGNAL
+ *
+ * A themeable structural switch, not just a colour. Whether this reads as
+ * uppercase tracked monospace or as a plain sentence-case sans carries more
+ * of the terminal feeling than any hue does, so themes get to change it.
+ * See src/design/themes.css for the budget on switches like this.
+ * ------------------------------------------------------------------ */
+.trace-system-label {
+  font-family: var(--label-font, var(--font-mono));
+  font-size: var(--label-size, var(--text-2xs));
+  text-transform: var(--label-transform, uppercase);
+  letter-spacing: var(--label-tracking, var(--tracking-system));
+}

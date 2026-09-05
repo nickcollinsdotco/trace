@@ -86,6 +86,32 @@ export interface FinishedMeeting {
 }
 
 /* ------------------------------------------------------------------ *
+ * Fake backend, for the fixture gallery
+ *
+ * Every backend call and every event subscription in the app passes through
+ * this module, which makes it the one place a stand-in backend can be
+ * installed. That is what lets `#gallery` render the *real* screens against
+ * invented data — no component knows the difference, so what is on screen is
+ * the actual UI rather than a copy of it that can drift.
+ *
+ * Dev-only. `installFakeBackend` is never called in a production build, so
+ * the fixtures tree-shake out.
+ * ------------------------------------------------------------------ */
+
+export interface FakeBackend {
+  /** Handle a command. Returning camelCase is fine — `camel` is idempotent. */
+  invoke(command: string, args?: Record<string, unknown>): Promise<unknown>;
+  /** Subscribe to an event. Returns an unsubscribe function. */
+  listen(event: string, handler: (payload: unknown) => void): UnlistenFn;
+}
+
+let fake: FakeBackend | null = null;
+
+export function installFakeBackend(backend: FakeBackend | null): void {
+  fake = backend;
+}
+
+/* ------------------------------------------------------------------ *
  * Serde renames camelCase automatically? No — it does not.
  *
  * The Rust structs use snake_case field names and serde is not configured to
@@ -108,7 +134,14 @@ function camel<T>(value: unknown): T {
 }
 
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  if (fake) return camel<T>(await fake.invoke(command, args));
   return camel<T>(await invoke(command, args));
+}
+
+/** One subscription path, so the fake backend has a single seam to sit in. */
+function subscribe<T>(event: string, handler: (value: T) => void): Promise<UnlistenFn> {
+  if (fake) return Promise.resolve(fake.listen(event, (p) => handler(camel<T>(p))));
+  return listen(event, (e) => handler(camel<T>(e.payload)));
 }
 
 /* ------------------------------------------------------------------ *
@@ -158,19 +191,17 @@ export const EVENT = {
 
 /** Subscribe to live transcript segments. */
 export function onSegment(handler: (segment: LiveSegment) => void): Promise<UnlistenFn> {
-  return listen(EVENT.segment, (event) => handler(camel<LiveSegment>(event.payload)));
+  return subscribe(EVENT.segment, handler);
 }
 
 export function onCaptureError(
   handler: (error: { source: AudioSource; message: string }) => void,
 ): Promise<UnlistenFn> {
-  return listen(EVENT.captureError, (event) =>
-    handler(camel<{ source: AudioSource; message: string }>(event.payload)),
-  );
+  return subscribe(EVENT.captureError, handler);
 }
 
 export function onModelProgress(handler: (progress: ModelProgress) => void): Promise<UnlistenFn> {
-  return listen(EVENT.modelProgress, (event) => handler(camel<ModelProgress>(event.payload)));
+  return subscribe(EVENT.modelProgress, handler);
 }
 
 /**
@@ -181,6 +212,7 @@ export function onModelProgress(handler: (progress: ModelProgress) => void): Pro
  * throwing on every call.
  */
 export function hasBackend(): boolean {
+  if (fake) return true;
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
@@ -196,9 +228,7 @@ export function hasBackend(): boolean {
 export function onTranscriptUpdated(
   handler: (info: { notePath: string; segments: number }) => void,
 ): Promise<UnlistenFn> {
-  return listen(EVENT.transcriptUpdated, (event) =>
-    handler(camel<{ notePath: string; segments: number }>(event.payload)),
-  );
+  return subscribe(EVENT.transcriptUpdated, handler);
 }
 
 /** Progress through a long meeting's synthesis windows. */
@@ -222,15 +252,15 @@ export interface NotesGenerated {
 }
 
 export function onSynthesisProgress(handler: (p: SynthesisProgress) => void): Promise<UnlistenFn> {
-  return listen(EVENT.synthesisProgress, (e) => handler(camel<SynthesisProgress>(e.payload)));
+  return subscribe(EVENT.synthesisProgress, handler);
 }
 
 export function onNotesGenerated(handler: (n: NotesGenerated) => void): Promise<UnlistenFn> {
-  return listen(EVENT.notesGenerated, (e) => handler(camel<NotesGenerated>(e.payload)));
+  return subscribe(EVENT.notesGenerated, handler);
 }
 
 export function onSynthesisFailed(
   handler: (info: { message: string }) => void,
 ): Promise<UnlistenFn> {
-  return listen(EVENT.synthesisFailed, (e) => handler(camel<{ message: string }>(e.payload)));
+  return subscribe(EVENT.synthesisFailed, handler);
 }

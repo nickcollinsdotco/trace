@@ -1,0 +1,115 @@
+/*
+ * TRACE — alternative themes
+ *
+ * How this works, and why it is shaped this way:
+ *
+ * `tokens.css` declares every token inside Tailwind's `@theme`, which emits
+ * them onto `:root` AND generates the utilities (`bg-surface-1`, `text-ink`,
+ * `font-mono`) that the components use. Those utilities compile to
+ * `var(--color-surface-1)` and friends, so redefining a variable on an
+ * ancestor element re-skins everything beneath it with no component changes
+ * at all.
+ *
+ * That means:
+ *   - `terminal` is the default. It has no block here, because it IS the
+ *     `@theme` values. `data-theme="terminal"` is deliberately a no-op, which
+ *     is what makes "the default must stay pixel-identical" true by
+ *     construction rather than by careful maintenance.
+ *   - every other theme is a list of overrides, and nothing else.
+ *
+ * STRUCTURAL SWITCHES
+ *
+ * Colour alone will not separate a terminal from a futurist look — the
+ * uppercase tracked monospace label does more of that work than any hue. So a
+ * small number of *structural* properties are themeable too, consumed by
+ * `terminal.css`. The budget is three, total. Each one is a fork in every
+ * component that reads it, and past three, themes stop being cheap, which
+ * defeats the point of having them.
+ *
+ *   --label-font / --label-transform / --label-tracking   (system labels)
+ *
+ * Two slots remain. Spend them in Phase B, deliberately.
+ *
+ * STATUS: `futurist` and `quiet` are SKETCHES. They exist to prove the layer
+ * works end to end and to give something concrete to react to. The real
+ * design work is Phase B in docs/11-PLAN.md.
+ */
+
+/* ---------------------------------------------------------------------
+ * futurist — precision instrument, present tense.
+ *
+ * Colder and deeper than terminal, with a wider surface ladder and more
+ * contrast. Corners go properly sharp rather than slightly soft. Labels drop
+ * the monospace but keep the tracking, which is the single change that moves
+ * this furthest from "terminal".
+ * ------------------------------------------------------------------ */
+[data-theme="futurist"] {
+  --color-surface-0: #05070c;
+  --color-surface-1: #0b0f18;
+  --color-surface-2: #121826;
+  --color-surface-3: #1b2334;
+
+  --color-line: rgb(150 190 255 / 10%);
+  --color-line-strong: rgb(150 190 255 / 20%);
+
+  --color-ink: #eef2f8;
+  --color-ink-muted: #98a4b8;
+  --color-ink-faint: #5d6a80;
+
+  /* Ice rather than phosphor. Still one accent, still meaning "live". */
+  --color-phosphor: #56c8ff;
+  --color-phosphor-bright: #9adcff;
+  --color-phosphor-muted: #2b7fa8;
+  --color-phosphor-dim: rgb(86 200 255 / 14%);
+
+  --color-warn: #ffb340;
+  --color-warn-dim: rgb(255 179 64 / 14%);
+  --color-error: #ff5f6d;
+  --color-error-dim: rgb(255 95 109 / 14%);
+
+  --radius-xs: 0px;
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+
+  --label-font: var(--font-sans);
+  --label-transform: uppercase;
+  --label-tracking: 0.14em;
+}
+
+/* ---------------------------------------------------------------------
+ * quiet — the control.
+ *
+ * Not a style so much as the absence of one: a document rather than an
+ * interface. Chrome recedes, the accent is almost never used, and system
+ * labels stop shouting. Its job is to make the other two legible as choices
+ * by showing what is left when the decoration is taken away.
+ * ------------------------------------------------------------------ */
+[data-theme="quiet"] {
+  --color-surface-0: #131313;
+  --color-surface-1: #191919;
+  --color-surface-2: #1f1f1f;
+  --color-surface-3: #272727;
+
+  --color-line: rgb(255 255 255 / 6%);
+  --color-line-strong: rgb(255 255 255 / 11%);
+
+  --color-ink: #e8e6e3;
+  --color-ink-muted: #a09c97;
+  --color-ink-faint: #6f6b66;
+
+  /* Warm and restrained. Present, but never the loudest thing on screen. */
+  --color-phosphor: #c9a227;
+  --color-phosphor-bright: #e3bd45;
+  --color-phosphor-muted: #8a6f1c;
+  --color-phosphor-dim: rgb(201 162 39 / 12%);
+
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --label-font: var(--font-sans);
+  --label-transform: none;
+  --label-tracking: 0.01em;
+}

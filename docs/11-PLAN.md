@@ -31,7 +31,7 @@ retrofitted into it.
 
 | Phase | What | Whose time |
 |---|---|---|
-| **A** | Prototyping infrastructure | ~1 session |
+| ~~**A**~~ | ~~Prototyping infrastructure~~ — **done 2026-09-05** | — |
 | **B** | Three candidate themes | ~1–2 sessions |
 | **C** | Live with them | Yours, ~2 weeks |
 | **D** | Commit, then the full visual pass | ~2 sessions |
@@ -40,7 +40,14 @@ retrofitted into it.
 
 ---
 
-## Phase A — Prototyping infrastructure
+## Phase A — Prototyping infrastructure ✅ done 2026-09-05
+
+> **Built.** `#gallery` in dev renders 15 named states across the three
+> screens, from fixtures, under any theme. The token layer is swappable and
+> `terminal` is a no-op by construction. 41 TypeScript tests, four of which
+> mount every scenario and fail on any console error.
+>
+> The original text follows, as the record of why it was built this way.
 
 Two things currently make visual iteration slow, and neither is about taste.
 
@@ -200,5 +207,11 @@ rather than remembered.
 
 ## Recommended next session
 
-Phase A, whole. It is self-contained, it is the cheapest thing on this list,
-and everything else gets faster once it exists.
+**Phase B.** Open `#gallery`, look at `futurist` and `quiet` — both are
+deliberately crude sketches — and say what is wrong with them. That reaction
+is the input Phase B needs; designing three themes without it would be
+guessing.
+
+Two structural switches remain in the budget of three. Spending them is the
+main design decision of Phase B, and worth making deliberately rather than
+reaching for one the moment a theme feels flat.

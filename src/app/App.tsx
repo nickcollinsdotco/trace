@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { applyTheme, loadTheme, saveTheme, THEMES, type Theme } from "../design/theme";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
@@ -16,6 +17,8 @@ export function App() {
   const [route, setRoute] = useState<Route>({ name: "library" });
   // Bumped to force the library to re-read from disk after a meeting is saved.
   const [libraryKey, setLibraryKey] = useState(0);
+
+  useTheme();
 
   return (
     <div className="flex h-full flex-col bg-surface-0">
@@ -62,4 +65,31 @@ export function App() {
       </main>
     </div>
   );
+}
+
+/**
+ * Applies the chosen theme, and lets it be cycled with Ctrl+Shift+T.
+ *
+ * The keybind is the point, not a convenience. Themes cannot be chosen from a
+ * screenshot — the failure modes only show up around minute forty of a real
+ * meeting — so switching has to be possible *during* one, in the app, without
+ * a restart. See docs/11-PLAN.md, Phase C.
+ */
+function useTheme() {
+  const [theme, setTheme] = useState<Theme>(loadTheme);
+
+  useEffect(() => {
+    applyTheme(theme, document.documentElement);
+    saveTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!e.ctrlKey || !e.shiftKey || e.key.toLowerCase() !== "t") return;
+      e.preventDefault();
+      setTheme((t) => THEMES[(THEMES.indexOf(t) + 1) % THEMES.length] ?? "terminal");
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 }

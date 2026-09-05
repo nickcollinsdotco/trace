@@ -29,11 +29,7 @@ export function SystemLabel({
   children: ReactNode;
   tone?: keyof typeof LABEL_TONE;
 }) {
-  return (
-    <span className={`font-mono text-2xs uppercase tracking-system ${LABEL_TONE[tone]}`}>
-      {children}
-    </span>
-  );
+  return <span className={`trace-system-label ${LABEL_TONE[tone]}`}>{children}</span>;
 }
 
 /* ------------------------------------------------------------------ *

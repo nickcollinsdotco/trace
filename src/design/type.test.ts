@@ -42,8 +42,12 @@ describe("type.css", () => {
     // `.font-mono` is system text — timestamps, transcript, status. Prose
     // carries no such class even in `mono` role, which is the point: an
     // uppercase paragraph is unreadable.
-    expect(css).toMatch(/\[data-case="upper"\]\s+\.font-mono\s*\{[^}]*text-transform:\s*uppercase/);
-    expect(css).toMatch(/\[data-case="lower"\]\s+\.font-mono\s*\{[^}]*text-transform:\s*lowercase/);
+    // The selector is a list, so match each member rather than assuming it
+    // sits immediately before the brace.
+    expect(css).toMatch(/\[data-case="upper"\][^{;]*\.font-mono\b/);
+    expect(css).toMatch(/\[data-case="lower"\][^{;]*\.font-mono\b/);
+    expect(css).toMatch(/text-transform:\s*uppercase/);
+    expect(css).toMatch(/text-transform:\s*lowercase/);
     expect(css).not.toMatch(/\[data-case="normal"\]/);
   });
 

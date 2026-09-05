@@ -251,7 +251,7 @@ function NoteBody({ markdown }: { markdown: string }) {
 
 function Block({ text }: { text: string }) {
   if (text.startsWith("# ")) {
-    return <h1 className="text-2xl text-ink">{text.slice(2)}</h1>;
+    return <h1 className="trace-title text-2xl text-ink">{text.slice(2)}</h1>;
   }
   if (text.startsWith("## ")) {
     return (

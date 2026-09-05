@@ -75,7 +75,7 @@ export function LibraryScreen({
                   onClick={() => onOpenNote(note.path)}
                   className="group flex items-baseline gap-3 rounded-sm px-2 py-2 text-left transition-colors duration-120 hover:bg-surface-1"
                 >
-                  <span className="truncate text-base text-ink group-hover:text-phosphor">
+                  <span className="trace-title truncate text-base text-ink group-hover:text-phosphor">
                     {note.title}
                   </span>
                   <span
@@ -113,7 +113,7 @@ function RecoveryCard({ session, onDone }: { session: RecoverableSession; onDone
       </div>
 
       <div>
-        <p className="text-base text-ink">{session.title}</p>
+        <p className="trace-title text-base text-ink">{session.title}</p>
         <p className="font-mono text-2xs text-ink-muted">
           {session.date} · {session.segmentCount} segments · {session.noteLength} chars of notes
           {session.corruptLines > 0 && ` · ${session.corruptLines} damaged line(s) skipped`}

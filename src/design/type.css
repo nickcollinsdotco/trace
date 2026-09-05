@@ -119,6 +119,10 @@
  * where prose carries no `.font-mono` class — an uppercase paragraph is
  * genuinely hard to read and nobody wants their notes shouted back.
  *
+ * Meeting titles opt in via `.trace-title`, because a title is a NAME and a
+ * name in caps reads as a masthead. A paragraph in caps does not read at all,
+ * which is the line this axis draws: names yes, prose never.
+ *
  * `normal` sets nothing at all, so the theme's own --label-transform still
  * decides and the default is untouched.
  * ------------------------------------------------------------------ */
@@ -130,10 +134,12 @@
   --label-transform: lowercase;
 }
 
-[data-case="upper"] .font-mono {
+[data-case="upper"] .font-mono,
+[data-case="upper"] .trace-title {
   text-transform: uppercase;
 }
 
-[data-case="lower"] .font-mono {
+[data-case="lower"] .font-mono,
+[data-case="lower"] .trace-title {
   text-transform: lowercase;
 }

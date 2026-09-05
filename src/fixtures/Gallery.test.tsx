@@ -56,7 +56,7 @@ describe("Gallery", () => {
     const user = userEvent.setup();
     const { container } = render(<Gallery />);
 
-    await user.click(screen.getByRole("button", { name: "industrial" }));
+    await user.click(screen.getByRole("button", { name: /industrial/ }));
 
     await waitFor(() => {
       expect(container.querySelector('[data-theme="industrial"]')).not.toBeNull();

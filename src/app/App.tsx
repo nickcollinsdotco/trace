@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { applyTheme, loadTheme, saveTheme, THEMES, type Theme } from "../design/theme";
+import { applyTheme, loadTheme, saveTheme, THEMES, type Theme, themeForKey } from "../design/theme";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
@@ -85,6 +85,15 @@ function useTheme() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Number keys pick a look directly — but never while the notes field
+      // has focus, where they are just digits the user is typing.
+      const picked = themeForKey(e.key, e.target, e.ctrlKey || e.metaKey || e.altKey);
+      if (picked) {
+        e.preventDefault();
+        setTheme(picked);
+        return;
+      }
+
       if (!e.ctrlKey || !e.shiftKey || e.key.toLowerCase() !== "t") return;
       e.preventDefault();
       setTheme((t) => THEMES[(THEMES.indexOf(t) + 1) % THEMES.length] ?? "terminal");

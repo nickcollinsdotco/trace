@@ -180,12 +180,15 @@ export function Meter({
         knowing which. Quantised to whole cells regardless, because a meter
         that slides continuously reads as an animation rather than a reading.
       */}
-      <span
-        aria-hidden
-        data-hot={hot}
-        className="trace-fill h-2.5 w-40 shrink-0"
-        style={{ "--fill": Math.round(clamped * METER_CELLS) / METER_CELLS } as React.CSSProperties}
-      />
+      <span aria-hidden className="trace-gauge shrink-0 text-xs leading-none">
+        <span
+          data-hot={hot}
+          className="trace-fill h-2.5 w-40"
+          style={
+            { "--fill": Math.round(clamped * METER_CELLS) / METER_CELLS } as React.CSSProperties
+          }
+        />
+      </span>
       <span className="font-mono text-2xs tabular-nums text-ink-faint">
         {db === undefined ? "—" : `${db > 0 ? "+" : ""}${db.toFixed(0)} dB`}
       </span>

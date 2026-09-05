@@ -39,6 +39,7 @@ import {
   TYPE_NOTES,
   TYPES,
   type TypeRole,
+  themeForKey,
 } from "../design/theme";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
@@ -100,6 +101,19 @@ export function Gallery() {
     if (scenario) location.hash = `gallery/${scenario.id}`;
   }, [scenario]);
 
+  // Number keys flip between looks. Comparing is the whole job here, and a
+  // modifier is friction when you are doing it fifty times.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const next = themeForKey(e.key, e.target, e.ctrlKey || e.metaKey || e.altKey);
+      if (!next) return;
+      e.preventDefault();
+      setTheme(next);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const groups = [...new Set(SCENARIOS.map((s) => s.group))];
   const px = WIDTHS.find((w) => w.id === width)?.px ?? 0;
 
@@ -142,7 +156,11 @@ export function Gallery() {
         <header className="flex shrink-0 flex-wrap items-center gap-4 border-b border-white/10 px-4 py-2.5">
           <Switcher
             label="Theme"
-            options={THEMES.map((t) => ({ id: t, label: t, title: THEME_NOTES[t] }))}
+            options={THEMES.map((t, i) => ({
+              id: t,
+              label: `${i + 1} ${t}`,
+              title: THEME_NOTES[t],
+            }))}
             value={theme}
             onChange={(v) => setTheme(v as Theme)}
           />

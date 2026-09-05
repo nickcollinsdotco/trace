@@ -18,7 +18,7 @@
  * product and which were the tooling.
  */
 
-export const THEMES = ["terminal", "report", "console", "industrial"] as const;
+export const THEMES = ["terminal", "report", "console", "industrial", "termcn"] as const;
 
 export type Theme = (typeof THEMES)[number];
 
@@ -57,6 +57,7 @@ export const THEME_NOTES: Record<Theme, string> = {
   report: "TR-100 machine report — monochrome, boxed, dithered. No accent at all.",
   console: "conky — dense rows, and a hue ramp that makes the meters readable at a glance.",
   industrial: "R-1 / LAB — hot orange as a brand colour, not a status accent.",
+  termcn: "termcn — pure black, saturated ANSI, heavy square boxes. The loudest of the five.",
 };
 
 /** Each look's own framing. The gallery may override it to explore combinations. */
@@ -65,6 +66,7 @@ export const THEME_FRAME: Record<Theme, Frame> = {
   report: "box",
   console: "rule",
   industrial: "box",
+  termcn: "box",
 };
 
 /** Each look's starting typeface pairing. All of it is overridable in the gallery. */
@@ -78,6 +80,8 @@ export const THEME_TYPE: Record<Theme, { mono: Mono; role: TypeRole; case: Lette
   console: { mono: "jetbrains", role: "mono", case: "lower" },
   // Industrial signage is a grotesque, with mono for the data.
   industrial: { mono: "fragment", role: "hybrid", case: "upper" },
+  // Their shots are bold Title Case, not caps — weight does the shouting.
+  termcn: { mono: "jetbrains", role: "mono", case: "normal" },
 };
 
 export const MONO_NOTES: Record<Mono, string> = {
@@ -162,4 +166,33 @@ export function saveTheme(theme: Theme): void {
   } catch {
     // Not worth surfacing — the choice simply does not persist.
   }
+}
+
+/**
+ * Whether a keystroke belongs to whatever the user is typing into.
+ *
+ * Bare number keys are the fastest way to flip between looks, and they are
+ * also digits someone might legitimately be typing into a meeting note. The
+ * shortcut has to lose that argument every time.
+ */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+}
+
+/**
+ * The theme a keyboard event selects, or null if it selects none.
+ *
+ * Pure, so the awkward part — which is the guarding, not the indexing — can
+ * be tested without a DOM.
+ */
+export function themeForKey(
+  key: string,
+  target: EventTarget | null,
+  modified: boolean,
+): Theme | null {
+  if (modified || isTypingTarget(target)) return null;
+  if (!/^[1-9]$/.test(key)) return null;
+  return THEMES[Number(key) - 1] ?? null;
 }

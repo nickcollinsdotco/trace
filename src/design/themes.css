@@ -225,3 +225,90 @@
   --field-border-focus: rgb(255 255 255 / 10%);
   --field-focus-shadow: inset 0 -3px 0 0 var(--color-phosphor);
 }
+
+/* ---------------------------------------------------------------------
+ * termcn — the saturated ANSI look.
+ *
+ * Recreated from termcn's own component shots rather than its code, which
+ * renders to a TTY through Ink and cannot run here at all
+ * (docs/12-VISUAL-TRIAGE.md). What is being borrowed is the visual grammar,
+ * and it is a coherent one:
+ *
+ *   - pure black, never charcoal
+ *   - bright ANSI colour used semantically: green ok, yellow focus, red error
+ *   - heavy square boxes with solid bright borders, titles in bold
+ *   - meters as `[ ████░░░░ ] 80%` — brackets, solid fill, stippled track
+ *   - monospace everywhere, weight doing the work colour usually does
+ *
+ * This is the loudest look of the five and the only one with a genuinely
+ * saturated palette. That is the thing to judge: it looks superb in the
+ * component shots, which are all short. Meeting notes are not short.
+ * ------------------------------------------------------------------ */
+[data-theme="termcn"] {
+  --color-surface-0: #000000;
+  --color-surface-1: #0a0a0a;
+  --color-surface-2: #111111;
+  --color-surface-3: #1a1a1a;
+
+  /* Boxes are drawn, not implied — borders are solid and bright. */
+  --color-line: rgb(255 255 255 / 32%);
+  --color-line-strong: #ffffff;
+
+  --color-ink: #ffffff;
+  --color-ink-muted: #b9b9b9;
+  --color-ink-faint: #7d7d7d;
+
+  --color-phosphor: #00e05a;
+  --color-phosphor-bright: #3dff87;
+  --color-phosphor-muted: #00a344;
+  --color-phosphor-dim: rgb(0 224 90 / 18%);
+
+  /* Yellow is focus here, not just warning — it is what their inputs use. */
+  --color-warn: #ffe600;
+  --color-warn-dim: rgb(255 230 0 / 15%);
+  --color-error: #ff3b3b;
+  --color-error-dim: rgb(255 59 59 / 16%);
+
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+
+  --label-font: var(--font-mono);
+  --label-transform: none;
+  --label-tracking: 0.02em;
+
+  /* Solid bright fill on a stippled track, in brackets. */
+  --fill-active: var(--color-phosphor);
+  --fill-hot: var(--color-warn);
+  --fill-track:
+    radial-gradient(circle at center, rgb(255 255 255 / 45%) 0.6px, transparent 0.7px) 0 0 / 3px 3px;
+  --fill-hatch:
+    radial-gradient(circle at center, rgb(255 255 255 / 30%) 0.6px, transparent 0.7px) 0 0 / 4px 4px;
+
+  --gauge-open: "[ ";
+  --gauge-close: " ]";
+  --gauge-gap: 0.15rem;
+
+  /* Their search input: a solid box that turns yellow on focus. */
+  --field-bg: transparent;
+  --field-bg-focus: transparent;
+  --field-border: var(--color-line);
+  --field-border-focus: var(--color-warn);
+  --field-focus-shadow: none;
+}
+
+/* Solid, full-strength box borders — the defining move of the whole look. */
+[data-theme="termcn"] .trace-section {
+  border-color: var(--color-line-strong);
+}
+
+[data-theme="termcn"] .trace-field {
+  border-width: 1px;
+}
+
+/* Weight carries hierarchy where the other looks use size or colour. */
+[data-theme="termcn"] .trace-title,
+[data-theme="termcn"] .trace-system-label {
+  font-weight: 700;
+}

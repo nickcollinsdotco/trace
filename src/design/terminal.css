@@ -230,6 +230,27 @@
  * --fill-track, so a solid bar, a dithered checkerboard and a hue ramp are
  * the same component.
  * ------------------------------------------------------------------ */
+/*
+ * A wrapper so the bracket delimiters have somewhere to live: the fill uses
+ * its own ::before for the bar, so [ and ] need a parent. Empty by default —
+ * only the themes that draw `[ ████░░ ]` fill these in.
+ */
+.trace-gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gauge-gap, 0);
+  font-family: var(--font-mono);
+  color: var(--color-ink-muted);
+}
+
+.trace-gauge::before {
+  content: var(--gauge-open, "");
+}
+
+.trace-gauge::after {
+  content: var(--gauge-close, "");
+}
+
 .trace-fill {
   position: relative;
   overflow: hidden;

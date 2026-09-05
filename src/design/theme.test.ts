@@ -16,6 +16,7 @@ import {
   THEMES,
   TYPE_NOTES,
   TYPES,
+  themeForKey,
 } from "./theme";
 
 describe("themes", () => {
@@ -149,6 +150,42 @@ describe("themes", () => {
     expect(isTypeRole("Mono")).toBe(false);
     expect(isLetterCase("upper")).toBe(true);
     expect(isLetterCase("UPPER")).toBe(false);
+  });
+
+  describe("number-key switching", () => {
+    it("maps 1..n onto the theme list in order", () => {
+      expect(themeForKey("1", null, false)).toBe(THEMES[0]);
+      expect(themeForKey("5", null, false)).toBe(THEMES[4]);
+    });
+
+    it("ignores digits with no theme behind them", () => {
+      expect(themeForKey(String(THEMES.length + 1), null, false)).toBeNull();
+      expect(themeForKey("0", null, false)).toBeNull();
+    });
+
+    it("never fires while the user is typing", () => {
+      // The case that actually matters: a bare "2" typed into meeting notes
+      // must be a two, not a theme change.
+      for (const tag of ["input", "textarea", "select"]) {
+        const el = document.createElement(tag);
+        expect(themeForKey("2", el, false), tag).toBeNull();
+      }
+
+      const editable = document.createElement("div");
+      editable.contentEditable = "true";
+      // jsdom does not derive isContentEditable from the attribute.
+      Object.defineProperty(editable, "isContentEditable", { value: true });
+      expect(themeForKey("2", editable, false)).toBeNull();
+    });
+
+    it("leaves modified chords to whatever else owns them", () => {
+      expect(themeForKey("2", null, true)).toBeNull();
+    });
+
+    it("ignores everything that is not a digit", () => {
+      expect(themeForKey("t", null, false)).toBeNull();
+      expect(themeForKey("Enter", null, false)).toBeNull();
+    });
   });
 
   it("rejects non-themes", () => {

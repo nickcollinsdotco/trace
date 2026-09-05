@@ -78,3 +78,22 @@ Each is a real project rather than a theme, and each needs costing on its own.
 **Ruled out, on the record:** the Tron-style cyan CRT chrome. It is precisely
 the "fake terminal cosplay" `docs/05-DESIGN-DIRECTION.md` rules out, and the
 ruling is written down here so it is a decision rather than a silent omission.
+
+## Command palette (Cmd+K)
+
+Raised 2026-09-05 as "a future feature addition", and it already has a home:
+it is **M7** in `docs/11-PLAN.md`, alongside search and keyboard shortcuts.
+
+Deliberately not built during the visual phase. A command palette is among
+the most theme-expressive components in any app — termcn's own shot of one is
+in the reference set — so building it before the visual language is settled
+means building it twice. That is the stated reason M7 sits after the theme
+decision rather than before it.
+
+What already exists that it will want:
+
+- `themeForKey` in `src/design/theme.ts` — the typing-target guard a global
+  hotkey needs, already isolated and tested
+- the SQLite FTS5 index (M7) for anything that searches notes
+- the fill and framing switches, so a palette inherits the chosen look rather
+  than needing its own styling pass

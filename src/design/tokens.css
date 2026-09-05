@@ -162,6 +162,24 @@
     -18px 18px 18px -1.5px rgb(0 0 0 / 8%), -37px 37px 37px -3px rgb(0 0 0 / 16%),
     -75px 75px 75px -6px rgb(0 0 0 / 24%), -150px 150px 150px -12px rgb(0 0 0 / 48%);
 
+  /*
+   * Text fields.
+   *
+   * The global :focus-visible outline is right for buttons and links and
+   * wrong for a text field you are about to type a whole meeting into — it
+   * draws a hard rectangle around the one element that should feel calm. So
+   * fields get their own treatment, and each theme chooses what it is.
+   *
+   * Focus is still unmistakable. It is just not a ring by default.
+   */
+  --field-padding: 0.7rem 0.85rem;
+  --field-bg: transparent;
+  --field-bg-focus: rgb(255 255 255 / 6%);
+  --field-border: var(--color-line);
+  --field-border-focus: var(--color-line-strong);
+  /* An inset top highlight is what reads as glass on a dark ground. */
+  --field-focus-shadow: inset 0 1px 0 0 rgb(255 255 255 / 8%);
+
   /* Meters, progress bars, and the hatch behind empty states. */
   --fill-active: var(--color-phosphor);
   --fill-hot: var(--color-warn);

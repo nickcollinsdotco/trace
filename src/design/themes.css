@@ -87,6 +87,23 @@
   border-color: var(--color-line-strong);
 }
 
+/*
+ * A rule under the field, not a box around it. The report already draws
+ * boxes everywhere; another one on focus says nothing, whereas a hard white
+ * underline reads like a form field on a printed sheet.
+ */
+[data-theme="report"] {
+  --field-bg: transparent;
+  --field-bg-focus: transparent;
+  --field-border: transparent;
+  --field-border-focus: transparent;
+  --field-focus-shadow: inset 0 -2px 0 0 #ffffff;
+}
+
+[data-theme="report"] .trace-field {
+  border-bottom-color: var(--color-line);
+}
+
 /* ---------------------------------------------------------------------
  * console — conky / phuket.
  *
@@ -134,6 +151,13 @@
   --fill-hot: linear-gradient(90deg, #c43f9e 0%, #f0556d 100%);
   --fill-track: rgb(255 255 255 / 6%);
   --fill-hatch: repeating-linear-gradient(45deg, rgb(180 180 220 / 14%) 0 1px, transparent 1px 6px);
+
+  /* Glass, plus a cyan rule — a readout you can also type into. */
+  --field-bg: rgb(255 255 255 / 3%);
+  --field-bg-focus: rgb(255 255 255 / 7%);
+  --field-border: var(--color-line);
+  --field-border-focus: var(--color-line-strong);
+  --field-focus-shadow: inset 0 -2px 0 0 var(--color-phosphor);
 }
 
 /* ---------------------------------------------------------------------
@@ -191,4 +215,13 @@
 
 [data-theme="industrial"] .trace-section {
   border-color: var(--color-line-strong);
+}
+
+/* Signage: a hard bar under the field, square, no glass. */
+[data-theme="industrial"] {
+  --field-bg: rgb(255 255 255 / 3%);
+  --field-bg-focus: rgb(255 255 255 / 3%);
+  --field-border: rgb(255 255 255 / 10%);
+  --field-border-focus: rgb(255 255 255 / 10%);
+  --field-focus-shadow: inset 0 -3px 0 0 var(--color-phosphor);
 }

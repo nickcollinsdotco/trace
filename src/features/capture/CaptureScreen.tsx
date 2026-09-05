@@ -108,7 +108,7 @@ export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => v
             placeholder="type only what matters…"
             spellCheck={false}
             data-selectable
-            className="min-h-40 w-full resize-none border-0 bg-transparent p-0 text-base leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
+            className="trace-field min-h-40 resize-none text-base leading-relaxed"
           />
         </Section>
 
@@ -188,7 +188,7 @@ function SetupPanel({
           // and everything else has a sensible default.
           // biome-ignore lint/a11y/noAutofocus: single-purpose entry screen
           autoFocus
-          className="w-full border-0 border-b border-line bg-transparent pb-2 text-2xl text-ink placeholder:text-ink-faint focus:border-phosphor focus:outline-none"
+          className="trace-field text-2xl"
         />
 
         <label className="flex flex-col gap-2">
@@ -196,7 +196,7 @@ function SetupPanel({
           <select
             value={micDevice ?? ""}
             onChange={(e) => onMicChange(e.target.value)}
-            className="w-full rounded-sm border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:border-phosphor focus:outline-none"
+            className="trace-field text-sm"
           >
             {devices.length === 0 && <option value="">No input devices found</option>}
             {devices.map((d) => (

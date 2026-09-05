@@ -272,3 +272,49 @@
 .trace-overlay {
   box-shadow: var(--elevation-overlay);
 }
+
+/* ---------------------------------------------------------------------
+ * Text fields.
+ *
+ * Replaces the global focus outline for inputs and textareas only — buttons,
+ * links and everything else keep it. A hard rectangle around the notes field
+ * is exactly wrong for the element the user is meant to relax into.
+ *
+ * Focus remains obvious: the ground lifts, the border strengthens and the
+ * caret takes the accent, which is three cues rather than one. Under
+ * prefers-contrast the outline comes back, because a subtle ground shift is
+ * not enough for everyone and taste does not override that.
+ * ------------------------------------------------------------------ */
+.trace-field {
+  width: 100%;
+  padding: var(--field-padding);
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
+  caret-color: var(--color-phosphor);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.trace-field::placeholder {
+  color: var(--color-ink-faint);
+}
+
+.trace-field:focus,
+.trace-field:focus-visible {
+  outline: none;
+  background: var(--field-bg-focus);
+  border-color: var(--field-border-focus);
+  box-shadow: var(--field-focus-shadow);
+}
+
+@media (prefers-contrast: more) {
+  .trace-field:focus,
+  .trace-field:focus-visible {
+    outline: 2px solid var(--color-phosphor);
+    outline-offset: 2px;
+  }
+}

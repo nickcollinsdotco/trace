@@ -50,3 +50,31 @@ Fragment Mono direction.
 The design system already supports this: `src/design/tokens.css` holds every
 colour, type and spacing decision, and capture-vs-reading mode is expressed as
 two token overrides rather than two stylesheets. A theme is a token set.
+
+## Terminal-aesthetic ideas parked by the visual triage
+
+From `docs/12-VISUAL-TRIAGE.md`, bucket 4 and the unbuilt half of bucket 3.
+Each is a real project rather than a theme, and each needs costing on its own.
+
+- **Bracketed keybinding chips and a persistent footer bar** — `[?] HELP`,
+  `[^+L] CLEAR`. A new component plus a layout change, not a token switch.
+  Pairs naturally with M7's shortcuts and is most of the way to a command
+  palette, so it should probably land there rather than in the visual pass.
+- **Multi-pane note screen** — notes, transcript and generated output as three
+  focusable panels (lazygit / btop). Layout, so note screen only, and only if
+  the single-column read is found wanting.
+- **Markdown shown as source** — Pierre Computer Company renders `##` and
+  `[text](url)` intact. Worth one prototype: TRACE notes really are Markdown
+  files, so showing it is honest rather than decorative.
+- **ASCII illustration** — the KNNY posters and the Video Walkman piece. Needs
+  an artist or a generator. This is where a boot screen or an easter egg would
+  live, not where a theme would.
+- **Braille / dither charting** — btop-style plots need a charting primitive
+  TRACE does not have and, today, has no data to put in it.
+- **Pixel and bitmap display faces** — HOLOMAP, Fairlight, the fitness
+  mockups. A font decision with real legibility consequences for a tool people
+  read prose in; not to be taken lightly on a whim.
+
+**Ruled out, on the record:** the Tron-style cyan CRT chrome. It is precisely
+the "fake terminal cosplay" `docs/05-DESIGN-DIRECTION.md` rules out, and the
+ruling is written down here so it is a decision rather than a silent omission.

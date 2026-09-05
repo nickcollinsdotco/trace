@@ -264,6 +264,81 @@ pub fn read_action_items(path: &std::path::Path) -> Result<Vec<ParsedActionItem>
     Ok(parse_action_items(&text))
 }
 
+/// Read one frontmatter scalar, unwrapping the quoting the serialiser adds.
+///
+/// A deliberately narrow reader for a deliberately narrow writer: it only has
+/// to understand what `serialize` produces, not YAML. It lives here rather
+/// than beside its callers because both the command layer and the store need
+/// it, and two copies of a parser drift.
+pub fn frontmatter_value(markdown: &str, key: &str) -> Option<String> {
+    let mut lines = markdown.lines();
+    if lines.next()?.trim() != "---" {
+        return None;
+    }
+
+    for line in lines {
+        if line.trim() == "---" {
+            break;
+        }
+        // `if let` rather than `?`: a line that is not this key means keep
+        // looking, not give up. Written the other way first, which found the
+        // key only when it happened to be the first line.
+        if let Some(value) = line.strip_prefix(&format!("{key}:")) {
+            let value = value.trim();
+            let unquoted = value
+                .strip_prefix('"')
+                .and_then(|v| v.strip_suffix('"'))
+                .map(|v| v.replace("\\\"", "\"").replace("\\\\", "\\"))
+                .unwrap_or_else(|| value.to_string());
+            return Some(unquoted);
+        }
+    }
+    None
+}
+
+/// Replace the title in both the frontmatter and the `# ` heading.
+///
+/// Only those two. The body below is the user's, and a rename has no business
+/// touching prose that happens to contain the old title.
+pub fn replace_title(markdown: &str, title: &str) -> String {
+    let mut out = String::with_capacity(markdown.len() + title.len());
+    let mut in_frontmatter = false;
+    let mut seen_frontmatter = false;
+    let mut replaced_heading = false;
+
+    for (i, line) in markdown.lines().enumerate() {
+        if i == 0 && line.trim() == "---" {
+            in_frontmatter = true;
+            seen_frontmatter = true;
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+        if in_frontmatter && line.trim() == "---" {
+            in_frontmatter = false;
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+
+        if in_frontmatter && line.starts_with("title:") {
+            out.push_str(&format!("title: {}\n", yaml_scalar(title)));
+            continue;
+        }
+
+        // The first heading after the frontmatter is the meeting's own.
+        if !in_frontmatter && seen_frontmatter && !replaced_heading && line.starts_with("# ") {
+            out.push_str(&format!("# {title}\n"));
+            replaced_heading = true;
+            continue;
+        }
+
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

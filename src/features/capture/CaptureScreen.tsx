@@ -46,6 +46,25 @@ export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => v
   // whether or not a transcript is being produced alongside it.
   const state: CaptureState = capture.stopping ? "processing" : recording ? "capturing" : "idle";
 
+  async function handleDiscard() {
+    // Confirmed, because it cannot be undone and the audio goes with it.
+    const elapsed = formatElapsed(capture.status?.elapsedMs ?? 0);
+    const ok = window.confirm(
+      [
+        "Discard this meeting?",
+        "",
+        `${elapsed} of audio and ${capture.segments.length} transcript segments will be deleted.`,
+        "No note will be written.",
+        "",
+        "This cannot be undone.",
+      ].join("\n"),
+    );
+    if (!ok) return;
+
+    await ipc.abortCapture().catch(() => {});
+    onFinish();
+  }
+
   async function handleStop() {
     const finished = await capture.stop();
     onFinish(finished?.notePath);
@@ -137,14 +156,29 @@ export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => v
 
       <div className="flex shrink-0 items-center justify-between border-t border-line px-5 py-3">
         <SystemLabel>{capture.status?.sessionId.slice(-4).toUpperCase() ?? "----"}</SystemLabel>
-        <button
-          type="button"
-          onClick={handleStop}
-          disabled={capture.stopping}
-          className="rounded-sm border border-line-strong bg-surface-2 px-4 py-1.5 font-mono text-2xs uppercase tracking-system text-ink transition-colors duration-120 hover:border-error hover:text-error disabled:opacity-50"
-        >
-          {capture.stopping ? "Saving…" : "Stop meeting"}
-        </button>
+        <div className="flex items-center gap-3">
+          {/*
+            Quieter than Stop, and to its left. Discarding is the rarer
+            intention and the destructive one, so it should not sit where a
+            hand goes by default.
+          */}
+          <button
+            type="button"
+            onClick={handleDiscard}
+            disabled={capture.stopping}
+            className="rounded-sm px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink-faint transition-colors duration-120 hover:text-error disabled:opacity-50"
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            onClick={handleStop}
+            disabled={capture.stopping}
+            className="rounded-sm border border-line-strong bg-surface-2 px-4 py-1.5 font-mono text-2xs uppercase tracking-system text-ink transition-colors duration-120 hover:border-phosphor hover:text-phosphor disabled:opacity-50"
+          >
+            {capture.stopping ? "Saving…" : "Stop meeting"}
+          </button>
+        </div>
       </div>
     </div>
   );

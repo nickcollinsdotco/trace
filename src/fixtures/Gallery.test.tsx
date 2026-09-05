@@ -183,6 +183,55 @@ describe("Gallery", () => {
     await waitFor(() => expect(toggle).toBeChecked());
   });
 
+  it("offers rename and delete on a meeting", async () => {
+    // Neither was reachable at all before: a library full of "ggg" and "dad2"
+    // with no way to tidy it.
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+
+    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+    expect(screen.getAllByRole("button", { name: "Rename" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Delete" }).length).toBeGreaterThan(0);
+  });
+
+  it("removes a meeting from the list when deleted", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+
+    // The row order matches the fixture list; the second is "Pricing page rework".
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[1] as HTMLElement);
+
+    await waitFor(() => expect(screen.queryByText("Pricing page rework")).toBeNull());
+    confirm.mockRestore();
+  });
+
+  it("does not delete when the confirmation is declined", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[1] as HTMLElement);
+
+    // Still there. A destructive action that ignores "no" is worse than none.
+    expect(screen.getByText("Pricing page rework")).toBeInTheDocument();
+    confirm.mockRestore();
+  });
+
+  it("offers discarding a recording in progress", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Recording" }));
+
+    await waitFor(() => expect(screen.getByText("Stop meeting")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
+  });
+
   it("clears the fake backend when it unmounts", async () => {
     const { hasBackend } = await import("../lib/ipc");
     const { unmount } = render(<Gallery />);

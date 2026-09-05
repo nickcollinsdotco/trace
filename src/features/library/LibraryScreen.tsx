@@ -69,23 +69,7 @@ export function LibraryScreen({
             <section key={group} className="trace-section gap-1">
               <SectionHead title={group} />
               {items.map((note) => (
-                <button
-                  key={note.path}
-                  type="button"
-                  onClick={() => onOpenNote(note.path)}
-                  className="group flex items-baseline gap-3 rounded-sm px-2 py-2 text-left transition-colors duration-120 hover:bg-surface-1"
-                >
-                  <span className="trace-title truncate text-base text-ink group-hover:text-phosphor">
-                    {note.title}
-                  </span>
-                  <span
-                    aria-hidden
-                    className="trace-rule opacity-0 transition-opacity group-hover:opacity-100"
-                  />
-                  <span className="shrink-0 font-mono text-2xs uppercase tracking-system text-ink-faint">
-                    {note.type}
-                  </span>
-                </button>
+                <NoteRow key={note.path} note={note} onOpen={onOpenNote} onChanged={refresh} />
               ))}
             </section>
           ))
@@ -184,5 +168,115 @@ function BrowserNotice() {
       </p>
       <p className="font-mono text-2xs text-ink-faint">run `pnpm tauri dev`</p>
     </div>
+  );
+}
+
+/**
+ * One meeting in the list, with the two things you cannot otherwise do to it.
+ *
+ * Rename and delete appear on hover rather than permanently. A library is
+ * read most of the time and edited rarely, and a row carrying two controls at
+ * rest reads as a form; the actions are still reachable by keyboard, because
+ * hiding them from a mouse is not the same as removing them.
+ */
+function NoteRow({
+  note,
+  onOpen,
+  onChanged,
+}: {
+  note: NoteSummary;
+  onOpen: (path: string) => void;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function rename() {
+    const title = window.prompt("Rename meeting", note.title);
+    if (title === null || title.trim() === "" || title === note.title) return;
+
+    setBusy(true);
+    await ipc.renameNote(note.path, title.trim()).catch(() => {});
+    setBusy(false);
+    onChanged();
+  }
+
+  async function remove() {
+    const ok = window.confirm(
+      [
+        `Delete "${note.title}"?`,
+        "",
+        "The note and its transcript are both deleted.",
+        "",
+        "This cannot be undone.",
+      ].join("\n"),
+    );
+    if (!ok) return;
+
+    setBusy(true);
+    await ipc.deleteNote(note.path).catch(() => {});
+    setBusy(false);
+    onChanged();
+  }
+
+  return (
+    <div
+      className={`group flex items-baseline gap-3 rounded-sm px-2 py-2 transition-colors duration-120 hover:bg-surface-1 ${
+        busy ? "opacity-50" : ""
+      }`}
+    >
+      <button type="button" onClick={() => onOpen(note.path)} className="min-w-0 flex-1 text-left">
+        <span className="trace-title truncate text-base text-ink group-hover:text-phosphor">
+          {note.title}
+        </span>
+      </button>
+
+      <span
+        aria-hidden
+        className="trace-rule opacity-0 transition-opacity group-hover:opacity-100"
+      />
+
+      <span className="shrink-0 font-mono text-2xs uppercase tracking-system text-ink-faint">
+        {note.type}
+      </span>
+
+      {hasBackend() && (
+        <span className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+          <RowAction label="Rename" onClick={rename} disabled={busy}>
+            Rename
+          </RowAction>
+          <RowAction label="Delete" onClick={remove} disabled={busy} destructive>
+            Delete
+          </RowAction>
+        </span>
+      )}
+    </div>
+  );
+}
+
+function RowAction({
+  label,
+  onClick,
+  disabled,
+  destructive,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled: boolean;
+  destructive?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-sm px-2 py-1 font-mono text-2xs uppercase tracking-system text-ink-faint transition-colors duration-120 disabled:opacity-40 ${
+        destructive ? "hover:text-error" : "hover:text-ink"
+      }`}
+    >
+      {children}
+    </button>
   );
 }

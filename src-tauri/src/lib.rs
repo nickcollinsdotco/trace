@@ -53,6 +53,9 @@ pub fn run() {
             commands::system_report,
             commands::get_settings,
             commands::set_keep_audio,
+            commands::abort_capture,
+            commands::delete_note,
+            commands::rename_note,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TRACE");

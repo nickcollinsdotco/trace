@@ -306,6 +306,43 @@ impl CaptureManager {
     /// load on Windows with STATUS_ENTRYPOINT_NOT_FOUND — it drags the Wry
     /// runtime into a binary that never starts an app. Passing it per-call
     /// avoids that entirely.
+    /// Abandon the meeting, writing nothing.
+    ///
+    /// Starting a recording used to commit you to it: the only way out was to
+    /// stop, which writes a note, re-transcribes and runs synthesis. A meeting
+    /// begun by accident, or one that went wrong in the first ten seconds,
+    /// left a file to clean up and spent minutes of compute getting there.
+    ///
+    /// This tears down the same machinery as `stop` and then deletes the
+    /// session directory outright. No note, no re-pass, no synthesis.
+    ///
+    /// Deliberately irreversible, and deliberately named so. The confirmation
+    /// belongs in the UI, where the user can see what they are discarding.
+    pub fn abort(&self) -> Result<(), ManagerError> {
+        let active = self.take_active()?;
+
+        // Same teardown order as `stop`: capture first so the tap closes and
+        // the pump can drain, otherwise the join below waits on a thread that
+        // is still being fed.
+        let _summary = active.capture.stop();
+
+        active.pump_stop.store(true, Ordering::Relaxed);
+        if let Some(pump) = active.pump {
+            pump.join().ok();
+        }
+
+        // Dropped rather than flushed. `stop` drains the transcriber's
+        // trailing utterance because it is often the conclusion; here there is
+        // nowhere for it to go.
+        drop(active.live);
+
+        // Best-effort. A locked WAV leaves files behind, which is untidy but
+        // not a failure the user can act on — and reporting it would suggest
+        // the meeting was somehow kept, which it was not.
+        let _ = store::discard_session(&active.dir);
+        Ok(())
+    }
+
     pub fn stop(&self, app: AppHandle) -> Result<FinishedMeeting, ManagerError> {
         let active = self.take_active()?;
 

@@ -220,28 +220,12 @@ fn collect_notes(dir: &std::path::Path, out: &mut Vec<NoteSummary>) {
     }
 }
 
-/// Read one frontmatter scalar, unwrapping the quoting the serialiser adds.
+/// Read one frontmatter scalar.
+///
+/// Delegates to the store, which is where the serialiser lives. Two copies of
+/// this parser existed briefly; they are exactly the sort of pair that drifts.
 fn frontmatter_field(markdown: &str, key: &str) -> Option<String> {
-    let mut lines = markdown.lines();
-    if lines.next()?.trim() != "---" {
-        return None;
-    }
-
-    for line in lines {
-        if line.trim() == "---" {
-            break;
-        }
-        if let Some(value) = line.strip_prefix(&format!("{key}:")) {
-            let value = value.trim();
-            let unquoted = value
-                .strip_prefix('"')
-                .and_then(|v| v.strip_suffix('"'))
-                .map(|v| v.replace("\\\"", "\"").replace("\\\\", "\\"))
-                .unwrap_or_else(|| value.to_string());
-            return Some(unquoted);
-        }
-    }
-    None
+    store::markdown::frontmatter_value(markdown, key)
 }
 
 #[tauri::command]
@@ -462,4 +446,31 @@ pub fn set_keep_audio(keep: bool) -> CmdResult<crate::settings::Settings> {
     settings.keep_audio = keep;
     crate::settings::save(&settings)?;
     Ok(settings)
+}
+
+/// Abandon the meeting in progress, writing nothing.
+#[tauri::command]
+pub fn abort_capture(manager: State<'_, CaptureManager>) -> CmdResult<()> {
+    manager.abort().map_err(err)
+}
+
+/// Delete a saved note and the session behind it.
+#[tauri::command]
+pub fn delete_note(manager: State<'_, CaptureManager>, note_path: String) -> CmdResult<()> {
+    let root = manager.notes_root().map_err(err)?;
+    store::delete_note(&root, &PathBuf::from(note_path)).map_err(err)
+}
+
+/// Rename a saved note, moving the file to match.
+///
+/// Returns the new path, which the caller needs: the old one no longer exists.
+#[tauri::command]
+pub fn rename_note(
+    manager: State<'_, CaptureManager>,
+    note_path: String,
+    title: String,
+) -> CmdResult<String> {
+    let root = manager.notes_root().map_err(err)?;
+    let path = store::rename_note(&root, &PathBuf::from(note_path), &title).map_err(err)?;
+    Ok(path.display().to_string())
 }

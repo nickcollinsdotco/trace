@@ -29,6 +29,7 @@ const COMMANDS = [
   "can_regenerate",
   "system_report",
   "get_settings",
+  "abort_capture",
 ];
 
 describe("scenarios", () => {

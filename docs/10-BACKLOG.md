@@ -319,3 +319,41 @@ these figures. Worth measuring properly before promising anything.
 From Handy's settings: **remove filler words** as a toggle, and **VAD on/off**
 so raw audio can be recorded when someone is debugging. Both are small and
 neither depends on transcribe.cpp.
+
+## Library and meeting management
+
+Raised 2026-09-06 after real use. **Discard, rename and delete are built**;
+the rest is recorded here rather than guessed at.
+
+### Done
+
+- **Discard a recording in progress.** Starting a meeting used to commit you
+  to it — the only exit wrote a note, re-transcribed and ran synthesis.
+- **Rename a note**, moving the file so the filename keeps matching the title.
+- **Delete a note**, taking its session with it.
+
+### Not built, in the order I would do them
+
+1. **Pause and resume a recording.** The hard part is not the button, it is
+   the timeline: a paused stretch has to become a gap rather than a splice,
+   or every timestamp after it is wrong. The loopback path already pads gaps
+   with wall-clock time, so the machinery exists — but silence that is
+   *absence* and silence that is *nobody talking* must stay distinguishable,
+   because the second is evidence and the first is not.
+2. **Search.** Already M7 in `docs/11-PLAN.md`, over a rebuildable SQLite
+   FTS5 index. It is the feature that makes a library of a hundred meetings
+   usable at all, and everything else here is cosmetic beside it.
+3. **Tags.** `Meeting.tags` already exists in the data model and in
+   frontmatter, and nothing writes to it. Cheap once search exists, and much
+   less useful before — a tag you cannot search for is decoration.
+4. **Participants.** Also already in the model, also unwritten. Note that
+   speaker attribution comes from audio topology, so TRACE knows "you" and
+   "them" but not *who* them is; filling this in means either asking the user
+   or the voice-embedding work in Phase 3.
+5. **Folders and grouping.** Notes are already nested `YYYY/MM` on disk. A
+   project or client grouping is a second axis, and worth resisting until
+   search exists — folders are what people reach for when they cannot search,
+   and building both means maintaining both forever.
+6. **Hiding or archiving old meetings.** The library groups by date already.
+   Worth waiting to see whether this is a real problem at a hundred meetings
+   or an imagined one at ten.

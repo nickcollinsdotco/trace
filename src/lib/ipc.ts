@@ -186,6 +186,7 @@ export const ipc = {
   updateNotes: (text: string) => call<void>("update_notes", { text }),
   setTitle: (title: string) => call<void>("set_title", { title }),
   stopCapture: () => call<FinishedMeeting>("stop_capture"),
+  abortCapture: () => call<void>("abort_capture"),
 
   listNotes: () => call<NoteSummary[]>("list_notes"),
   readNote: (path: string) => call<string>("read_note", { path }),
@@ -196,6 +197,8 @@ export const ipc = {
   discardSession: (sessionDir: string) => call<void>("discard_session", { sessionDir }),
 
   revealNotesFolder: () => call<string>("reveal_notes_folder"),
+  deleteNote: (notePath: string) => call<void>("delete_note", { notePath }),
+  renameNote: (notePath: string, title: string) => call<string>("rename_note", { notePath, title }),
   regenerateNotes: (notePath: string) => call<void>("regenerate_notes", { notePath }),
   canRegenerate: (notePath: string) => call<boolean>("can_regenerate", { notePath }),
 };

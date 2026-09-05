@@ -247,7 +247,21 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return state.recoverable;
         case "recover_session":
         case "discard_session":
+        case "abort_capture":
           return null;
+
+        case "delete_note": {
+          const path = args?.notePath as string;
+          state.notes = state.notes.filter((n) => n.path !== path);
+          return null;
+        }
+        case "rename_note": {
+          const path = args?.notePath as string;
+          const title = args?.title as string;
+          const note = state.notes.find((n) => n.path === path);
+          if (note) note.title = title;
+          return path;
+        }
 
         case "reveal_notes_folder":
           return state.root;

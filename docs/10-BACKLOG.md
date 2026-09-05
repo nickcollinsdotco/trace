@@ -161,7 +161,7 @@ split at an ordinary breath.
 sometimes land badly whatever the threshold, and overlap is the structural
 answer rather than a better-tuned guess.
 
-## transcribe.cpp — spiked 2026-09-06, **recommended**
+## transcribe.cpp — spiked 2026-09-06, **not adopted**
 
 Handy v0.9.0 replaced `transcribe-rs` with
 [`transcribe.cpp`](https://github.com/handy-computer/transcribe.cpp) as its
@@ -198,18 +198,68 @@ issues and PRs. So there is no forced migration, only an opportunity.
 - **`parakeet-unified-en-0.6b` is English only.** It is the sole
   streaming-capable Parakeet. We would trade 25 languages for streaming.
 
+### Verdict, after building it properly
+
+**The spike's headline was wrong, and the error was mine.** The first
+comparison ran transcribe.cpp against a transcript produced *before* the
+adaptive-VAD fix landed the same day — new engine against our broken
+configuration. Rerun against the fixed one, through TRACE's own pipeline,
+both engines on the same file:
+
+| | Words | Segments | Time |
+|---|---|---|---|
+| ONNX (shipping, post-VAD-fix) | 38 | **5, punctuated, per-sentence timings** | 1.34 s |
+| transcribe.cpp batch | 38 | **1, unpunctuated** | 2.01 s |
+
+Identical words. The shipping engine is better structured and faster.
+
+Punctuation is not a settings problem: asking for it makes the library say so
+itself — `parakeet unified-en-0.6b does not support pnc control`. Requesting
+word-level timestamps still returned a single segment. TRACE cites segments
+as evidence, so segment boundaries are load-bearing, not cosmetic.
+
+So for the offline pass the candidate is **strictly worse**: no punctuation,
+no segmentation, slower, 731 MB against 456 MB, and English-only.
+
+The dependency was added to the crate, measured, and then removed. Carrying a
+C++ and CMake requirement for every build and every contributor, to run code
+nothing selects, is a cost with nothing on the other side of it.
+
+### What would still justify revisiting
+
+1. **Live latency, if it actually bothers anyone in real use.** Native
+   streaming remains real and remains the one thing the current stack cannot
+   do. But the streaming model produces unpunctuated, unsegmented text —
+   acceptable for a provisional live transcript, useless for the final pass —
+   so it would mean two models and roughly 1.2 GB, not one.
+2. **The model picker.** If users are to choose models the way Handy allows,
+   transcribe.cpp is the only realistic route: 16 families through one engine
+   against our one. That is a product decision, not a quality one.
+
+Restoring the spike is one `cargo add transcribe-cpp` plus the engine module,
+and the API notes below are enough to rewrite it in an hour.
+
 ### Spike result
 
 Built and measured, not guessed. Isolated cargo project, `transcribe-cpp`
 0.2.3, `parakeet-unified-en-0.6b` Q8_0, run against **the exact recording
 TRACE got wrong**.
 
-**It builds.** 1m37s from cold on this machine using the CMake, `cl.exe` and
-ninja that ship with VS Build Tools. CMake is not on PATH by default, so the
-build needs it added — a real friction point for CI and contributors, but a
-solved one.
+**It builds.** 1m37s from cold in an isolated project, 2m03s inside the real
+crate, using the CMake, `cl.exe` and ninja that ship with VS Build Tools.
+CMake is not on PATH by default and had to be added — a real friction point
+for contributors, though GitHub's windows runners have it.
 
-**The output is not close.**
+**API notes, so a future attempt starts further along.** `Model::load(path)`
+→ `model.session()` → `session.run(&pcm_16k_mono_f32, &RunOptions)`.
+Streaming is `session.stream(&RunOptions, &StreamOptions)` then `feed()`,
+with `stream.text().committed` as the stable prefix. Segments carry `t0_ms`
+and `t1_ms`, not `start_ms`/`end_ms`. `finalize()` returns a `StreamUpdate`,
+not the text — read the text from `stream.text()` afterwards.
+
+**The output, compared against the pre-fix transcript** — an unfair
+comparison, corrected above, kept here as the record of how the wrong
+conclusion was reached:
 
 ```
 current (Parakeet TDT v3, ONNX):

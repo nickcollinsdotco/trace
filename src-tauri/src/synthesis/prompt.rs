@@ -43,8 +43,11 @@ Rules:
 - Only cite ids that appear in the input. Never invent an id.
 - Prefer omitting an item to guessing at one. An empty list is a valid and \
 often correct answer.
-- A decision is something the participants settled on, not something they \
-merely discussed or considered.
+- A decision is a question the participants closed: an option chosen, a \
+course settled on. It is not something they merely discussed or considered.
+- Agreeing to talk about something later does not close a question. \
+'We should discuss pricing' and 'let's look at that next week' are not \
+decisions; they are action items or open questions. Put them there instead.
 - An action item is something a person committed to doing. If nobody \
 committed, it is not an action item.
 - Lines labelled 'you' were spoken by the user; lines labelled 'them' were \
@@ -411,6 +414,9 @@ mod tests {
         assert!(SYSTEM_PROMPT.contains("Never invent an id"));
         assert!(SYSTEM_PROMPT.contains("An empty list is a valid"));
         assert!(SYSTEM_PROMPT.contains("not something they merely discussed"));
+        // Deferring a conversation is the failure mode seen in practice:
+        // the model read "start discussion on pricing" as a decision.
+        assert!(SYSTEM_PROMPT.contains("does not close a question"));
         assert!(SYSTEM_PROMPT.contains("note_"));
     }
 

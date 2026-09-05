@@ -161,7 +161,7 @@ split at an ordinary breath.
 sometimes land badly whatever the threshold, and overlap is the structural
 answer rather than a better-tuned guess.
 
-## transcribe.cpp — evaluated 2026-09-06, deferred
+## transcribe.cpp — spiked 2026-09-06, **recommended**
 
 Handy v0.9.0 replaced `transcribe-rs` with
 [`transcribe.cpp`](https://github.com/handy-computer/transcribe.cpp) as its
@@ -198,6 +198,48 @@ issues and PRs. So there is no forced migration, only an opportunity.
 - **`parakeet-unified-en-0.6b` is English only.** It is the sole
   streaming-capable Parakeet. We would trade 25 languages for streaming.
 
+### Spike result
+
+Built and measured, not guessed. Isolated cargo project, `transcribe-cpp`
+0.2.3, `parakeet-unified-en-0.6b` Q8_0, run against **the exact recording
+TRACE got wrong**.
+
+**It builds.** 1m37s from cold on this machine using the CMake, `cl.exe` and
+ninja that ship with VS Build Tools. CMake is not on PATH by default, so the
+build needs it added — a real friction point for CI and contributors, but a
+solved one.
+
+**The output is not close.**
+
+```
+current (Parakeet TDT v3, ONNX):
+  "This is" / "Hello, can you hear this or not?" / "I was saying." /
+  "This is where designers never stop learning." / "Never stop."
+
+transcribe.cpp (parakeet-unified-en-0.6b, streaming):
+  "This is where designers keep on learning. This is where designers never
+   stop learning. Hello, can you hear this or not? I was saying this is where
+   designers never stop learning. This is where designers never stop
+   learning."
+```
+
+Complete sentences with punctuation, no truncation, and none of the invented
+fragments — no "2", no "Mm.", no "Line.", no "know." Content the current
+pipeline dropped is present.
+
+**Speed**, all on CPU:
+
+| | |
+|---|---|
+| Model load | 0.65 s |
+| Batch | 1.80 s for 35.3 s of audio — 19.6x realtime |
+| Streaming | 11.3 s wall for 35.3 s of audio — roughly 3x realtime, so ample headroom |
+
+**Latency measured conservatively.** Only `committed` text was printed — the
+stable prefix — which ran 2–4 s behind. `StreamText` also carries a volatile
+tail, and a real UI would show both, so the perceived lag is better than
+these figures. Worth measuring properly before promising anything.
+
 ### The order to do things in
 
 1. **A glossary first.** Handy ships "Custom Words" and it is
@@ -206,10 +248,21 @@ issues and PRs. So there is no forced migration, only an opportunity.
 2. **Try `ort-directml` before any of this.** It is a feature flag on the
    current stack and buys GPU acceleration with none of the C++ build cost.
    `docs/11-PLAN.md` already claims DirectML is in use; it is not.
-3. **Revisit when the bindings reach 0.3.** Time-box it as a spike, judged on
-   the streaming win alone — that is the part worth a build-system change.
-   `Transcriber` in `transcribe/mod.rs` is a thin seam, so the code swap is
-   contained; the build and packaging change is the real work.
+3. ~~Revisit when the bindings reach 0.3.~~ **Superseded by the spike above.**
+   The quality difference on a real failing recording is large enough that
+   waiting for a version number is the wrong call. `Transcriber` in
+   `transcribe/mod.rs` is a thin seam, so the code swap is contained; the
+   build and packaging change is the real work.
+
+### Caveats worth holding on to
+
+- **One 35-second sample.** It is the most informative one available — the
+  exact case that failed — but it is one sample.
+- **CUDA is a heavier dependency than CMake.** The `cuda` feature needs the
+  CUDA toolkit at build time and would break the build for anyone without it.
+  Default to CPU; treat GPU as opt-in, if at all. 19.6x realtime on CPU is
+  already fast enough that this is not urgent.
+- **731 MB against the current 456 MB**, and English-only.
 
 ### Also worth stealing, independent of any engine
 

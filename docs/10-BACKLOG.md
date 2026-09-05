@@ -97,3 +97,37 @@ What already exists that it will want:
 - the SQLite FTS5 index (M7) for anything that searches notes
 - the fill and framing switches, so a palette inherits the chosen look rather
   than needing its own styling pass
+
+## Chunk boundaries can split a sentence, and the fragment gets a made-up ending
+
+**Observed 2026-09-05**, first real meeting. The speaker said "this is where
+designers never stop learning" as one sentence. TRACE split it mid-sentence
+and produced:
+
+```
+00:21  THEM   My name is Ridd, and this is where designers know.
+00:24  THEM   Never stop learning.
+```
+
+"know" was never spoken. Handed a fragment that does not end at a sentence
+boundary, Parakeet terminates it with something plausible.
+
+This is *not* the vocabulary problem above. It is a chunking problem, and the
+invented word is the symptom.
+
+Two candidates in `transcribe/chunker.rs`, both unverified:
+
+- `silence_frames: 17` (~510 ms) closes a chunk. A mid-sentence breath can
+  exceed that.
+- `energy_threshold: 0.012` was tuned only against the M1 recordings. If a
+  voice trails off below it, real speech counts as silence, so a short pause
+  plus quiet delivery reaches 510 ms and the chunk closes early.
+
+**Blocked on evidence, now unblocked.** The audio was deleted at finalisation,
+so there was nothing to test a fix against. The keep-audio setting exists for
+exactly this. The order is: record a clip that reproduces it, keep the audio,
+make it a fixture, then tune — so the threshold stops being folklore.
+
+Worth considering afterwards: **overlapping chunks**, so a split has context
+on both sides. Splits will sometimes land badly whatever the threshold, and
+overlap is the structural answer rather than a better guess.

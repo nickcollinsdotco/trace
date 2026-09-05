@@ -18,6 +18,7 @@ import {
   type ModelStatus,
   type NoteSummary,
   type RecoverableSession,
+  type Settings,
   type SystemReport,
 } from "../lib/ipc";
 import type { AudioSource } from "../lib/types";
@@ -65,6 +66,7 @@ export interface BackendState {
   canRegenerate: boolean;
   /** Facts shown on the first-run report. */
   systemReport: SystemReport;
+  settings: Settings;
   /** Commands that should reject, mapped to their message. */
   failures: Record<string, string>;
 }
@@ -106,6 +108,7 @@ export const DEFAULT_STATE: BackendState = {
     diskFreeBytes: 222_290_000_000,
     installed: false,
   },
+  settings: { keepAudio: false },
   failures: {},
 };
 
@@ -138,6 +141,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
   // Mutable, so the first-run scenario can be watched all the way through to
   // "Ready" instead of snapping back to "no model" when the download finishes.
   let model = state.model;
+  let settings = state.settings;
 
   const emit = (event: string, payload: unknown) => {
     for (const h of handlers.get(event) ?? []) h(payload);
@@ -195,6 +199,11 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
         case "model_status":
           return model;
+        case "get_settings":
+          return settings;
+        case "set_keep_audio":
+          settings = { keepAudio: Boolean(args?.keep) };
+          return settings;
         case "system_report":
           return state.systemReport;
         case "install_model":

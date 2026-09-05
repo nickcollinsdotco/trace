@@ -28,6 +28,7 @@ const COMMANDS = [
   "regenerate_notes",
   "can_regenerate",
   "system_report",
+  "get_settings",
 ];
 
 describe("scenarios", () => {

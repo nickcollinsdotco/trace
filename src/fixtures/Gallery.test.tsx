@@ -162,6 +162,27 @@ describe("Gallery", () => {
     expect(text).toMatch(/ONNX Runtime/);
   });
 
+  it("offers keeping the audio, off by default, with the disk cost stated", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Before recording" }));
+
+    const toggle = await screen.findByRole("checkbox");
+    expect(toggle).not.toBeChecked();
+    // "Keep audio" without the figure is a choice made blind.
+    expect(screen.getByText(/690 MB per hour/)).toBeInTheDocument();
+  });
+
+  it("reflects what the backend stored, not what the click assumed", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Before recording" }));
+
+    const toggle = await screen.findByRole("checkbox");
+    await user.click(toggle);
+    await waitFor(() => expect(toggle).toBeChecked());
+  });
+
   it("clears the fake backend when it unmounts", async () => {
     const { hasBackend } = await import("../lib/ipc");
     const { unmount } = render(<Gallery />);

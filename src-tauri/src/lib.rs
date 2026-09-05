@@ -14,6 +14,7 @@ pub mod commands;
 /// Meeting domain types. Distinct from `models`, which manages ASR model files.
 pub mod meeting;
 pub mod models;
+pub mod settings;
 pub mod store;
 pub mod synthesis;
 pub mod system;
@@ -50,6 +51,8 @@ pub fn run() {
             commands::regenerate_notes,
             commands::can_regenerate,
             commands::system_report,
+            commands::get_settings,
+            commands::set_keep_audio,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TRACE");

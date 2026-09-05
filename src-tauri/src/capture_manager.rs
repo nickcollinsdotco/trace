@@ -471,6 +471,19 @@ fn default_provider() -> Option<crate::synthesis::ollama::OllamaProvider> {
 /// exactly the short, ambiguous words the live pass gets wrong.
 ///
 /// Failure here is not an error the user needs to act on: the note already on
+/// Discard a session's audio unless the user asked to keep it.
+///
+/// Every path that finishes with a session goes through here — success,
+/// engine failure, and empty transcript alike — so "keep audio" cannot hold
+/// on the happy path and be quietly ignored on a failing one, which is
+/// exactly the case it exists to help debug.
+fn release_session_audio(session_dir: &std::path::Path) {
+    if crate::settings::load().keep_audio {
+        return;
+    }
+    let _ = store::discard_session_audio(session_dir);
+}
+
 /// disk stays valid, so a failed re-pass simply leaves it as it was.
 fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summary: SessionSummary) {
     std::thread::Builder::new()
@@ -479,7 +492,7 @@ fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summar
             // Loading a second engine only after the live one has been dropped
             // keeps peak memory to one model rather than two.
             let Ok(mut engine) = Transcriber::load() else {
-                let _ = store::discard_session_audio(&session_dir);
+                release_session_audio(&session_dir);
                 return;
             };
 
@@ -506,7 +519,7 @@ fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summar
             }
 
             if segments.is_empty() {
-                let _ = store::discard_session_audio(&session_dir);
+                release_session_audio(&session_dir);
                 return;
             }
 
@@ -540,7 +553,7 @@ fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summar
             // Audio is expendable now; the journal is not. It is the only
             // structured record left once the note is written, and is what
             // makes regenerating notes possible later.
-            let _ = store::discard_session_audio(&session_dir);
+            release_session_audio(&session_dir);
         })
         .ok();
 }

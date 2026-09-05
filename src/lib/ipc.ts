@@ -46,6 +46,10 @@ export interface SystemReport {
   installed: boolean;
 }
 
+export interface Settings {
+  keepAudio: boolean;
+}
+
 export interface ModelProgress {
   phase: "downloading" | "extracting" | "verifying" | "done";
   percent: number;
@@ -171,6 +175,9 @@ export const ipc = {
 
   modelStatus: () => call<ModelStatus>("model_status"),
   systemReport: () => call<SystemReport>("system_report"),
+
+  getSettings: () => call<Settings>("get_settings"),
+  setKeepAudio: (keep: boolean) => call<Settings>("set_keep_audio", { keep }),
   installModel: () => call<void>("install_model"),
 
   startCapture: (title: string, micDevice: string | null) =>

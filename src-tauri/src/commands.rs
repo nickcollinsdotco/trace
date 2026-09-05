@@ -442,3 +442,24 @@ fn replayable_session(root: &std::path::Path, note: &std::path::Path) -> Result<
 pub fn system_report() -> crate::system::SystemReport {
     crate::system::report(&PARAKEET_V3_INT8)
 }
+
+/* ------------------------------------------------------------------ *
+ * Settings
+ * ------------------------------------------------------------------ */
+
+#[tauri::command]
+pub fn get_settings() -> crate::settings::Settings {
+    crate::settings::load()
+}
+
+/// Keep or discard the raw audio after a meeting is finalised.
+///
+/// Returns the stored settings so the UI reflects what was actually written
+/// rather than what it assumed.
+#[tauri::command]
+pub fn set_keep_audio(keep: bool) -> CmdResult<crate::settings::Settings> {
+    let mut settings = crate::settings::load();
+    settings.keep_audio = keep;
+    crate::settings::save(&settings)?;
+    Ok(settings)
+}

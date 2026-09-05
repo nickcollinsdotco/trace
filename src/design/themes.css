@@ -1,115 +1,191 @@
 /*
- * TRACE — alternative themes
+ * TRACE — candidate looks
  *
- * How this works, and why it is shaped this way:
+ * How this works:
  *
  * `tokens.css` declares every token inside Tailwind's `@theme`, which emits
- * them onto `:root` AND generates the utilities (`bg-surface-1`, `text-ink`,
- * `font-mono`) that the components use. Those utilities compile to
- * `var(--color-surface-1)` and friends, so redefining a variable on an
- * ancestor element re-skins everything beneath it with no component changes
- * at all.
+ * them onto `:root` AND generates the utilities (`bg-surface-1`, `text-ink`)
+ * the components use. Those utilities compile to `var(--color-surface-1)`, so
+ * redefining a variable on an ancestor re-skins everything beneath it with no
+ * component changes at all.
  *
- * That means:
  *   - `terminal` is the default. It has no block here, because it IS the
  *     `@theme` values. `data-theme="terminal"` is deliberately a no-op, which
- *     is what makes "the default must stay pixel-identical" true by
- *     construction rather than by careful maintenance.
- *   - every other theme is a list of overrides, and nothing else.
+ *     makes "the default stays pixel-identical" true by construction.
+ *   - every other look is a list of overrides, and nothing else.
  *
- * STRUCTURAL SWITCHES
+ * THE THREE STRUCTURAL SWITCHES, ALL SPENT
  *
- * Colour alone will not separate a terminal from a futurist look — the
- * uppercase tracked monospace label does more of that work than any hue. So a
- * small number of *structural* properties are themeable too, consumed by
- * `terminal.css`. The budget is three, total. Each one is a fork in every
- * component that reads it, and past three, themes stop being cheap, which
- * defeats the point of having them.
+ *   1. --label-*   system labels: mono/uppercase/tracked, or plain sans
+ *   2. data-frame  sections: a label with a rule, or a box with an inlaid title
+ *                 (an attribute, not a token — CSS cannot select on a custom
+ *                  property's value, so theme.ts sets it alongside data-theme)
+ *   3. --fill-*    meters and empty states: solid, dithered, or a hue ramp
  *
- *   --label-font / --label-transform / --label-tracking   (system labels)
+ * The budget is closed. A fourth would mean a fourth fork in every component
+ * that reads it, and past three, themes stop being cheap — which is the whole
+ * reason for having them. Anything further is a layout variant, not a theme.
  *
- * Two slots remain. Spend them in Phase B, deliberately.
- *
- * STATUS: `futurist` and `quiet` are SKETCHES. They exist to prove the layer
- * works end to end and to give something concrete to react to. The real
- * design work is Phase B in docs/11-PLAN.md.
+ * The three looks below each come from one reference the user pointed at.
+ * See docs/12-VISUAL-TRIAGE.md for how they were chosen.
  */
 
 /* ---------------------------------------------------------------------
- * futurist — precision instrument, present tense.
+ * report — the TR-100 machine report.
  *
- * Colder and deeper than terminal, with a wider surface ladder and more
- * contrast. Corners go properly sharp rather than slightly soft. Labels drop
- * the monospace but keep the tracking, which is the single change that moves
- * this furthest from "terminal".
+ * Monochrome, and that is the point: no accent at all, so nothing on screen
+ * competes with the words. Structure carries every distinction that colour
+ * normally would — heavy rules, boxed sections, dithered fills.
+ *
+ * Its risk is that "live" and "warning" lose their instant read, since both
+ * fall back to white. Whether that matters is exactly what capture mode will
+ * answer.
  * ------------------------------------------------------------------ */
-[data-theme="futurist"] {
-  --color-surface-0: #05070c;
-  --color-surface-1: #0b0f18;
-  --color-surface-2: #121826;
-  --color-surface-3: #1b2334;
+[data-theme="report"] {
+  --color-surface-0: #000000;
+  --color-surface-1: #0a0a0a;
+  --color-surface-2: #121212;
+  --color-surface-3: #1c1c1c;
 
-  --color-line: rgb(150 190 255 / 10%);
-  --color-line-strong: rgb(150 190 255 / 20%);
+  --color-line: rgb(255 255 255 / 28%);
+  --color-line-strong: rgb(255 255 255 / 62%);
 
-  --color-ink: #eef2f8;
-  --color-ink-muted: #98a4b8;
-  --color-ink-faint: #5d6a80;
+  --color-ink: #ffffff;
+  --color-ink-muted: #b8b8b8;
+  --color-ink-faint: #7a7a7a;
 
-  /* Ice rather than phosphor. Still one accent, still meaning "live". */
-  --color-phosphor: #56c8ff;
-  --color-phosphor-bright: #9adcff;
-  --color-phosphor-muted: #2b7fa8;
-  --color-phosphor-dim: rgb(86 200 255 / 14%);
+  /* The accent is simply white. A machine report has no brand colour. */
+  --color-phosphor: #ffffff;
+  --color-phosphor-bright: #ffffff;
+  --color-phosphor-muted: #9a9a9a;
+  --color-phosphor-dim: rgb(255 255 255 / 14%);
 
-  --color-warn: #ffb340;
-  --color-warn-dim: rgb(255 179 64 / 14%);
-  --color-error: #ff5f6d;
-  --color-error-dim: rgb(255 95 109 / 14%);
+  --color-warn: #ffffff;
+  --color-warn-dim: rgb(255 255 255 / 12%);
+  --color-error: #ffffff;
+  --color-error-dim: rgb(255 255 255 / 20%);
 
   --radius-xs: 0px;
-  --radius-sm: 1px;
-  --radius-md: 2px;
-  --radius-lg: 3px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
 
-  --label-font: var(--font-sans);
+  --label-font: var(--font-mono);
   --label-transform: uppercase;
-  --label-tracking: 0.14em;
+  --label-tracking: 0.1em;
+
+  /* Solid white on a checkerboard track — the TR-100 progress bar exactly. */
+  --fill-active: #ffffff;
+  --fill-hot: #ffffff;
+  --fill-track:
+    repeating-conic-gradient(rgb(255 255 255 / 45%) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px;
+  --fill-hatch:
+    repeating-conic-gradient(rgb(255 255 255 / 30%) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px;
+}
+
+[data-theme="report"] .trace-section {
+  border-color: var(--color-line-strong);
 }
 
 /* ---------------------------------------------------------------------
- * quiet — the control.
+ * console — conky / phuket.
  *
- * Not a style so much as the absence of one: a document rather than an
- * interface. Chrome recedes, the accent is almost never used, and system
- * labels stop shouting. Its job is to make the other two legible as choices
- * by showing what is left when the decoration is taken away.
+ * Colour used *quantitatively*: the meters carry a hue ramp so a glance at
+ * the bar tells you the level before you read the number. Everything else
+ * stays quiet and compact, dense label/value rows on near-black.
+ *
+ * This is the only look where the accent is not a single colour, which makes
+ * it the interesting one — and the one most likely to look busy after an hour.
  * ------------------------------------------------------------------ */
-[data-theme="quiet"] {
-  --color-surface-0: #131313;
-  --color-surface-1: #191919;
-  --color-surface-2: #1f1f1f;
-  --color-surface-3: #272727;
+[data-theme="console"] {
+  --color-surface-0: #08080c;
+  --color-surface-1: #0e0e14;
+  --color-surface-2: #14141c;
+  --color-surface-3: #1c1c26;
 
-  --color-line: rgb(255 255 255 / 6%);
-  --color-line-strong: rgb(255 255 255 / 11%);
+  --color-line: rgb(180 180 220 / 9%);
+  --color-line-strong: rgb(180 180 220 / 18%);
 
-  --color-ink: #e8e6e3;
-  --color-ink-muted: #a09c97;
-  --color-ink-faint: #6f6b66;
+  --color-ink: #e4e4ee;
+  --color-ink-muted: #9494a8;
+  --color-ink-faint: #62627a;
 
-  /* Warm and restrained. Present, but never the loudest thing on screen. */
-  --color-phosphor: #c9a227;
-  --color-phosphor-bright: #e3bd45;
-  --color-phosphor-muted: #8a6f1c;
-  --color-phosphor-dim: rgb(201 162 39 / 12%);
+  /* Cyan reads as "live" against the warm end of the meter ramp. */
+  --color-phosphor: #4fd6e8;
+  --color-phosphor-bright: #8ae9f6;
+  --color-phosphor-muted: #2b7f8c;
+  --color-phosphor-dim: rgb(79 214 232 / 14%);
 
-  --radius-xs: 3px;
-  --radius-sm: 5px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --color-warn: #e8a33d;
+  --color-warn-dim: rgb(232 163 61 / 14%);
+  --color-error: #f0556d;
+  --color-error-dim: rgb(240 85 109 / 14%);
+
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+
+  --label-font: var(--font-mono);
+  --label-transform: none;
+  --label-tracking: 0.02em;
+
+  --fill-active: linear-gradient(90deg, #2a3fa8 0%, #7b3fc4 45%, #c43f9e 75%, #e8556d 100%);
+  --fill-hot: linear-gradient(90deg, #c43f9e 0%, #f0556d 100%);
+  --fill-track: rgb(255 255 255 / 6%);
+  --fill-hatch: repeating-linear-gradient(45deg, rgb(180 180 220 / 14%) 0 1px, transparent 1px 6px);
+}
+
+/* ---------------------------------------------------------------------
+ * industrial — the R-1 / LAB / ROBO branding.
+ *
+ * The one that challenges a locked decision: the accent is hot orange, not
+ * phosphor green. See docs/12-VISUAL-TRIAGE.md — this look exists partly so
+ * that decision can be looked at rather than argued about.
+ *
+ * Orange as a *brand* colour collides with amber-as-warning, so warning moves
+ * to a hard yellow and error to near-black-on-orange. That collision is real
+ * and is the main thing to judge here.
+ * ------------------------------------------------------------------ */
+[data-theme="industrial"] {
+  --color-surface-0: #0d0c0b;
+  --color-surface-1: #151312;
+  --color-surface-2: #1d1a18;
+  --color-surface-3: #272320;
+
+  --color-line: rgb(255 255 255 / 10%);
+  --color-line-strong: rgb(255 90 45 / 45%);
+
+  --color-ink: #f2ede9;
+  --color-ink-muted: #a8a09a;
+  --color-ink-faint: #6e6660;
+
+  --color-phosphor: #ff5a2d;
+  --color-phosphor-bright: #ff7d57;
+  --color-phosphor-muted: #a83518;
+  --color-phosphor-dim: rgb(255 90 45 / 15%);
+
+  --color-warn: #ffd23f;
+  --color-warn-dim: rgb(255 210 63 / 15%);
+  --color-error: #ff2d2d;
+  --color-error-dim: rgb(255 45 45 / 18%);
+
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
 
   --label-font: var(--font-sans);
-  --label-transform: none;
-  --label-tracking: 0.01em;
+  --label-transform: uppercase;
+  --label-tracking: 0.16em;
+
+  /* Flat orange on a diagonal hatch — the stencil, not the gradient. */
+  --fill-active: #ff5a2d;
+  --fill-hot: #ffd23f;
+  --fill-track: repeating-linear-gradient(45deg, rgb(255 255 255 / 12%) 0 2px, transparent 2px 6px);
+  --fill-hatch: repeating-linear-gradient(45deg, rgb(255 90 45 / 35%) 0 2px, transparent 2px 8px);
+}
+
+[data-theme="industrial"] .trace-section {
+  border-color: var(--color-line-strong);
 }

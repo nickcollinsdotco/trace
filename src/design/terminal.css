@@ -170,3 +170,105 @@
   text-transform: var(--label-transform, uppercase);
   letter-spacing: var(--label-tracking, var(--tracking-system));
 }
+
+/* ---------------------------------------------------------------------
+ * Section framing — structural switch 2.
+ *
+ *   rule (default):   ┌ 01  SUMMARY ──────────────────
+ *   box:              ┌─ SUMMARY ────────────────────┐
+ *                     │  …                           │
+ *                     └──────────────────────────────┘
+ *
+ * The box is the single most common move across the whole reference set
+ * (lazygit, bagels, bpytop, btop, TR-100, termcn's Box), and it is also how
+ * every one of them expresses "this panel has focus". See
+ * docs/12-VISUAL-TRIAGE.md.
+ * ------------------------------------------------------------------ */
+.trace-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.trace-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+[data-frame="box"] .trace-section {
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  padding: 1.15rem 1rem 1rem;
+  margin-top: 0.55rem;
+}
+
+/*
+ * The title sits *in* the border rather than above it. Pulling it up by its
+ * own line-height and painting the ground behind it cuts the border cleanly,
+ * which is what makes the box read as drawn rather than as a card.
+ */
+[data-frame="box"] .trace-section-head {
+  width: fit-content;
+  max-width: 100%;
+  margin-top: -1.75rem;
+  margin-left: -0.35rem;
+  padding-inline: 0.4rem;
+  background: var(--color-surface-0);
+}
+
+[data-frame="box"] .trace-section-head .trace-rule,
+[data-frame="box"] .trace-section-corner {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------
+ * Fill treatment — structural switch 3.
+ *
+ * One decision reaching the level meters, the model download, synthesis
+ * progress and every empty state. Themes redefine --fill-active and
+ * --fill-track, so a solid bar, a dithered checkerboard and a hue ramp are
+ * the same component.
+ * ------------------------------------------------------------------ */
+.trace-fill {
+  position: relative;
+  overflow: hidden;
+  background: var(--fill-track);
+  border-radius: var(--radius-xs);
+}
+
+.trace-fill::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  /* --fill is 0..1, set inline by the component. */
+  width: calc(var(--fill, 0) * 100%);
+  background: var(--fill-active);
+  background-size: var(--fill-size, auto);
+}
+
+.trace-fill[data-hot="true"]::before {
+  background: var(--fill-hot);
+}
+
+/*
+ * Empty states. bagels fills its no-data panel with hatching rather than
+ * leaving a hole, which reads as "nothing here yet" instead of "something
+ * failed to load" — a distinction this product needs to make often.
+ */
+.trace-hatch {
+  background-image: var(--fill-hatch);
+}
+
+/* ---------------------------------------------------------------------
+ * Elevation. Uses --elevation-* rather than Tailwind's shadow utilities,
+ * because Tailwind inlines --shadow-* at build time and a theme could not
+ * override it. See the note in tokens.css.
+ * ------------------------------------------------------------------ */
+.trace-panel {
+  box-shadow: var(--elevation-panel);
+}
+
+.trace-overlay {
+  box-shadow: var(--elevation-overlay);
+}

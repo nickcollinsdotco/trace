@@ -78,11 +78,18 @@
   --radius-lg: 10px;
 
   /* ---------------------------------------------------------------------
-   * Shadows — layered and extremely restrained. Depth, never glow.
+   * Shadows — restrained. Depth, never glow.
+   *
+   * IMPORTANT: Tailwind *inlines* a `--shadow-*` value into the generated
+   * utility rather than emitting a `:root` variable — verified in the built
+   * CSS, where `.shadow-panel` carries the literal value and `--shadow-panel:`
+   * appears nowhere. So these are frozen at build time and a `[data-theme]`
+   * override of them would silently do nothing.
+   *
+   * Anything a theme needs to change lives in --elevation-* below instead.
    * ------------------------------------------------------------------ */
   --shadow-subtle: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-panel: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 12px rgb(0 0 0 / 35%);
-  --shadow-overlay: 0 2px 4px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 50%);
 
   /* ---------------------------------------------------------------------
    * Motion — communicates system state. Never decorative.
@@ -109,6 +116,44 @@
 [data-mode="capture"] {
   --measure: 100%;
   --content-leading: 1.45;
+}
+
+/* ---------------------------------------------------------------------
+ * Structural switches
+ *
+ * The three properties a theme may change beyond colour and type. Each is a
+ * fork in every component that reads it, so the set is closed at three — see
+ * src/design/themes.css for why.
+ *
+ *   1. --label-*   how a system label is set        (terminal.css)
+ *   2. --frame     how a section is framed          (rule | box)
+ *   3. --fill-*    how meters and empty states fill (solid | dither | ramp)
+ * ------------------------------------------------------------------ */
+:root {
+  /*
+   * Elevation, as real custom properties so themes can actually change it.
+   *
+   * The overlay uses a doubling ramp: each layer twice the offset and blur of
+   * the last, opacity climbing as it goes. A single large shadow on a
+   * near-black ground reads as a grey smudge; stacked layers read as depth,
+   * which is what docs/05-DESIGN-DIRECTION.md asks for and what one shadow
+   * cannot deliver. The hairline first layer keeps the edge crisp.
+   */
+  --elevation-panel: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 12px rgb(0 0 0 / 35%);
+  --elevation-overlay:
+    0 0 0 1px rgb(165 165 165 / 4%), -9px 9px 9px -0.5px rgb(0 0 0 / 4%),
+    -18px 18px 18px -1.5px rgb(0 0 0 / 8%), -37px 37px 37px -3px rgb(0 0 0 / 16%),
+    -75px 75px 75px -6px rgb(0 0 0 / 24%), -150px 150px 150px -12px rgb(0 0 0 / 48%);
+
+  /* Meters, progress bars, and the hatch behind empty states. */
+  --fill-active: var(--color-phosphor);
+  --fill-hot: var(--color-warn);
+  --fill-track: rgb(255 255 255 / 7%);
+  --fill-hatch: repeating-linear-gradient(
+    45deg,
+    var(--color-line-strong) 0 1px,
+    transparent 1px 7px
+  );
 }
 
 /* ---------------------------------------------------------------------

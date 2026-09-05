@@ -52,20 +52,43 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3">
-      <header className="flex items-center gap-2.5">
-        <span aria-hidden className="font-mono text-2xs text-ink-faint/50">
-          ┌
-        </span>
-        {index !== undefined && (
-          <SystemLabel tone="phosphor">{String(index).padStart(2, "0")}</SystemLabel>
-        )}
-        <SystemLabel tone="muted">{title}</SystemLabel>
-        <span aria-hidden className="trace-rule" />
-        {actions}
-      </header>
+    <section className="trace-section">
+      <SectionHead title={title} index={index} actions={actions} />
       {children}
     </section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * SectionHead — the framing itself, isolated.
+ *
+ * Every section heading in the product goes through here, which is what
+ * makes the rule-vs-box switch a CSS change rather than an edit in six
+ * files. The corner glyph belongs to the rule treatment and is hidden in
+ * box mode, where the border draws its own corner.
+ * ------------------------------------------------------------------ */
+
+export function SectionHead({
+  title,
+  index,
+  actions,
+}: {
+  title: string;
+  index?: number | undefined;
+  actions?: ReactNode;
+}) {
+  return (
+    <header className="trace-section-head">
+      <span aria-hidden className="trace-section-corner font-mono text-2xs text-ink-faint/50">
+        ┌
+      </span>
+      {index !== undefined && (
+        <SystemLabel tone="phosphor">{String(index).padStart(2, "0")}</SystemLabel>
+      )}
+      <SystemLabel tone="muted">{title}</SystemLabel>
+      <span aria-hidden className="trace-rule" />
+      {actions}
+    </header>
   );
 }
 
@@ -143,19 +166,26 @@ export function Meter({
   db?: number | undefined;
 }) {
   const clamped = Math.min(1, Math.max(0, level));
-  const filled = Math.round(clamped * METER_CELLS);
   // A hot signal warns; it does not error. Clipping is recoverable.
-  const tone = clamped > 0.92 ? "text-warn" : "text-phosphor";
+  const hot = clamped > 0.92;
 
   return (
     <div className="flex items-center gap-3">
       <span className="w-14 shrink-0">
         <SystemLabel>{label}</SystemLabel>
       </span>
-      <span aria-hidden className={`font-mono text-xs leading-none ${tone}`}>
-        {"█".repeat(filled)}
-        <span className="text-ink-faint/40">{"░".repeat(METER_CELLS - filled)}</span>
-      </span>
+      {/*
+        The bar is a CSS fill rather than repeated block characters, so a
+        theme can make it solid, dithered or a hue ramp without the component
+        knowing which. Quantised to whole cells regardless, because a meter
+        that slides continuously reads as an animation rather than a reading.
+      */}
+      <span
+        aria-hidden
+        data-hot={hot}
+        className="trace-fill h-2.5 w-40 shrink-0"
+        style={{ "--fill": Math.round(clamped * METER_CELLS) / METER_CELLS } as React.CSSProperties}
+      />
       <span className="font-mono text-2xs tabular-nums text-ink-faint">
         {db === undefined ? "—" : `${db > 0 ? "+" : ""}${db.toFixed(0)} dB`}
       </span>

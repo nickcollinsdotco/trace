@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { SystemLabel } from "../../components/ui/terminal";
+import { SectionHead, SystemLabel } from "../../components/ui/terminal";
 import { hasBackend, ipc } from "../../lib/ipc";
 import { RefinementNotice } from "./RefinementNotice";
 import { splitSections } from "./sections";
@@ -255,9 +255,8 @@ function Block({ text }: { text: string }) {
   }
   if (text.startsWith("## ")) {
     return (
-      <div className="mt-4 flex items-center gap-2.5">
-        <SystemLabel tone="muted">{text.slice(3)}</SystemLabel>
-        <span aria-hidden className="trace-rule" />
+      <div className="mt-4">
+        <SectionHead title={text.slice(3)} />
       </div>
     );
   }

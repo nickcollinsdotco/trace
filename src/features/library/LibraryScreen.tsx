@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { SystemLabel } from "../../components/ui/terminal";
+import { SectionHead, SystemLabel } from "../../components/ui/terminal";
 import { groupByDate } from "../../lib/dates";
 import { hasBackend, ipc, type NoteSummary, type RecoverableSession } from "../../lib/ipc";
 
@@ -66,11 +66,8 @@ export function LibraryScreen({
           <EmptyState root={root} />
         ) : (
           groups.map(({ group, items }) => (
-            <section key={group} className="flex flex-col gap-1">
-              <div className="mb-2 flex items-center gap-2.5">
-                <SystemLabel>{group}</SystemLabel>
-                <span aria-hidden className="trace-rule" />
-              </div>
+            <section key={group} className="trace-section gap-1">
+              <SectionHead title={group} />
               {items.map((note) => (
                 <button
                   key={note.path}
@@ -109,7 +106,7 @@ function RecoveryCard({ session, onDone }: { session: RecoverableSession; onDone
   const [busy, setBusy] = useState(false);
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-warn/40 bg-warn-dim p-4">
+    <div className="flex flex-col gap-3 rounded-md border border-warn/40 bg-warn-dim trace-panel p-4">
       <div className="flex items-baseline gap-2">
         <SystemLabel tone="muted">Interrupted</SystemLabel>
         <span aria-hidden className="trace-rule" />
@@ -162,7 +159,9 @@ function RecoveryCard({ session, onDone }: { session: RecoverableSession; onDone
 
 function EmptyState({ root }: { root: string }) {
   return (
-    <div className="flex flex-col gap-3 py-16 text-center">
+    // Hatched rather than blank: an empty panel and a panel that failed to
+    // load look identical, and this product has to tell them apart often.
+    <div className="trace-hatch flex flex-col gap-3 rounded-sm py-16 text-center">
       <p className="font-mono text-xs text-ink-faint">&gt; no traces yet.</p>
       <p className="text-sm text-ink-muted">Start a meeting and TRACE will keep the rest.</p>
       {root && (

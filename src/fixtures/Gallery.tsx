@@ -19,7 +19,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ModelGate } from "../app/ModelGate";
 import { Wordmark } from "../app/Wordmark";
-import { applyTheme, loadTheme, saveTheme, THEME_NOTES, THEMES, type Theme } from "../design/theme";
+import {
+  applyTheme,
+  FRAMES,
+  type Frame,
+  loadTheme,
+  saveTheme,
+  THEME_FRAME,
+  THEME_NOTES,
+  THEMES,
+  type Theme,
+} from "../design/theme";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
@@ -40,6 +50,8 @@ export function Gallery() {
   );
   const [theme, setTheme] = useState<Theme>(loadTheme);
   const [width, setWidth] = useState<(typeof WIDTHS)[number]["id"]>("default");
+  // null = follow the theme's own choice. Set it to compare framings directly.
+  const [frame, setFrame] = useState<Frame | null>(null);
   const preview = useRef<HTMLDivElement>(null);
 
   const scenario = scenarioById(scenarioId) ?? SCENARIOS[0];
@@ -59,9 +71,9 @@ export function Gallery() {
   useEffect(() => () => installFakeBackend(null), []);
 
   useEffect(() => {
-    if (preview.current) applyTheme(theme, preview.current);
+    if (preview.current) applyTheme(theme, preview.current, frame ?? undefined);
     saveTheme(theme);
-  }, [theme]);
+  }, [theme, frame]);
 
   useEffect(() => {
     if (scenario) location.hash = `gallery/${scenario.id}`;
@@ -112,6 +124,15 @@ export function Gallery() {
             options={THEMES.map((t) => ({ id: t, label: t, title: THEME_NOTES[t] }))}
             value={theme}
             onChange={(v) => setTheme(v as Theme)}
+          />
+          <Switcher
+            label="Frame"
+            options={[
+              { id: "auto", label: `auto (${THEME_FRAME[theme]})` },
+              ...FRAMES.map((f) => ({ id: f, label: f })),
+            ]}
+            value={frame ?? "auto"}
+            onChange={(v) => setFrame(v === "auto" ? null : (v as Frame))}
           />
           <Switcher
             label="Width"

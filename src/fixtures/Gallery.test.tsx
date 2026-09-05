@@ -56,10 +56,10 @@ describe("Gallery", () => {
     const user = userEvent.setup();
     const { container } = render(<Gallery />);
 
-    await user.click(screen.getByRole("button", { name: "futurist" }));
+    await user.click(screen.getByRole("button", { name: "industrial" }));
 
     await waitFor(() => {
-      expect(container.querySelector('[data-theme="futurist"]')).not.toBeNull();
+      expect(container.querySelector('[data-theme="industrial"]')).not.toBeNull();
     });
     // If the attribute landed on the root, the switcher itself would re-skin
     // and you could no longer tell the product from the tooling.

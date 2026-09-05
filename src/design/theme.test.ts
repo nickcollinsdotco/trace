@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { applyTheme, isTheme, loadTheme, saveTheme, THEME_NOTES, THEMES } from "./theme";
+import {
+  applyTheme,
+  isTheme,
+  loadTheme,
+  saveTheme,
+  THEME_FRAME,
+  THEME_NOTES,
+  THEMES,
+} from "./theme";
 
 describe("themes", () => {
   beforeEach(() => {
@@ -11,7 +19,7 @@ describe("themes", () => {
     // attribute instead of clearing one, "terminal must stay pixel-identical"
     // would depend on a second copy of every token staying in sync.
     const el = document.createElement("div");
-    el.setAttribute("data-theme", "futurist");
+    el.setAttribute("data-theme", "report");
 
     applyTheme("terminal", el);
 
@@ -20,13 +28,13 @@ describe("themes", () => {
 
   it("applies other themes as an attribute", () => {
     const el = document.createElement("div");
-    applyTheme("quiet", el);
-    expect(el.getAttribute("data-theme")).toBe("quiet");
+    applyTheme("report", el);
+    expect(el.getAttribute("data-theme")).toBe("report");
   });
 
   it("round-trips a saved choice", () => {
-    saveTheme("futurist");
-    expect(loadTheme()).toBe("futurist");
+    saveTheme("industrial");
+    expect(loadTheme()).toBe("industrial");
   });
 
   it("falls back to terminal for junk in storage", () => {
@@ -38,6 +46,32 @@ describe("themes", () => {
     // The switcher shows these as tooltips; a missing one is a blank hint.
     for (const t of THEMES) {
       expect(THEME_NOTES[t]).toBeTruthy();
+    }
+  });
+
+  it("sets each theme's own framing", () => {
+    const el = document.createElement("div");
+
+    applyTheme("report", el);
+    expect(el.getAttribute("data-frame")).toBe("box");
+
+    applyTheme("console", el);
+    expect(el.getAttribute("data-frame")).toBe("rule");
+  });
+
+  it("lets framing be overridden independently of the palette", () => {
+    // The whole point of the gallery's Frame switch: ask "what does terminal
+    // look like boxed?" without inventing a fourth theme to find out.
+    const el = document.createElement("div");
+    applyTheme("terminal", el, "box");
+
+    expect(el.hasAttribute("data-theme")).toBe(false);
+    expect(el.getAttribute("data-frame")).toBe("box");
+  });
+
+  it("declares a framing for every theme", () => {
+    for (const t of THEMES) {
+      expect(THEME_FRAME[t], t).toBeTruthy();
     }
   });
 

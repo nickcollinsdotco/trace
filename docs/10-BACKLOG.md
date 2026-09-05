@@ -160,3 +160,59 @@ split at an ordinary breath.
 **Overlapping chunks**, so a split has context on both sides. Splits will
 sometimes land badly whatever the threshold, and overlap is the structural
 answer rather than a better-tuned guess.
+
+## transcribe.cpp — evaluated 2026-09-06, deferred
+
+Handy v0.9.0 replaced `transcribe-rs` with
+[`transcribe.cpp`](https://github.com/handy-computer/transcribe.cpp) as its
+engine. TRACE uses `transcribe-rs`, so this is the foundation of our
+transcription stack moving underneath us. Worth a real look; the conclusion
+is *not yet*.
+
+**What it is.** MIT, C/C++17 on GGML, 16 model families and 60+ variants,
+official Rust bindings published as `transcribe-cpp` (0.2.3). Models are
+`.gguf`. Backends: CUDA, Vulkan, Metal, ROCm, OpenMP.
+
+**`transcribe-rs` is not deprecated** — no archive notice, still taking
+issues and PRs. So there is no forced migration, only an opportunity.
+
+### What we would gain
+
+| | |
+|---|---|
+| **Native streaming** | The big one. `feed()` plus `stream.text().committed` — a *stable prefix* with a volatile tail. TRACE's entire live-chunking apparatus exists only because Parakeet is batch-only: the streaming chunker, the VAD threshold work, the 4-second ceiling, and the processing indicator that exists to explain the resulting lag. Streaming would make most of that unnecessary rather than better-tuned. |
+| **GPU** | We run on CPU today. A `cuda` feature exists |
+| **Model choice** | Qwen3-ASR, Cohere Transcribe, Canary. Might handle proper nouns better than Parakeet's 8,193-token vocabulary — the `Vercel → Verzelle` problem |
+
+### What it would cost
+
+- **A C++ toolchain and CMake in the build.** `transcribe-cpp-sys` compiles
+  the native library from source. That lands on CI and on anyone cloning the
+  repo. The original audit chose Rust + ONNX specifically to avoid a
+  packaging tax; CMake is far lighter than Voicebox's PyTorch and PyInstaller,
+  but it is not nothing.
+- **Bindings at 0.2.0**, self-described as "in development". Handy's own
+  release notes say "there likely will be issues".
+- **Model re-download** — GGUF is a different format, so every user fetches
+  ~700 MB again.
+- **`parakeet-unified-en-0.6b` is English only.** It is the sole
+  streaming-capable Parakeet. We would trade 25 languages for streaming.
+
+### The order to do things in
+
+1. **A glossary first.** Handy ships "Custom Words" and it is
+   engine-independent. It fixes the failure actually observed — proper nouns —
+   and costs a fraction of a migration.
+2. **Try `ort-directml` before any of this.** It is a feature flag on the
+   current stack and buys GPU acceleration with none of the C++ build cost.
+   `docs/11-PLAN.md` already claims DirectML is in use; it is not.
+3. **Revisit when the bindings reach 0.3.** Time-box it as a spike, judged on
+   the streaming win alone — that is the part worth a build-system change.
+   `Transcriber` in `transcribe/mod.rs` is a thin seam, so the code swap is
+   contained; the build and packaging change is the real work.
+
+### Also worth stealing, independent of any engine
+
+From Handy's settings: **remove filler words** as a toggle, and **VAD on/off**
+so raw audio can be recorded when someone is debugging. Both are small and
+neither depends on transcribe.cpp.

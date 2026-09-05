@@ -98,6 +98,10 @@ Specifications live in [docs/](docs/) — product definition, architecture,
 roadmap, UX, design direction, data model, and the terminal/easter-egg
 language.
 
+## Stats
+
+![Alt](https://repobeats.axiom.co/api/embed/6166a714e9235b6b46e13ec516a249add4165e79.svg "Repobeats analytics image")
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for third-party attributions.

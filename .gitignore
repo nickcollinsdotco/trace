@@ -151,3 +151,16 @@ vite.config.ts.timestamp-*
 *.wav
 *.gguf
 *.onnx
+
+# Agent skills.
+#
+# `.agents/skills/` holds the real content and IS committed, along with
+# skills-lock.json, so the set is pinned and reviewable in diffs.
+#
+# `.claude/skills/` is symlinks into it, generated with absolute paths for
+# this machine — committing those would break the checkout for anyone else.
+# `npx skills install` recreates them from the lock file. Skills written FOR this
+# project are real directories here and are committed.
+/.claude/skills/grill-me
+/.claude/skills/grilling
+/.claude/skills/web-design-guidelines

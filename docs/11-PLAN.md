@@ -36,7 +36,7 @@ retrofitted into it.
 | **C** | Live with them | Yours, ~2 weeks |
 | **D** | Commit, then the full visual pass | ~2 sessions |
 | **M7** | Search, command palette, shortcuts | ~1–2 sessions |
-| **M8** | First-run download, packaging, signing | ~2 sessions |
+| **M8** | First-run download, packaging, signing — **in progress** | ~2 sessions |
 
 ---
 
@@ -182,11 +182,46 @@ language is settled means building it twice.
 
 ## M8 — First run, packaging, signing
 
-- Model download as the boot sequence (built in Phase D)
-- Every failure state: no network, corrupt download, no disk, Ollama absent
-- Packaging, code signing
-- **Verification:** install on a clean machine, then disable networking
-  entirely and complete a meeting end to end
+**Started 2026-09-05, out of plan order.** M7 is parked behind the visual
+decision by design — a command palette is the most theme-expressive component
+in the app. But that decision needs Phase C, and Phase C needs TRACE used for
+real meetings, which until now meant keeping a dev server alive. M8 is what
+unblocks the thing that unblocks the themes.
+
+| Item | Status |
+|---|---|
+| Windows installers | **Done.** `pnpm tauri build` produces `TRACE_0.1.0_x64-setup.exe` (11.9 MB, NSIS) and `TRACE_0.1.0_x64_en-US.msi` (25.7 MB). Release binary verified running |
+| Failure guidance | **Done.** `ModelError::guidance` — no network, damaged archive, interrupted install, full disk. Technical detail retained |
+| CSP tightened | **Done.** Dropped the Ollama allowance; the WebView makes no network calls at all |
+| Boot sequence | Waiting on Phase D — the download UI works, the visual treatment does not exist yet |
+| **Code signing** | **Blocked on a decision only you can make.** See below |
+| Clean-machine install | Not yet done |
+| Fully-offline run | Not yet done |
+
+### Code signing needs a purchase, so it is your call
+
+The installers are **unsigned**. On Windows that means SmartScreen shows
+"Windows protected your PC" on first run, and the user has to click through
+*More info → Run anyway*.
+
+For personal use that is a one-time annoyance and arguably not worth paying to
+remove. For anything distributed it is close to unacceptable — most people
+will not click through.
+
+Three options, in rough order of cost:
+
+1. **Ship unsigned.** Free. Fine while TRACE is yours alone.
+2. **OV certificate**, roughly £200–400/year. Removes the warning only after
+   the binary builds enough download reputation, which can take weeks.
+3. **EV certificate**, roughly £300–600/year, usually on a hardware token.
+   SmartScreen trusts it immediately.
+
+Nothing in the build blocks on this: Tauri signs via
+`bundle.windows.certificateThumbprint` whenever a certificate exists, so
+adding one later is configuration, not rework.
+
+**Verification still to do:** install on a clean machine, then disable
+networking entirely and complete a meeting end to end.
 
 ---
 
@@ -198,7 +233,7 @@ rather than remembered.
 | Item | Status |
 |---|---|
 | **Decision vs deferred conversation** | Prompt rule tightened 2026-09-05 with the exact failure as a counter-example. **Untested against a real conversation** — the fixture that produced it is not a regression test. Phase C is the check. |
-| **Regenerate on pre-2026-09-05 notes** | Will fail. Their journals were deleted at finalisation under the old cleanup. Needs either a clear error or a disabled button — currently it just errors. |
+| ~~Regenerate on pre-2026-09-05 notes~~ | **Fixed 2026-09-05.** `can_regenerate` is asked up front and the control is disabled with a reason. |
 | **VAD threshold drift** | 0.012 RMS, tuned only on my recordings. May drift over a long meeting or a quiet speaker. Deliberately not fixed: unobserved, and guessing at a fix would be worse than waiting for a real case. |
 | **Uncertainty affordances** | Squiggly underlines for low-confidence words. Needs `transcribe-rs` to expose logits it already computes — an upstream PR. Detail in `10-BACKLOG.md`. |
 | **Speaker memory** | heed's voice-embedding approach, for splitting the remote side into named people. Phase 3 territory, after M7. |

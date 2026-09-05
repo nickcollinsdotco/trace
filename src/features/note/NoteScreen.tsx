@@ -85,7 +85,7 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
           <button
             type="button"
             onClick={onBack}
-            className="font-mono text-2xs uppercase tracking-system text-ink-faint transition-colors duration-120 hover:text-phosphor"
+            className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-phosphor"
           >
             &lt; Meetings
           </button>
@@ -201,7 +201,7 @@ function ViewToggle({
               ? "Generate the notes again from the transcript"
               : "The original transcript record for this meeting is no longer on disk, so it cannot be regenerated."
           }
-          className="ml-1 rounded-sm px-2 py-1 font-mono text-2xs text-ink-faint transition-colors duration-120 hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-ink-faint"
+          className="ml-1 rounded-sm px-2 py-1 font-mono text-2xs text-ink-faint trace-press hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-ink-faint"
         >
           {regenerating ? "…" : "↻"}
         </button>
@@ -224,7 +224,7 @@ function Segment({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-sm border px-2.5 py-1 font-mono text-2xs uppercase tracking-system transition-colors duration-120 ${
+      className={`rounded-sm border px-2.5 py-1 font-mono text-2xs uppercase tracking-system trace-press ${
         active
           ? "border-phosphor bg-phosphor-dim text-phosphor"
           : "border-transparent text-ink-faint hover:text-ink"
@@ -257,7 +257,7 @@ function NotEnhancedYet({
           type="button"
           onClick={onRegenerate}
           disabled={regenerating}
-          className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor transition-colors duration-120 hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+          className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
         >
           {regenerating ? "Generating…" : "Generate now"}
         </button>

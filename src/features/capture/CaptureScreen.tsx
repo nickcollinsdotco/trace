@@ -166,7 +166,7 @@ export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => v
             type="button"
             onClick={handleDiscard}
             disabled={capture.stopping}
-            className="rounded-sm px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink-faint transition-colors duration-120 hover:text-error disabled:opacity-50"
+            className="rounded-sm px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-error disabled:opacity-50"
           >
             Discard
           </button>
@@ -174,7 +174,7 @@ export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => v
             type="button"
             onClick={handleStop}
             disabled={capture.stopping}
-            className="rounded-sm border border-line-strong bg-surface-2 px-4 py-1.5 font-mono text-2xs uppercase tracking-system text-ink transition-colors duration-120 hover:border-phosphor hover:text-phosphor disabled:opacity-50"
+            className="rounded-sm border border-line-strong bg-surface-2 px-4 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor disabled:opacity-50"
           >
             {capture.stopping ? "Saving…" : "Stop meeting"}
           </button>
@@ -259,14 +259,14 @@ function SetupPanel({
             type="button"
             onClick={onStart}
             disabled={starting}
-            className="rounded-sm border border-phosphor bg-phosphor-dim px-4 py-2 font-mono text-2xs uppercase tracking-system text-phosphor transition-colors duration-120 hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+            className="rounded-sm border border-phosphor bg-phosphor-dim px-4 py-2 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
           >
             {starting ? "Starting…" : "Start meeting"}
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="font-mono text-2xs uppercase tracking-system text-ink-faint transition-colors duration-120 hover:text-ink"
+            className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
           >
             Cancel
           </button>

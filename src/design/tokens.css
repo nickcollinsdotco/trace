@@ -99,6 +99,16 @@
    * animations below. In markup use Tailwind's numeric `duration-120`.
    * ------------------------------------------------------------------ */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /*
+   * Tailwind's transition utilities read this. Left at its default they
+   * resolve to cubic-bezier(0.4, 0, 0.2, 1) — an ease-IN-out, which delays
+   * movement at the moment the user is watching most closely. Every button
+   * in the app had that until 2026-09-06, while --ease-out sat defined and
+   * almost unused. Pointing the default at it means a component cannot get
+   * this wrong by omission.
+   */
+  --default-transition-timing-function: var(--ease-out);
   --duration-fast: 120ms;
   --duration-base: 200ms;
 }
@@ -250,12 +260,24 @@ textarea,
  * but because scanlines and pulses are genuinely hostile to some people.
  * ------------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
+  /*
+   * Reduced motion means gentler, not none.
+   *
+   * This used to freeze every transition to 0.01ms, which took colour and
+   * opacity fades with it — and those aid comprehension while causing nobody
+   * motion sickness. What has to go is *movement*: transforms, and animations
+   * that travel.
+   *
+   * So rather than killing duration, this restricts which properties may
+   * transition at all. Anything else snaps, which is the point.
+   */
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+    transition-property:
+      color, background-color, border-color, opacity, box-shadow, outline-color !important;
   }
 }

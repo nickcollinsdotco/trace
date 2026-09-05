@@ -45,7 +45,7 @@ export function LibraryScreen({
           <button
             type="button"
             onClick={onNewMeeting}
-            className="flex items-center gap-2 rounded-sm border border-line-strong bg-surface-2 px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink transition-colors duration-120 hover:border-phosphor hover:text-phosphor"
+            className="flex items-center gap-2 rounded-sm border border-line-strong bg-surface-2 px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor"
           >
             <span aria-hidden>+</span>
             New meeting
@@ -119,7 +119,7 @@ function RecoveryCard({ session, onDone }: { session: RecoverableSession; onDone
             setBusy(false);
             onDone();
           }}
-          className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor transition-colors duration-120 hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+          className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
         >
           Save as note
         </button>
@@ -132,7 +132,7 @@ function RecoveryCard({ session, onDone }: { session: RecoverableSession; onDone
             setBusy(false);
             onDone();
           }}
-          className="font-mono text-2xs uppercase tracking-system text-ink-faint transition-colors duration-120 hover:text-error disabled:opacity-50"
+          className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-error disabled:opacity-50"
         >
           Discard
         </button>
@@ -220,7 +220,7 @@ function NoteRow({
 
   return (
     <div
-      className={`group flex items-baseline gap-3 rounded-sm px-2 py-2 transition-colors duration-120 hover:bg-surface-1 ${
+      className={`group flex items-baseline gap-3 rounded-sm px-2 py-2 trace-press hover:bg-surface-1 ${
         busy ? "opacity-50" : ""
       }`}
     >
@@ -272,7 +272,7 @@ function RowAction({
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-sm px-2 py-1 font-mono text-2xs uppercase tracking-system text-ink-faint transition-colors duration-120 disabled:opacity-40 ${
+      className={`rounded-sm px-2 py-1 font-mono text-2xs uppercase tracking-system text-ink-faint trace-press disabled:opacity-40 ${
         destructive ? "hover:text-error" : "hover:text-ink"
       }`}
     >

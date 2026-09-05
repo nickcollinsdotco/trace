@@ -131,7 +131,7 @@ export function FirstRunScreen({ onReady }: { onReady: () => void }) {
                       type="button"
                       onClick={install}
                       disabled={!hasBackend()}
-                      className="border border-line-strong px-4 py-1.5 font-mono text-2xs tracking-system text-ink transition-colors duration-120 hover:bg-ink hover:text-surface-0 disabled:opacity-40"
+                      className="border border-line-strong px-4 py-1.5 font-mono text-2xs tracking-system text-ink trace-press hover:bg-ink hover:text-surface-0 disabled:opacity-40"
                     >
                       [ Install ]
                     </button>

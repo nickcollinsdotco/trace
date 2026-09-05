@@ -99,7 +99,7 @@ export function ModelGate() {
             setProgress(null);
           });
         }}
-        className="rounded-sm border border-phosphor px-2.5 py-1 font-mono text-2xs uppercase tracking-system text-phosphor transition-colors duration-120 hover:bg-phosphor hover:text-surface-0"
+        className="rounded-sm border border-phosphor px-2.5 py-1 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0"
       >
         Download ({Math.round(status.downloadBytes / 1_048_576)} MB)
       </button>

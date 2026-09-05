@@ -60,6 +60,8 @@ export interface BackendState {
   script: ScriptedEvent[];
   /** Fired immediately on subscribe rather than on a timer. */
   immediate: ScriptedEvent[];
+  /** Whether the open note's journal still exists. */
+  canRegenerate: boolean;
   /** Commands that should reject, mapped to their message. */
   failures: Record<string, string>;
 }
@@ -85,6 +87,7 @@ export const DEFAULT_STATE: BackendState = {
   statusOverrides: {},
   script: [],
   immediate: [],
+  canRegenerate: true,
   failures: {},
 };
 
@@ -221,8 +224,8 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return state.root;
         case "regenerate_notes":
           return null;
-        case "note_is_enhanced":
-          return true;
+        case "can_regenerate":
+          return state.canRegenerate;
 
         default:
           throw new Error(`fixture backend: unhandled command "${command}"`);

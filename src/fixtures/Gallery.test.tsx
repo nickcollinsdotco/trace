@@ -116,6 +116,25 @@ describe("Gallery", () => {
     expect(screen.queryByText("Stop meeting")).toBeNull();
   });
 
+  it("disables regeneration when the journal is gone", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Cannot be regenerated" }));
+
+    const regenerate = await screen.findByRole("button", { name: "↻" });
+    await waitFor(() => expect(regenerate).toBeDisabled());
+    expect(regenerate).toHaveAttribute("title", expect.stringContaining("no longer on disk"));
+  });
+
+  it("still offers regeneration when the journal survives", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Enhanced note" }));
+
+    const regenerate = await screen.findByRole("button", { name: "↻" });
+    await waitFor(() => expect(regenerate).toBeEnabled());
+  });
+
   it("clears the fake backend when it unmounts", async () => {
     const { hasBackend } = await import("../lib/ipc");
     const { unmount } = render(<Gallery />);

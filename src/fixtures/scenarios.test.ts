@@ -26,7 +26,7 @@ const COMMANDS = [
   "discard_session",
   "reveal_notes_folder",
   "regenerate_notes",
-  "note_is_enhanced",
+  "can_regenerate",
 ];
 
 describe("scenarios", () => {

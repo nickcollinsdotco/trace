@@ -349,6 +349,15 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: "note-unreplayable",
+    name: "Cannot be regenerated",
+    group: "Reading",
+    note: "An older note whose journal is gone. The control says so rather than failing when pressed.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: { ...POPULATED, canRegenerate: false },
+  },
+  {
     id: "note-missing",
     name: "Note will not open",
     group: "Reading",

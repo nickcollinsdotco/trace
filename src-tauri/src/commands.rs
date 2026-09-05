@@ -391,17 +391,7 @@ pub async fn regenerate_notes(
 ) -> CmdResult<()> {
     let root = manager.notes_root().map_err(err)?;
     let path = PathBuf::from(&note_path);
-
-    let text = std::fs::read_to_string(&path).map_err(err)?;
-    let session_id =
-        frontmatter_field(&text, "id").ok_or_else(|| "this note has no session id".to_string())?;
-
-    let session_dir = store::session_for_note(&root, &session_id);
-    if !session_dir.join("session.jsonl").exists() {
-        return Err(
-            "the original transcript record for this meeting is no longer available".into(),
-        );
-    }
+    let session_dir = replayable_session(&root, &path)?;
 
     // Off the async runtime: synthesis on a long meeting is seconds to
     // minutes of blocking work.
@@ -412,10 +402,35 @@ pub async fn regenerate_notes(
     .map_err(err)
 }
 
-/// Whether a saved note already has generated sections.
+/// Whether this note's journal still exists, so regeneration would work.
+///
+/// The UI asks before offering the control. Finding out that a button does
+/// nothing by pressing it and reading an error is worse than seeing it
+/// disabled with a reason — especially for notes finalised before the journal
+/// was retained past synthesis, where it can never work again.
 #[tauri::command]
-pub fn note_is_enhanced(path: String) -> bool {
-    std::fs::read_to_string(PathBuf::from(path))
-        .map(|text| text.contains("\n## Summary\n"))
-        .unwrap_or(false)
+pub fn can_regenerate(manager: State<'_, CaptureManager>, note_path: String) -> bool {
+    let Ok(root) = manager.notes_root() else {
+        return false;
+    };
+    replayable_session(&root, &PathBuf::from(note_path)).is_ok()
+}
+
+/// Resolve a note to the session journal that produced it.
+///
+/// Fails clearly when the journal is gone: notes written before the journal
+/// survived finalisation, or discarded by hand, cannot be regenerated and the
+/// user should be told rather than shown a silent no-op.
+fn replayable_session(root: &std::path::Path, note: &std::path::Path) -> Result<PathBuf, String> {
+    let text = std::fs::read_to_string(note).map_err(err)?;
+    let session_id =
+        frontmatter_field(&text, "id").ok_or_else(|| "this note has no session id".to_string())?;
+
+    let session_dir = store::session_for_note(root, &session_id);
+    if !session_dir.join("session.jsonl").exists() {
+        return Err(
+            "the original transcript record for this meeting is no longer available".into(),
+        );
+    }
+    Ok(session_dir)
 }

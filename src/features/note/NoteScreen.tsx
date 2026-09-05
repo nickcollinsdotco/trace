@@ -30,12 +30,26 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  /*
+   * Whether the journal behind this note still exists.
+   *
+   * Notes finalised before the journal survived synthesis can never be
+   * regenerated. Asking up front means the control can say so, instead of
+   * looking available and failing when pressed.
+   */
+  const [replayable, setReplayable] = useState(false);
 
   useEffect(() => {
     void ipc
       .readNote(path)
       .then(setText)
       .catch((e) => setError(String(e)));
+
+    if (!hasBackend()) return;
+    void ipc
+      .canRegenerate(path)
+      .then(setReplayable)
+      .catch(() => setReplayable(false));
   }, [path]);
 
   // Stable, so the subscription is not torn down and rebuilt on every render.
@@ -84,6 +98,7 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
               onChange={setView}
               onRegenerate={regenerate}
               regenerating={regenerating}
+              replayable={replayable}
             />
           )}
         </div>
@@ -103,7 +118,11 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
               sections.hasEnhanced ? (
                 <NoteBody markdown={sections.enhanced} />
               ) : (
-                <NotEnhancedYet onRegenerate={regenerate} regenerating={regenerating} />
+                <NotEnhancedYet
+                  onRegenerate={regenerate}
+                  regenerating={regenerating}
+                  replayable={replayable}
+                />
               )
             ) : sections.hasNotes ? (
               <NoteBody markdown={sections.notes} />
@@ -147,12 +166,14 @@ function ViewToggle({
   onChange,
   onRegenerate,
   regenerating,
+  replayable,
 }: {
   view: View;
   hasEnhanced: boolean;
   onChange: (v: View) => void;
   onRegenerate: () => void;
   regenerating: boolean;
+  replayable: boolean;
 }) {
   return (
     <div className="flex items-center gap-1">
@@ -169,9 +190,13 @@ function ViewToggle({
         <button
           type="button"
           onClick={onRegenerate}
-          disabled={regenerating}
-          title="Generate the notes again from the transcript"
-          className="ml-1 rounded-sm px-2 py-1 font-mono text-2xs text-ink-faint transition-colors duration-120 hover:text-phosphor disabled:opacity-50"
+          disabled={regenerating || !replayable}
+          title={
+            replayable
+              ? "Generate the notes again from the transcript"
+              : "The original transcript record for this meeting is no longer on disk, so it cannot be regenerated."
+          }
+          className="ml-1 rounded-sm px-2 py-1 font-mono text-2xs text-ink-faint transition-colors duration-120 hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-ink-faint"
         >
           {regenerating ? "…" : "↻"}
         </button>
@@ -208,18 +233,21 @@ function Segment({
 function NotEnhancedYet({
   onRegenerate,
   regenerating,
+  replayable,
 }: {
   onRegenerate: () => void;
   regenerating: boolean;
+  replayable: boolean;
 }) {
   return (
     <div className="flex flex-col items-start gap-3 py-8">
       <p className="font-mono text-xs text-ink-faint">&gt; no generated notes for this meeting.</p>
       <p className="text-sm text-ink-muted">
-        Notes are written automatically when a meeting ends. This one has none — the model may not
-        have been available at the time.
+        {replayable
+          ? "Notes are written automatically when a meeting ends. This one has none — the model may not have been available at the time."
+          : "Notes are written automatically when a meeting ends. This one has none, and its transcript record is no longer on disk, so it cannot be generated now. The transcript below is still complete."}
       </p>
-      {hasBackend() && (
+      {hasBackend() && replayable && (
         <button
           type="button"
           onClick={onRegenerate}

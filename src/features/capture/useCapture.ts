@@ -78,6 +78,34 @@ export function useCapture() {
     };
   }, []);
 
+  /* --- adopt a session that is already running ----------------------- */
+
+  /*
+   * The hook's state is local to the component, so a remount — navigating
+   * away and back, or a hot reload — would otherwise show the setup panel
+   * while a meeting was still recording, and offer to start a second one.
+   * The backend is the authority on whether a session exists; ask it.
+   */
+  useEffect(() => {
+    if (!hasBackend()) return;
+
+    let disposed = false;
+    void ipc
+      .captureStatus()
+      .then((status) => {
+        if (disposed || !status) return;
+        // Never clobber a session started while this was in flight.
+        setState((s) => (s.status ? s : { ...s, status }));
+      })
+      .catch(() => {
+        /* no session, or the backend is not ready; the setup panel is correct */
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
   /* --- status polling ----------------------------------------------- */
 
   useEffect(() => {

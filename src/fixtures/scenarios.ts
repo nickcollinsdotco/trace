@@ -67,7 +67,13 @@ const NOTES: NoteSummary[] = [
 
 const POPULATED: Partial<BackendState> = { notes: NOTES, bodies: BODIES };
 
-/** Segments arriving one after another, as they do during a real meeting. */
+/**
+ * Segments arriving as they do during a real meeting.
+ *
+ * The first few land immediately, so a screen that mounts mid-meeting shows a
+ * transcript that already has history — which is what a real one looks like
+ * fourteen minutes in. The rest arrive on the chunker's rhythm.
+ */
 function liveScript(): ScriptedEvent[] {
   const turns: Array<[string, string]> = [
     ["system", "so where did we land on the migration"],
@@ -84,8 +90,12 @@ function liveScript(): ScriptedEvent[] {
     ["microphone", "I will have numbers by Thursday"],
   ];
 
+  const BACKLOG = 7;
+
   return turns.map(([source, text], i) => ({
-    atMs: 1200 + i * 2600,
+    // Backlog lands in the first 250ms; the rest keep arriving so the
+    // transcript is visibly live rather than a static screenshot.
+    atMs: i < BACKLOG ? i * 35 : 250 + (i - BACKLOG + 1) * 3200,
     event: EVENT.segment,
     payload: {
       id: `seg_${String(i).padStart(4, "0")}`,
@@ -138,12 +148,53 @@ export const SCENARIOS: Scenario[] = [
 
   /* --- Capture ----------------------------------------------------- */
   {
+    id: "capture-live",
+    name: "Recording",
+    group: "Capture",
+    note: "Fourteen minutes in. Meters moving, segments still arriving.",
+    screen: "capture",
+    state: { ...POPULATED, recording: true, startElapsedMs: 14 * 60_000, script: liveScript() },
+  },
+  {
+    id: "capture-processing",
+    name: "Transcribing",
+    group: "Capture",
+    note: "The gap between speech and transcript, labelled. Braille spinner, buffered seconds.",
+    screen: "capture",
+    state: {
+      ...POPULATED,
+      recording: true,
+      startElapsedMs: 6 * 60_000,
+      script: liveScript(),
+      statusOverrides: { inFlight: 2, pendingSpeechMs: 3400 },
+    },
+  },
+  {
+    id: "capture-listening",
+    name: "Listening",
+    group: "Capture",
+    note: "Speech held in the chunker but nothing in inference yet — the other half of the indicator.",
+    screen: "capture",
+    state: {
+      ...POPULATED,
+      recording: true,
+      startElapsedMs: 2 * 60_000 + 12_000,
+      script: liveScript(),
+      statusOverrides: { inFlight: 0, pendingSpeechMs: 5200 },
+    },
+  },
+  {
     id: "capture-setup",
     name: "Before recording",
     group: "Capture",
-    note: "Device pick and title. Press Start to enter the live state.",
+    note: "Device pick and title. Press Start to enter the live state for real.",
     screen: "capture",
-    state: { ...POPULATED, startElapsedMs: 14 * 60_000, script: liveScript() },
+    state: {
+      ...POPULATED,
+      startElapsedMs: 14 * 60_000,
+      script: liveScript(),
+      scriptStartsOn: "capture",
+    },
   },
   {
     id: "capture-no-model",
@@ -153,6 +204,7 @@ export const SCENARIOS: Scenario[] = [
     screen: "capture",
     state: {
       ...POPULATED,
+      recording: true,
       startElapsedMs: 3 * 60_000,
       model: {
         installed: false,
@@ -170,6 +222,7 @@ export const SCENARIOS: Scenario[] = [
     screen: "capture",
     state: {
       ...POPULATED,
+      recording: true,
       startElapsedMs: 22 * 60_000,
       script: liveScript(),
       statusOverrides: { droppedAudio: true, inFlight: 2, pendingSpeechMs: 5400 },
@@ -183,6 +236,7 @@ export const SCENARIOS: Scenario[] = [
     screen: "capture",
     state: {
       ...POPULATED,
+      recording: true,
       startElapsedMs: 8 * 60_000,
       script: liveScript(),
       immediate: [

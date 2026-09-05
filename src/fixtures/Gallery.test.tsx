@@ -66,6 +66,56 @@ describe("Gallery", () => {
     expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
   });
 
+  /*
+   * These exist because "renders without a console error" passed happily
+   * while every capture scenario was showing the setup panel. Rendering
+   * *something* is not the same as rendering the state the scenario names.
+   */
+  it("lands directly in the live recording state", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Recording" }));
+
+    // The live screen, not the setup panel — no Start required.
+    await waitFor(() => expect(screen.getByText("Stop meeting")).toBeInTheDocument());
+    expect(screen.getByRole("status")).toHaveTextContent(/CAPTURING/);
+    expect(screen.getByText("Signal")).toBeInTheDocument();
+    expect(screen.getByText("Mic")).toBeInTheDocument();
+
+    // And with transcript history, as a meeting fourteen minutes in has.
+    await waitFor(() =>
+      expect(screen.getByText(/where did we land on the migration/)).toBeInTheDocument(),
+    );
+  });
+
+  it("shows the processing indicator with real numbers behind it", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Transcribing" }));
+
+    await waitFor(() => expect(screen.getByText("transcribing")).toBeInTheDocument());
+    expect(screen.getByText(/3.4s buffered/)).toBeInTheDocument();
+  });
+
+  it("distinguishes listening from transcribing", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Listening" }));
+
+    // inFlight is 0 here: speech is buffered but the model is not running.
+    await waitFor(() => expect(screen.getByText("listening")).toBeInTheDocument());
+    expect(screen.queryByText("transcribing")).toBeNull();
+  });
+
+  it("still offers the setup panel where that is the point", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Before recording" }));
+
+    await waitFor(() => expect(screen.getByText("Start meeting")).toBeInTheDocument());
+    expect(screen.queryByText("Stop meeting")).toBeNull();
+  });
+
   it("clears the fake backend when it unmounts", async () => {
     const { hasBackend } = await import("../lib/ipc");
     const { unmount } = render(<Gallery />);

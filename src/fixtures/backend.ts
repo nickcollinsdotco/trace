@@ -45,7 +45,18 @@ export interface BackendState {
   startElapsedMs: number;
   /** Live status overrides, for warning and error states. */
   statusOverrides: Partial<CaptureStatus>;
-  /** Events fired on a timer once capture starts, or on mount for note screens. */
+  /**
+   * Whether a session is already running when the screen mounts.
+   *
+   * The capture screen asks the backend on mount, so this is all it takes to
+   * land straight in the live state — meters moving, transcript filling —
+   * rather than on the setup panel. Looking at a live recording should not
+   * require pressing a button first.
+   */
+  recording: boolean;
+  /** When the script begins. Capture scenarios that start idle wait for Start. */
+  scriptStartsOn: "subscribe" | "capture";
+  /** Events fired on a timer, relative to when the script starts. */
   script: ScriptedEvent[];
   /** Fired immediately on subscribe rather than on a timer. */
   immediate: ScriptedEvent[];
@@ -69,6 +80,8 @@ export const DEFAULT_STATE: BackendState = {
   ],
   root: "C:\\Users\\you\\Documents\\TRACE",
   startElapsedMs: 0,
+  recording: false,
+  scriptStartsOn: "subscribe",
   statusOverrides: {},
   script: [],
   immediate: [],
@@ -99,7 +112,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
   const handlers = new Map<string, Set<Handler>>();
   const timers: number[] = [];
 
-  let startedAt: number | null = null;
+  let startedAt: number | null = state.recording ? Date.now() : null;
   let segmentCount = 0;
   // Mutable, so the first-run scenario can be watched all the way through to
   // "Ready" instead of snapping back to "no model" when the download finishes.
@@ -141,9 +154,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
       for (const e of state.immediate) {
         if (e.event === event) window.setTimeout(() => handler(e.payload), 0);
       }
-      // Only the capture script waits for Start; everything else is a
-      // post-meeting sequence the reader should see without acting.
-      if (state.startElapsedMs === 0) startScriptOnce();
+      if (state.scriptStartsOn === "subscribe") startScriptOnce();
 
       return () => {
         set?.delete(handler);

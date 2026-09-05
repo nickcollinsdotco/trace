@@ -40,6 +40,31 @@ serviced by the OS and are not licensed for redistribution.
 `api-ms-win-crt-*` imports are the Universal CRT, part of Windows since 10
 1709, so they are not bundled either.
 
+## They must land beside the exe, not in a subfolder
+
+The first version of this shipped them to `$INSTDIR\redist\` and achieved
+nothing: the loader searches the *application directory*, not subfolders of
+it, so all five were still resolved from System32 and a clean machine would
+have failed exactly as before. `bundle.resources` therefore uses the map
+form, targeting the install root.
+
+It looked correct because it was verified in the wrong place — DLLs copied
+next to `target/release/trace.exe` by hand, which is not a layout the
+installer ever produces. **Check the installed application's loaded module
+paths, not a staged directory.**
+
+## DirectML.dll is committed, and why
+
+It is a build artefact of `ort`, 17.7 MB, and a *load-time* import of
+`trace.exe` — without it the app does not start at all. It cannot be staged
+during the build, because Tauri validates `bundle.resources` at compile time
+and the file is produced by that same compile. There is no point in the build
+where staging works, so committing it is what breaks the circle.
+
+The cost of committing an artefact is drift, so `scripts/stage-runtime.mjs`
+runs at bundle time, compares the committed copy against the fresh build
+output, and refreshes it loudly if `ort` ever produces a different binary.
+
 ## Refreshing
 
 Copy the four files from the path above after a Visual Studio update, then

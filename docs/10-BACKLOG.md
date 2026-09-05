@@ -98,7 +98,7 @@ What already exists that it will want:
 - the fill and framing switches, so a palette inherits the chosen look rather
   than needing its own styling pass
 
-## Chunk boundaries can split a sentence, and the fragment gets a made-up ending
+## ~~Chunk boundaries split sentences~~ — fixed 2026-09-06
 
 **Observed 2026-09-05**, first real meeting. The speaker said "this is where
 designers never stop learning" as one sentence. TRACE split it mid-sentence
@@ -128,6 +128,35 @@ so there was nothing to test a fix against. The keep-audio setting exists for
 exactly this. The order is: record a clip that reproduces it, keep the audio,
 make it a fixture, then tune — so the threshold stops being folklore.
 
-Worth considering afterwards: **overlapping chunks**, so a split has context
-on both sides. Splits will sometimes land badly whatever the threshold, and
-overlap is the structural answer rather than a better guess.
+### What it actually was
+
+Measured with `cargo run --release --example chunk_check` against the kept
+audio. The recording's speech sat at **0.005–0.029 RMS** and the threshold was
+**0.012** — so roughly half the speech was classified as silence and never
+sent to the model. The first five seconds of the recording were simply
+missing from the note, with nothing anywhere reporting it.
+
+Chunking on that recording: **13 chunks**, many under a second. Parakeet given
+half-second fragments produced "2", "Mm.", "Line." — words nobody said.
+
+The threshold is now derived per recording from two points on its own energy
+distribution: a low percentile for the noise floor, a high one for the speech
+level, threshold a quarter of the way between. An earlier attempt used a
+fixed multiple of the floor alone; a unit test caught that it assumes the
+silence-to-speech gap is always the same size, and mutes speech when the gap
+is narrow. Same recording now yields **5 chunks** of 8.1s, 4.5s, 10.4s, 4.8s,
+0.5s, starting at 1.03s where the speech starts.
+
+The live pass cannot measure a floor before audio arrives, so it errs
+sensitive for the first two seconds and calibrates once it has enough. The
+two errors are not symmetric: too sensitive wastes a little inference, too
+deaf deletes words permanently.
+
+Silence needed to close a chunk went from ~510 ms to ~810 ms, since 510 ms
+split at an ordinary breath.
+
+### Still worth doing
+
+**Overlapping chunks**, so a split has context on both sides. Splits will
+sometimes land badly whatever the threshold, and overlap is the structural
+answer rather than a better-tuned guess.

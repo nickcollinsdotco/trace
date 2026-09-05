@@ -22,7 +22,7 @@
 
 use transcribe_rs::vad::{EnergyVad, Vad};
 
-use super::chunker::{Chunk, ChunkConfig};
+use super::chunker::{adaptive_threshold, Chunk, ChunkConfig, SENSITIVE_THRESHOLD};
 
 /// Feeds samples in, gets bounded chunks out.
 pub struct StreamingChunker {
@@ -44,11 +44,36 @@ pub struct StreamingChunker {
     silence_run: usize,
     saw_speech: bool,
     total_seen: usize,
+
+    /*
+     * Live audio has no noise floor to measure up front, so the threshold is
+     * calibrated once enough has arrived to estimate one, then held.
+     *
+     * Until then it deliberately errs sensitive. The two failure directions
+     * are not symmetric: too sensitive puts some silence inside a chunk,
+     * costing a little inference on audio that says nothing, while too deaf
+     * drops speech that is then absent from the transcript for good. The
+     * first is a rounding error; the second is data loss.
+     */
+    warmup: Vec<f32>,
+    calibrated: bool,
 }
+
+/// Audio to hear before estimating the noise floor, in samples at 16 kHz.
+///
+/// Two seconds: long enough to contain a gap between phrases on most
+/// recordings, short enough that the sensitive default is not in force for
+/// any meaningful part of a meeting.
+const WARMUP_SAMPLES: usize = 32_000;
 
 impl StreamingChunker {
     pub fn new(config: ChunkConfig) -> Self {
-        let vad = EnergyVad::new(config.frame_size, config.energy_threshold);
+        // A pinned threshold needs no calibration; only `None` does.
+        let (initial, calibrated) = match config.energy_threshold {
+            Some(fixed) => (fixed, true),
+            None => (SENSITIVE_THRESHOLD, false),
+        };
+        let vad = EnergyVad::new(config.frame_size, initial);
         Self {
             config,
             vad,
@@ -61,13 +86,33 @@ impl StreamingChunker {
             silence_run: 0,
             saw_speech: false,
             total_seen: 0,
+            warmup: Vec::new(),
+            calibrated,
         }
+    }
+
+    /// Fix the threshold once enough audio exists to estimate a noise floor.
+    fn calibrate(&mut self, samples: &[f32]) {
+        if self.calibrated {
+            return;
+        }
+        self.warmup.extend_from_slice(samples);
+        if self.warmup.len() < WARMUP_SAMPLES {
+            return;
+        }
+
+        let threshold = adaptive_threshold(&self.warmup, self.config.frame_size);
+        self.vad = EnergyVad::new(self.config.frame_size, threshold);
+        self.calibrated = true;
+        // The samples themselves are no longer needed, only the number.
+        self.warmup = Vec::new();
     }
 
     /// Append audio and return any chunks that became complete.
     ///
     /// Samples must already be at the chunker's configured rate.
     pub fn push(&mut self, samples: &[f32]) -> Vec<Chunk> {
+        self.calibrate(samples);
         self.buffer.extend_from_slice(samples);
         self.total_seen += samples.len();
         self.pending += samples.len();

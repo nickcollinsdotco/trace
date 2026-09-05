@@ -62,7 +62,11 @@ pub struct ChunkConfig {
     /// Samples per VAD frame. 480 = 30 ms at 16 kHz.
     pub frame_size: usize,
     /// RMS above which a frame counts as speech.
-    pub energy_threshold: f32,
+    ///
+    /// `None` derives it from the recording's own noise floor, which is the
+    /// default and what should normally be used. `Some` pins it, for tests
+    /// and for the diagnostic in `examples/chunk_check.rs`.
+    pub energy_threshold: Option<f32>,
     /// Consecutive silent frames that close a chunk. ~500 ms is long enough to
     /// sit between sentences without cutting mid-phrase at a natural breath.
     pub silence_frames: usize,
@@ -134,10 +138,14 @@ impl Default for ChunkConfig {
         Self {
             sample_rate: TARGET_SAMPLE_RATE,
             frame_size: 480, // 30 ms
-            // Chosen against the M1 recordings, where speech sat around
-            // 0.03-0.06 RMS and silence well below 0.005.
-            energy_threshold: 0.012,
-            silence_frames: 17, // ~510 ms
+            // Derived per recording. A fixed value cannot work: 0.012 was
+            // chosen against the M1 recordings and silently swallowed half of
+            // the speech on a quieter microphone.
+            energy_threshold: None,
+            // ~810 ms. 510 ms split mid-sentence at an ordinary breath, and
+            // Parakeet ends a fragment that stops mid-clause with a word
+            // nobody said.
+            silence_frames: 27,
             min_samples: rate / 2,
             soft_max_samples: rate * 20,
             hard_max_samples: rate * 30,
@@ -155,7 +163,11 @@ pub fn chunk_by_silence(samples: &[f32], config: &ChunkConfig) -> Vec<Chunk> {
         return Vec::new();
     }
 
-    let mut vad = EnergyVad::new(config.frame_size, config.energy_threshold);
+    let threshold = match config.energy_threshold {
+        Some(fixed) => fixed,
+        None => adaptive_threshold(samples, config.frame_size),
+    };
+    let mut vad = EnergyVad::new(config.frame_size, threshold);
     let flags = classify_frames(samples, config.frame_size, &mut vad);
     if flags.iter().all(|speech| !speech) {
         return Vec::new();
@@ -222,6 +234,71 @@ pub fn chunk_by_silence(samples: &[f32], config: &ChunkConfig) -> Vec<Chunk> {
     chunks
 }
 
+/// The threshold used before a recording's noise floor can be measured.
+///
+/// Deliberately at the sensitive end: hearing silence as speech wastes a
+/// little inference, whereas hearing speech as silence loses it permanently.
+pub const SENSITIVE_THRESHOLD: f32 = 0.0025;
+
+/// Derive the speech threshold from the recording's own noise floor.
+///
+/// A fixed absolute threshold cannot work across microphones, and the failure
+/// is silent and severe. 0.012 was chosen against the M1 recordings, where
+/// speech sat at 0.03-0.06 RMS. On a quieter microphone, measured
+/// 2026-09-06, speech sat at 0.005-0.029 and *half of it fell below the
+/// threshold* — classified as silence, never transcribed, and simply absent
+/// from the note. The recording opened with five seconds of speech that never
+/// reached the model at all.
+///
+/// The signal that makes this tractable: within one recording, silence and
+/// speech separate cleanly. So read both — a low percentile for the noise
+/// floor, a high one for the speech level — and put the threshold a short way
+/// up from the floor towards the speech.
+///
+/// Both clamps matter. A recording that is *all* speech has no floor to find,
+/// and the percentile would land on speech itself — the upper clamp stops
+/// that from muting everything. A digital-silence stream would drive the
+/// threshold to zero and call its own dither speech; the lower clamp stops
+/// that.
+pub fn adaptive_threshold(samples: &[f32], frame_size: usize) -> f32 {
+    /// How far from the noise floor towards the speech level to sit.
+    ///
+    /// Low, because the two errors are not equal: a threshold slightly too
+    /// sensitive puts some room tone inside a chunk, costing a little
+    /// inference on audio that says nothing. A threshold slightly too deaf
+    /// deletes words, and nothing anywhere reports that it happened.
+    const TOWARDS_SPEECH: f32 = 0.25;
+    /// Never quieter than this, or a silent stream's dither reads as speech.
+    const MIN: f32 = 0.0015;
+    /// Never louder than this — the point at which a threshold starts
+    /// discarding ordinary speech. It is the old fixed value.
+    const MAX: f32 = 0.012;
+
+    let mut energies: Vec<f32> = samples
+        .chunks(frame_size)
+        .filter(|f| f.len() == frame_size)
+        .map(|f| (f.iter().map(|s| s * s).sum::<f32>() / f.len() as f32).sqrt())
+        .collect();
+
+    if energies.is_empty() {
+        return MAX;
+    }
+
+    energies.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let at = |q: f32| energies[((energies.len() - 1) as f32 * q) as usize];
+
+    // Two points on the distribution rather than one. An earlier version took
+    // a fixed multiple of the floor alone, which assumes the gap between
+    // silence and speech is always the same size — it is not, and when the
+    // gap is narrow that version put the threshold *above* the speech and
+    // deleted it. Reading both ends adapts to the recording instead of to an
+    // assumption about it.
+    let floor = at(0.10);
+    let speech = at(0.75);
+
+    (floor + (speech - floor).max(0.0) * TOWARDS_SPEECH).clamp(MIN, MAX)
+}
+
 /// Classify every frame, treating a short trailing remainder as silence.
 fn classify_frames(samples: &[f32], frame_size: usize, vad: &mut EnergyVad) -> Vec<bool> {
     samples
@@ -260,6 +337,98 @@ fn push_chunk(
 
 #[cfg(test)]
 mod tests {
+    /// Speech at the level a quiet microphone actually produces.
+    ///
+    /// Measured from a real recording on 2026-09-06: speech 0.005-0.029 RMS,
+    /// room tone 0.0008-0.0024. The old fixed threshold of 0.012 sat above
+    /// half of that speech.
+    fn quiet_speech(samples: usize, rms: f32) -> Vec<f32> {
+        (0..samples)
+            .map(|i| {
+                // A tone rather than noise, so the RMS is exactly known.
+                let t = i as f32 / TARGET_SAMPLE_RATE as f32;
+                (t * 220.0 * std::f32::consts::TAU).sin() * rms * std::f32::consts::SQRT_2
+            })
+            .collect()
+    }
+
+    fn room_tone(samples: usize) -> Vec<f32> {
+        quiet_speech(samples, 0.0015)
+    }
+
+    #[test]
+    fn quiet_speech_is_not_mistaken_for_silence() {
+        // The bug this exists to prevent: a quiet speaker's opening seconds
+        // were classified as silence, never transcribed, and simply absent
+        // from the note. Nothing warned; the words were just gone.
+        let rate = TARGET_SAMPLE_RATE as usize;
+        let mut audio = room_tone(rate);
+        audio.extend(quiet_speech(rate * 3, 0.006));
+        audio.extend(room_tone(rate));
+
+        let chunks = chunk_by_silence(&audio, &ChunkConfig::default());
+
+        assert!(!chunks.is_empty(), "quiet speech produced no chunks at all");
+        let covered: usize = chunks.iter().map(|c| c.samples.len()).sum();
+        assert!(
+            covered >= rate * 2,
+            "only {:.2}s of 3s of quiet speech survived",
+            covered as f32 / rate as f32
+        );
+    }
+
+    #[test]
+    fn the_threshold_follows_the_noise_floor() {
+        let rate = TARGET_SAMPLE_RATE as usize;
+        let frame = ChunkConfig::default().frame_size;
+
+        let quiet = {
+            let mut a = quiet_speech(rate, 0.0008);
+            a.extend(quiet_speech(rate, 0.006));
+            adaptive_threshold(&a, frame)
+        };
+        let loud = {
+            let mut a = quiet_speech(rate, 0.004);
+            a.extend(quiet_speech(rate, 0.05));
+            adaptive_threshold(&a, frame)
+        };
+
+        assert!(
+            quiet < loud,
+            "a noisier recording must demand more energy to count as speech ({quiet} vs {loud})"
+        );
+    }
+
+    #[test]
+    fn the_threshold_stays_within_its_clamps() {
+        let frame = ChunkConfig::default().frame_size;
+        let rate = TARGET_SAMPLE_RATE as usize;
+
+        // Digital silence: without the lower clamp the threshold goes to zero
+        // and the stream's own dither reads as speech.
+        let silent = adaptive_threshold(&vec![0.0; rate], frame);
+        assert!(silent >= 0.0015, "threshold collapsed to {silent}");
+
+        // Wall-to-wall speech: there is no floor to find, and without the
+        // upper clamp the percentile lands on speech and mutes everything.
+        let loud = adaptive_threshold(&quiet_speech(rate, 0.2), frame);
+        assert!(loud <= 0.012, "threshold ran away to {loud}");
+    }
+
+    #[test]
+    fn an_ordinary_breath_does_not_split_a_sentence() {
+        // 600ms: longer than a fast breath, shorter than a sentence gap. The
+        // old 510ms ceiling split here, and Parakeet ended the fragment with
+        // a word nobody said.
+        let rate = TARGET_SAMPLE_RATE as usize;
+        let mut audio = quiet_speech(rate * 2, 0.02);
+        audio.extend(room_tone(rate * 6 / 10));
+        audio.extend(quiet_speech(rate * 2, 0.02));
+
+        let chunks = chunk_by_silence(&audio, &ChunkConfig::default());
+        assert_eq!(chunks.len(), 1, "a 600ms breath split the sentence");
+    }
+
     use super::*;
 
     const RATE: usize = TARGET_SAMPLE_RATE as usize;

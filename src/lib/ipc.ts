@@ -148,6 +148,7 @@ export const EVENT = {
   segment: "trace://segment",
   captureError: "trace://capture-error",
   modelProgress: "trace://model-progress",
+  transcriptUpdated: "trace://transcript-updated",
 } as const;
 
 /** Subscribe to live transcript segments. */
@@ -176,4 +177,21 @@ export function onModelProgress(handler: (progress: ModelProgress) => void): Pro
  */
 export function hasBackend(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+/**
+ * Fires when the accurate re-pass has replaced the live transcript in a
+ * saved note.
+ *
+ * The note is written immediately when a meeting stops, using the live
+ * transcript. Re-transcribing at full quality takes about two and a half
+ * minutes for an hour-long meeting, so it happens in the background and this
+ * announces the result.
+ */
+export function onTranscriptUpdated(
+  handler: (info: { notePath: string; segments: number }) => void,
+): Promise<UnlistenFn> {
+  return listen(EVENT.transcriptUpdated, (event) =>
+    handler(camel<{ notePath: string; segments: number }>(event.payload)),
+  );
 }

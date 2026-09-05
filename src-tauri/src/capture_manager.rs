@@ -34,6 +34,8 @@ use crate::transcribe::{Segment, Transcriber};
 /// Event names the frontend subscribes to.
 pub const EVENT_SEGMENT: &str = "trace://segment";
 pub const EVENT_CAPTURE_ERROR: &str = "trace://capture-error";
+/// Emitted when the accurate re-pass has replaced the live transcript.
+pub const EVENT_TRANSCRIPT_UPDATED: &str = "trace://transcript-updated";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ManagerError {
@@ -273,10 +275,25 @@ impl CaptureManager {
         Ok(())
     }
 
-    /// Stop recording, finalise the transcript, and write the note.
-    pub fn stop(&self) -> Result<FinishedMeeting, ManagerError> {
+    /// Take ownership of the running session, or report that there is none.
+    ///
+    /// Split out from `stop` so the no-active-meeting case stays unit-testable:
+    /// `stop` needs an `AppHandle`, which cannot be constructed outside a
+    /// running Tauri app.
+    fn take_active(&self) -> Result<Active, ManagerError> {
         let mut guard = self.active.lock().map_err(|_| ManagerError::NotActive)?;
-        let active = guard.take().ok_or(ManagerError::NotActive)?;
+        guard.take().ok_or(ManagerError::NotActive)
+    }
+
+    /// Stop recording, finalise the transcript, and write the note.
+    ///
+    /// `app` is passed in rather than held on the session. An `AppHandle`
+    /// stored inside `.manage()` state makes the library test binary fail to
+    /// load on Windows with STATUS_ENTRYPOINT_NOT_FOUND — it drags the Wry
+    /// runtime into a binary that never starts an app. Passing it per-call
+    /// avoids that entirely.
+    pub fn stop(&self, app: AppHandle) -> Result<FinishedMeeting, ManagerError> {
+        let active = self.take_active()?;
 
         // Stop capture first so the WAVs are finalised and the tap closes,
         // which lets the pump drain and exit on its own.
@@ -324,8 +341,17 @@ impl CaptureManager {
         let notes_root = self.notes_root()?;
         let note_path = store::write_note(&notes_root, &meeting)?;
 
-        // Only now that the note is on disk is the journal expendable.
-        let _ = store::discard_session(&active.dir);
+        // The re-pass runs in the background rather than blocking here. At
+        // roughly 25x realtime an hour-long meeting takes about two and a half
+        // minutes to re-transcribe, and holding the UI on "Saving..." for that
+        // long after a meeting ends would be worse than briefly showing a
+        // slightly rougher transcript. The note on disk is already complete and
+        // correct; the re-pass only improves its wording.
+        //
+        // The session directory is deliberately NOT discarded here — the
+        // re-pass still needs the WAVs and the journal.
+
+        spawn_repass(app, active.dir.clone(), note_path.clone(), summary.clone());
 
         Ok(FinishedMeeting {
             meeting,
@@ -333,6 +359,81 @@ impl CaptureManager {
             summary,
         })
     }
+}
+
+/// Re-transcribe the finished recording at full quality, in the background.
+///
+/// The live transcript is produced from 4-7 second chunks, which trades the
+/// model.s surrounding context for latency. This pass re-runs the same audio
+/// with the offline 20/30 second config, which is measurably more accurate on
+/// exactly the short, ambiguous words the live pass gets wrong.
+///
+/// Failure here is not an error the user needs to act on: the note already on
+/// disk stays valid, so a failed re-pass simply leaves it as it was.
+fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summary: SessionSummary) {
+    std::thread::Builder::new()
+        .name("trace-repass".into())
+        .spawn(move || {
+            // Loading a second engine only after the live one has been dropped
+            // keeps peak memory to one model rather than two.
+            let Ok(mut engine) = Transcriber::load() else {
+                let _ = store::discard_session(&session_dir);
+                return;
+            };
+
+            let mut segments = Vec::new();
+            for outcome in &summary.streams {
+                if !outcome.is_usable() {
+                    continue;
+                }
+                match engine.transcribe_stream(
+                    &outcome.path,
+                    outcome.source,
+                    outcome.start_offset_ms,
+                ) {
+                    Ok(mut produced) => segments.append(&mut produced),
+                    Err(e) => {
+                        eprintln!("trace: re-pass failed for {:?}: {e}", outcome.source);
+                        // Abandon rather than half-replace: a transcript
+                        // missing one whole stream would be worse than the
+                        // live one it would overwrite.
+                        let _ = store::discard_session(&session_dir);
+                        return;
+                    }
+                }
+            }
+
+            if segments.is_empty() {
+                let _ = store::discard_session(&session_dir);
+                return;
+            }
+
+            let segments = crate::transcribe::merge(segments);
+
+            // Journal before rewriting, so a crash between the two leaves a
+            // journal that replays to the better transcript.
+            if let Ok(mut journal) = Journal::open(&session_dir) {
+                let _ = journal.append(&JournalEvent::TranscriptReplaced {
+                    segments: segments.clone(),
+                });
+            }
+
+            if let Ok(replay) = crate::store::journal::replay(&session_dir) {
+                if store::rewrite_note(&note_path, &replay.meeting).is_ok() {
+                    let _ = app.emit(
+                        EVENT_TRANSCRIPT_UPDATED,
+                        serde_json::json!({
+                            "notePath": note_path.display().to_string(),
+                            "segments": segments.len(),
+                        }),
+                    );
+                }
+            }
+
+            // Now the journal and audio are genuinely expendable.
+            let _ = store::discard_session(&session_dir);
+        })
+        .ok();
 }
 
 /// Forward captured audio to the transcriber, and its output to disk and UI.
@@ -419,7 +520,8 @@ mod tests {
             m.update_notes("x".into()),
             Err(ManagerError::NotActive)
         ));
-        assert!(matches!(m.stop(), Err(ManagerError::NotActive)));
+        // `stop` itself needs an AppHandle; this covers the same guard.
+        assert!(matches!(m.take_active(), Err(ManagerError::NotActive)));
         assert!(matches!(
             m.set_title("x".into()),
             Err(ManagerError::NotActive)

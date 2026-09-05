@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { SystemLabel } from "../../components/ui/terminal";
-import { ipc } from "../../lib/ipc";
+import { ipc, onTranscriptUpdated } from "../../lib/ipc";
 
 /**
  * Reading mode — quiet, editorial, high readability.
@@ -13,12 +13,37 @@ import { ipc } from "../../lib/ipc";
 export function NoteScreen({ path, onBack }: { path: string; onBack: () => void }) {
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refined, setRefined] = useState(false);
 
   useEffect(() => {
     void ipc
       .readNote(path)
       .then(setText)
       .catch((e) => setError(String(e)));
+  }, [path]);
+
+  // The note on screen may be superseded a minute or two later by the
+  // higher-quality re-pass. Reload it in place rather than leaving the user
+  // reading a version that is no longer what is on disk.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+
+    void onTranscriptUpdated((info) => {
+      if (disposed || info.notePath !== path) return;
+      void ipc.readNote(path).then((t) => {
+        setText(t);
+        setRefined(true);
+      });
+    }).then((un) => {
+      if (disposed) un();
+      else unlisten = un;
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, [path]);
 
   return (
@@ -38,6 +63,11 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
         {error && <p className="font-mono text-xs text-error">&gt; {error}</p>}
         {text === null && !error && (
           <p className="font-mono text-xs text-ink-faint">&gt; reading…</p>
+        )}
+        {refined && (
+          <p className="font-mono text-2xs text-phosphor" role="status">
+            &gt; transcript refined — full-quality pass complete.
+          </p>
         )}
         {text !== null && <NoteBody markdown={text} />}
 

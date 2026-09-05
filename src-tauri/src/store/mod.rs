@@ -74,6 +74,17 @@ pub fn scan_recoverable(notes_root: &std::path::Path) -> Vec<Recoverable> {
     found
 }
 
+/// Rewrite an existing note in place.
+///
+/// Used by the accurate re-pass, which must replace the note it already wrote
+/// rather than creating a second file beside it.
+pub fn rewrite_note(
+    path: &std::path::Path,
+    meeting: &crate::meeting::Meeting,
+) -> Result<(), StoreError> {
+    paths::write_atomic(path, &markdown::serialize(meeting))
+}
+
 /// Write a meeting to its canonical Markdown file.
 ///
 /// Returns the path written. Uses a unique filename so two meetings sharing a

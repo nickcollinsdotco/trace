@@ -142,8 +142,11 @@ pub fn set_title(manager: State<'_, CaptureManager>, title: String) -> CmdResult
 /// synchronous file write, and the UI must not proceed as though the meeting
 /// were saved before it actually is.
 #[tauri::command]
-pub async fn stop_capture(manager: State<'_, CaptureManager>) -> CmdResult<FinishedMeeting> {
-    manager.stop().map_err(err)
+pub async fn stop_capture(
+    app: AppHandle,
+    manager: State<'_, CaptureManager>,
+) -> CmdResult<FinishedMeeting> {
+    manager.stop(app).map_err(err)
 }
 
 /* ------------------------------------------------------------------ *

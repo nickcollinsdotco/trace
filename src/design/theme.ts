@@ -42,6 +42,16 @@ export const TYPES = ["hybrid", "mono", "sans"] as const;
 
 export type TypeRole = (typeof TYPES)[number];
 
+/**
+ * Letter case for monospace system text.
+ *
+ * `normal` means "leave it to the theme" rather than "force sentence case",
+ * so selecting it changes nothing.
+ */
+export const CASES = ["normal", "upper", "lower"] as const;
+
+export type LetterCase = (typeof CASES)[number];
+
 export const THEME_NOTES: Record<Theme, string> = {
   terminal: "The default. Phosphor green, an instrument from an alternate 1987.",
   report: "TR-100 machine report — monochrome, boxed, dithered. No accent at all.",
@@ -58,16 +68,16 @@ export const THEME_FRAME: Record<Theme, Frame> = {
 };
 
 /** Each look's starting typeface pairing. All of it is overridable in the gallery. */
-export const THEME_TYPE: Record<Theme, { mono: Mono; role: TypeRole }> = {
+export const THEME_TYPE: Record<Theme, { mono: Mono; role: TypeRole; case: LetterCase }> = {
   // Today's default, unchanged.
-  terminal: { mono: "geist", role: "hybrid" },
+  terminal: { mono: "geist", role: "hybrid", case: "normal" },
   // A machine report is monospace all the way down — that is what makes it
-  // a report rather than a document about one.
-  report: { mono: "plex", role: "mono" },
-  // conky is a readout: mono everywhere, tight and even.
-  console: { mono: "jetbrains", role: "mono" },
+  // a report rather than a document about one — and the TR-100 shouts.
+  report: { mono: "plex", role: "mono", case: "upper" },
+  // conky is a readout: mono everywhere, tight, even, and quiet.
+  console: { mono: "jetbrains", role: "mono", case: "lower" },
   // Industrial signage is a grotesque, with mono for the data.
-  industrial: { mono: "fragment", role: "hybrid" },
+  industrial: { mono: "fragment", role: "hybrid", case: "upper" },
 };
 
 export const MONO_NOTES: Record<Mono, string> = {
@@ -75,6 +85,12 @@ export const MONO_NOTES: Record<Mono, string> = {
   fragment: "Fragment Mono — single weight, wide, quite characterful.",
   jetbrains: "JetBrains Mono — tall x-height, built for long reading.",
   plex: "IBM Plex Mono — the most document-like of the four.",
+};
+
+export const CASE_NOTES: Record<LetterCase, string> = {
+  normal: "As written — the theme's own label casing still applies.",
+  upper: "SYSTEM TEXT IN CAPS. Not prose; an uppercase paragraph is unreadable.",
+  lower: "system text in lowercase. quieter, more modern-terminal.",
 };
 
 export const TYPE_NOTES: Record<TypeRole, string> = {
@@ -87,6 +103,7 @@ export interface Overrides {
   frame?: Frame | undefined;
   mono?: Mono | undefined;
   role?: TypeRole | undefined;
+  case?: LetterCase | undefined;
 }
 
 /**
@@ -104,6 +121,7 @@ export function applyTheme(theme: Theme, target: HTMLElement, o: Overrides = {})
   target.setAttribute("data-frame", o.frame ?? THEME_FRAME[theme]);
   target.setAttribute("data-mono", o.mono ?? type.mono);
   target.setAttribute("data-type", o.role ?? type.role);
+  target.setAttribute("data-case", o.case ?? type.case);
 }
 
 const STORAGE_KEY = "trace.theme";
@@ -122,6 +140,10 @@ export function isMono(value: unknown): value is Mono {
 
 export function isTypeRole(value: unknown): value is TypeRole {
   return typeof value === "string" && (TYPES as readonly string[]).includes(value);
+}
+
+export function isLetterCase(value: unknown): value is LetterCase {
+  return typeof value === "string" && (CASES as readonly string[]).includes(value);
 }
 
 export function loadTheme(): Theme {

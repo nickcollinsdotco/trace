@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   applyTheme,
+  CASE_NOTES,
+  isLetterCase,
   isMono,
   isTheme,
   isTypeRole,
@@ -110,9 +112,34 @@ describe("themes", () => {
       expect(THEME_TYPE[t], t).toBeTruthy();
       expect(MONO_NOTES[THEME_TYPE[t].mono], t).toBeTruthy();
       expect(TYPE_NOTES[THEME_TYPE[t].role], t).toBeTruthy();
+      expect(CASE_NOTES[THEME_TYPE[t].case], t).toBeTruthy();
     }
     for (const m of MONOS) expect(MONO_NOTES[m], m).toBeTruthy();
     for (const r of TYPES) expect(TYPE_NOTES[r], r).toBeTruthy();
+  });
+
+  it("sets each theme's letter case, and normal is inert", () => {
+    const el = document.createElement("div");
+
+    applyTheme("report", el);
+    expect(el.getAttribute("data-case")).toBe("upper");
+
+    applyTheme("console", el);
+    expect(el.getAttribute("data-case")).toBe("lower");
+
+    // terminal must stay exactly as it is: "normal" has no CSS rules at all,
+    // so the theme's own label casing still decides.
+    applyTheme("terminal", el);
+    expect(el.getAttribute("data-case")).toBe("normal");
+  });
+
+  it("overrides case without disturbing the other axes", () => {
+    const el = document.createElement("div");
+    applyTheme("industrial", el, { case: "lower" });
+
+    expect(el.getAttribute("data-case")).toBe("lower");
+    expect(el.getAttribute("data-mono")).toBe("fragment");
+    expect(el.getAttribute("data-frame")).toBe("box");
   });
 
   it("rejects non-fonts", () => {
@@ -120,6 +147,8 @@ describe("themes", () => {
     expect(isMono("comic-sans")).toBe(false);
     expect(isTypeRole("mono")).toBe(true);
     expect(isTypeRole("Mono")).toBe(false);
+    expect(isLetterCase("upper")).toBe(true);
+    expect(isLetterCase("UPPER")).toBe(false);
   });
 
   it("rejects non-themes", () => {

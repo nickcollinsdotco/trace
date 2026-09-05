@@ -22,6 +22,25 @@
  */
 
 /* ---------------------------------------------------------------------
+ * The themed root has to set font-family itself.
+ *
+ * This is the whole reason the first attempt did nothing to prose or titles.
+ * `font-family` inherits as a COMPUTED value: `body` resolves
+ * `var(--font-sans)` once, against whatever the tokens say at `body`, and
+ * every descendant inherits that resolved family. Redefining `--font-sans`
+ * further down the tree — which is exactly what a theme does — changes
+ * nothing already inherited. Only elements carrying an explicit `font-mono`
+ * or `font-sans` utility re-resolve, which is why the eyebrow labels
+ * changed and the notes did not.
+ *
+ * So the element that carries the theme attributes must declare the family
+ * too, giving the subtree a fresh resolution point.
+ * ------------------------------------------------------------------ */
+[data-type] {
+  font-family: var(--font-sans);
+}
+
+/* ---------------------------------------------------------------------
  * Monospace families.
  *
  * Every stack keeps real fallbacks: a webfont that fails to load must not
@@ -90,4 +109,31 @@
 
 [data-mode="reading"] .trace-prose {
   line-height: var(--content-leading, 1.65);
+}
+
+/* ---------------------------------------------------------------------
+ * Letter case — a third type axis.
+ *
+ * Applies to monospace SYSTEM text: timestamps, transcript lines, status,
+ * keyboard hints, buttons. Deliberately not to prose, even in `mono` role,
+ * where prose carries no `.font-mono` class — an uppercase paragraph is
+ * genuinely hard to read and nobody wants their notes shouted back.
+ *
+ * `normal` sets nothing at all, so the theme's own --label-transform still
+ * decides and the default is untouched.
+ * ------------------------------------------------------------------ */
+[data-case="upper"] {
+  --label-transform: uppercase;
+}
+
+[data-case="lower"] {
+  --label-transform: lowercase;
+}
+
+[data-case="upper"] .font-mono {
+  text-transform: uppercase;
+}
+
+[data-case="lower"] .font-mono {
+  text-transform: lowercase;
 }

@@ -21,8 +21,11 @@ import { ModelGate } from "../app/ModelGate";
 import { Wordmark } from "../app/Wordmark";
 import {
   applyTheme,
+  CASE_NOTES,
+  CASES,
   FRAMES,
   type Frame,
+  type LetterCase,
   loadTheme,
   MONO_NOTES,
   MONOS,
@@ -62,6 +65,7 @@ export function Gallery() {
   const [frame, setFrame] = useState<Frame | null>(null);
   const [mono, setMono] = useState<Mono | null>(null);
   const [role, setRole] = useState<TypeRole | null>(null);
+  const [letterCase, setLetterCase] = useState<LetterCase | null>(null);
   const preview = useRef<HTMLDivElement>(null);
 
   const scenario = scenarioById(scenarioId) ?? SCENARIOS[0];
@@ -86,10 +90,11 @@ export function Gallery() {
         frame: frame ?? undefined,
         mono: mono ?? undefined,
         role: role ?? undefined,
+        case: letterCase ?? undefined,
       });
     }
     saveTheme(theme);
-  }, [theme, frame, mono, role]);
+  }, [theme, frame, mono, role, letterCase]);
 
   useEffect(() => {
     if (scenario) location.hash = `gallery/${scenario.id}`;
@@ -167,6 +172,15 @@ export function Gallery() {
             ]}
             value={mono ?? "auto"}
             onChange={(v) => setMono(v === "auto" ? null : (v as Mono))}
+          />
+          <Switcher
+            label="Case"
+            options={[
+              { id: "auto", label: `auto (${THEME_TYPE[theme].case})` },
+              ...CASES.map((c) => ({ id: c, label: c, title: CASE_NOTES[c] })),
+            ]}
+            value={letterCase ?? "auto"}
+            onChange={(v) => setLetterCase(v === "auto" ? null : (v as LetterCase))}
           />
           <Switcher
             label="Width"

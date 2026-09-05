@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { applyTheme, loadTheme, saveTheme, THEMES, type Theme, themeForKey } from "../design/theme";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
+import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
+import { hasBackend, ipc } from "../lib/ipc";
 import { ModelGate } from "./ModelGate";
 import { Wordmark } from "./Wordmark";
 
@@ -19,6 +21,17 @@ export function App() {
   const [libraryKey, setLibraryKey] = useState(0);
 
   useTheme();
+  const [ready, setReady] = useModelReady();
+
+  /*
+   * First run owns the whole window rather than a corner of the header.
+   * There is nothing else to do until the model is present — capture works
+   * without it, but produces no transcript, which is not what anyone wants
+   * from their first meeting.
+   */
+  if (ready === false) {
+    return <FirstRunScreen onReady={() => setReady(true)} />;
+  }
 
   return (
     <div className="flex h-full flex-col bg-surface-0">
@@ -65,6 +78,32 @@ export function App() {
       </main>
     </div>
   );
+}
+
+/**
+ * Whether the speech model is installed.
+ *
+ * `null` while unknown, so the app does not flash the first-run report at
+ * someone who already has the model — the check is a filesystem stat, so the
+ * unknown window is a frame or two.
+ */
+function useModelReady(): [boolean | null, (v: boolean) => void] {
+  const [ready, setReady] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!hasBackend()) {
+      setReady(true);
+      return;
+    }
+    void ipc
+      .modelStatus()
+      .then((s) => setReady(s.installed))
+      // A failed check is not a reason to block the app: capture still works
+      // without a transcript, and the header reports the model state anyway.
+      .catch(() => setReady(true));
+  }, []);
+
+  return [ready, setReady];
 }
 
 /**

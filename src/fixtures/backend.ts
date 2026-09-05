@@ -18,6 +18,7 @@ import {
   type ModelStatus,
   type NoteSummary,
   type RecoverableSession,
+  type SystemReport,
 } from "../lib/ipc";
 import type { AudioSource } from "../lib/types";
 
@@ -62,6 +63,8 @@ export interface BackendState {
   immediate: ScriptedEvent[];
   /** Whether the open note's journal still exists. */
   canRegenerate: boolean;
+  /** Facts shown on the first-run report. */
+  systemReport: SystemReport;
   /** Commands that should reject, mapped to their message. */
   failures: Record<string, string>;
 }
@@ -88,6 +91,21 @@ export const DEFAULT_STATE: BackendState = {
   script: [],
   immediate: [],
   canRegenerate: true,
+  systemReport: {
+    host: "NICK-DESKTOP",
+    os: "Windows 10 Home",
+    kernel: "19045",
+    cpu: "AMD Ryzen 7 7800X3D 8-Core Processor",
+    cores: 8,
+    threads: 16,
+    memoryBytes: 33_395_507_200,
+    accelerator: "CPU · ONNX Runtime (int8)",
+    modelName: "Parakeet TDT 0.6B v3 (int8)",
+    modelBytes: 478_517_071,
+    modelDir: "C:UsersyouAppDataLocalTRACEmodelsparakeet-tdt-0.6b-v3-int8",
+    diskFreeBytes: 222_290_000_000,
+    installed: false,
+  },
   failures: {},
 };
 
@@ -177,6 +195,8 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
         case "model_status":
           return model;
+        case "system_report":
+          return state.systemReport;
         case "install_model":
           return simulateDownload(emit).then(() => {
             model = { ...model, installed: true };

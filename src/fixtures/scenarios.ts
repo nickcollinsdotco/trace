@@ -17,7 +17,7 @@ import { EVENT, type NoteSummary } from "../lib/ipc";
 import type { BackendState, ScriptedEvent } from "./backend";
 import { NOTE_ENHANCED, NOTE_LONG, NOTE_NOTHING, NOTE_RAW } from "./notes";
 
-export type ScreenName = "library" | "capture" | "note";
+export type ScreenName = "library" | "capture" | "note" | "firstrun";
 
 export interface Scenario {
   id: string;
@@ -368,6 +368,58 @@ export const SCENARIOS: Scenario[] = [
   },
 
   /* --- First run --------------------------------------------------- */
+  {
+    id: "first-run-report",
+    name: "Machine report",
+    group: "First run",
+    note: "The setup screen. Every row is measured — this is what the app knows about the machine.",
+    screen: "firstrun",
+    state: {
+      model: {
+        installed: false,
+        name: "parakeet-tdt-0.6b-v3-int8",
+        downloadBytes: 680 * 1_048_576,
+        directory: "C:UsersyouAppDataLocalTRACEmodels",
+      },
+    },
+  },
+  {
+    id: "first-run-downloading",
+    name: "Downloading",
+    group: "First run",
+    note: "Dithered gauge in the TR-100 idiom. Track is a checkerboard, fill is solid.",
+    screen: "firstrun",
+    state: {
+      model: {
+        installed: false,
+        name: "parakeet-tdt-0.6b-v3-int8",
+        downloadBytes: 680 * 1_048_576,
+        directory: "C:UsersyouAppDataLocalTRACEmodels",
+      },
+      immediate: [
+        { atMs: 0, event: EVENT.modelProgress, payload: { phase: "downloading", percent: 47 } },
+      ],
+    },
+  },
+  {
+    id: "first-run-failed",
+    name: "Setup failed",
+    group: "First run",
+    note: "No network. The message says what to do, not what the socket returned.",
+    screen: "firstrun",
+    state: {
+      model: {
+        installed: false,
+        name: "parakeet-tdt-0.6b-v3-int8",
+        downloadBytes: 680 * 1_048_576,
+        directory: "C:UsersyouAppDataLocalTRACEmodels",
+      },
+      failures: {
+        install_model:
+          "No internet connection. TRACE downloads the speech model once — after that it works entirely offline. (download failed: https://blob.handy.computer/parakeet-v3-int8.tar.gz: Dns Failed)",
+      },
+    },
+  },
   {
     id: "first-run",
     name: "No speech model",

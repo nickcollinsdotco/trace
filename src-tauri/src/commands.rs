@@ -436,3 +436,9 @@ fn replayable_session(root: &std::path::Path, note: &std::path::Path) -> Result<
     }
     Ok(session_dir)
 }
+
+/// Facts about this machine, for the first-run report.
+#[tauri::command]
+pub fn system_report() -> crate::system::SystemReport {
+    crate::system::report(&PARAKEET_V3_INT8)
+}

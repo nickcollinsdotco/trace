@@ -16,6 +16,7 @@ pub mod meeting;
 pub mod models;
 pub mod store;
 pub mod synthesis;
+pub mod system;
 pub mod transcribe;
 
 use capture_manager::CaptureManager;
@@ -48,6 +49,7 @@ pub fn run() {
             commands::reveal_notes_folder,
             commands::regenerate_notes,
             commands::can_regenerate,
+            commands::system_report,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TRACE");

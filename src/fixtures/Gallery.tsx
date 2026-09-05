@@ -42,6 +42,7 @@ import {
   themeForKey,
 } from "../design/theme";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
+import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
 import { installFakeBackend } from "../lib/ipc";
@@ -234,6 +235,11 @@ export function Gallery() {
 
 /** The app shell, reproduced exactly as `App.tsx` builds it. */
 function Preview({ scenario }: { scenario: Scenario }) {
+  // First run owns the whole window, with no shell around it.
+  if (scenario.screen === "firstrun") {
+    return <FirstRunScreen onReady={() => {}} />;
+  }
+
   return (
     <div className="flex h-full flex-col bg-surface-0">
       <header className="flex shrink-0 items-center gap-4 border-b border-line px-5 py-3">

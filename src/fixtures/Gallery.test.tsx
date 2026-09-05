@@ -135,6 +135,33 @@ describe("Gallery", () => {
     await waitFor(() => expect(regenerate).toBeEnabled());
   });
 
+  it("shows the first-run report with measured facts, not placeholders", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Machine report" }));
+
+    await waitFor(() => expect(screen.getByText("NICK-DESKTOP")).toBeInTheDocument());
+    expect(screen.getByText(/Ryzen 7 7800X3D/)).toBeInTheDocument();
+    expect(screen.getByText("8 core / 16 thread")).toBeInTheDocument();
+    // Binary units. Above 100 the formatter drops decimals, so 456 MiB.
+    expect(screen.getByText("456 MiB")).toBeInTheDocument();
+    expect(screen.getByText("31.1 GiB")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Install/ })).toBeInTheDocument();
+  });
+
+  it("never claims GPU acceleration it does not have", async () => {
+    // The build has no ort-directml feature. A setup screen whose whole job
+    // is telling the truth about this machine is the worst place to overclaim.
+    const user = userEvent.setup();
+    const { container } = render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Machine report" }));
+
+    await waitFor(() => expect(screen.getByText("NICK-DESKTOP")).toBeInTheDocument());
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/DirectML/i);
+    expect(text).toMatch(/ONNX Runtime/);
+  });
+
   it("clears the fake backend when it unmounts", async () => {
     const { hasBackend } = await import("../lib/ipc");
     const { unmount } = render(<Gallery />);

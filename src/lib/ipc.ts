@@ -29,6 +29,23 @@ export interface ModelStatus {
   directory: string;
 }
 
+/** Measured facts about this machine, for the first-run report. */
+export interface SystemReport {
+  host: string;
+  os: string;
+  kernel: string;
+  cpu: string;
+  cores: number | null;
+  threads: number;
+  memoryBytes: number;
+  accelerator: string;
+  modelName: string;
+  modelBytes: number;
+  modelDir: string;
+  diskFreeBytes: number | null;
+  installed: boolean;
+}
+
 export interface ModelProgress {
   phase: "downloading" | "extracting" | "verifying" | "done";
   percent: number;
@@ -153,6 +170,7 @@ export const ipc = {
   listOutputDevices: () => call<DeviceInfo[]>("list_output_devices"),
 
   modelStatus: () => call<ModelStatus>("model_status"),
+  systemReport: () => call<SystemReport>("system_report"),
   installModel: () => call<void>("install_model"),
 
   startCapture: (title: string, micDevice: string | null) =>

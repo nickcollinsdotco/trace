@@ -27,6 +27,7 @@ const COMMANDS = [
   "reveal_notes_folder",
   "regenerate_notes",
   "can_regenerate",
+  "system_report",
 ];
 
 describe("scenarios", () => {

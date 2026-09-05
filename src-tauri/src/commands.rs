@@ -96,7 +96,9 @@ pub async fn install_model(app: AppHandle) -> CmdResult<()> {
                 serde_json::json!({ "phase": phase, "percent": percent }),
             );
         })
-        .map_err(err)
+        // Guidance rather than the raw error: this lands on the first-run
+        // screen, where "Dns Failed" helps nobody.
+        .map_err(|e| e.guidance())
     })
     .await
     .map_err(err)?

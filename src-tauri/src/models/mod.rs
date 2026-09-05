@@ -39,6 +39,90 @@ pub enum ModelError {
     Io(#[from] io::Error),
 }
 
+/// Windows: ERROR_DISK_FULL. Checked by code because the message is localised.
+#[cfg(windows)]
+const ERROR_DISK_FULL: i32 = 112;
+
+impl ModelError {
+    /// What to tell the user, and what they can do about it.
+    ///
+    /// The `Display` text is the technical truth and belongs in a log. It is
+    /// the wrong thing to put on a first-run screen: "download failed:
+    /// https://…: Dns Failed" tells someone with no internet connection
+    /// nothing they can act on. This is the same failure, said usefully.
+    ///
+    /// The technical detail is appended rather than discarded — a bug report
+    /// with only the friendly half is not worth much.
+    pub fn guidance(&self) -> String {
+        let advice = match self {
+            Self::NoDataDir => {
+                "TRACE could not find a place to store the speech model. This usually means \
+                 %LOCALAPPDATA% is unavailable."
+            }
+            Self::NotInstalled(_) => "The speech model is not installed yet.",
+            Self::Download(detail) if looks_offline(detail) => {
+                "No internet connection. TRACE downloads the speech model once — after that it \
+                 works entirely offline."
+            }
+            Self::Download(_) => {
+                "The download did not complete. It resumes from scratch, so trying again is safe."
+            }
+            Self::Extract(_) => {
+                "The downloaded file could not be unpacked, which usually means it arrived \
+                 damaged. Trying again will fetch a fresh copy."
+            }
+            Self::Incomplete { .. } => {
+                "The model files are incomplete, probably from an interrupted download. \
+                 Downloading again will replace them."
+            }
+            Self::Io(e) if is_disk_full(e) => {
+                "Not enough space on disk. The speech model needs about 1.2 GB free while it \
+                 installs, and about 700 MB afterwards."
+            }
+            Self::Io(_) => {
+                "A file could not be written. Check that the disk is not full or \
+                            read-only."
+            }
+        };
+
+        format!("{advice} ({self})")
+    }
+}
+
+/// Whether a download error is really "there is no network".
+///
+/// Matched on text because `ureq` folds transport failures into one error
+/// type. Deliberately broad: over-reporting "no connection" when the machine
+/// is online is a mild annoyance, while telling someone with no network to
+/// "try again" wastes their time repeatedly.
+fn looks_offline(detail: &str) -> bool {
+    let d = detail.to_ascii_lowercase();
+    [
+        "dns",
+        "resolve",
+        "connect",
+        "unreachable",
+        "timed out",
+        "timeout",
+        "os error 11001",
+    ]
+    .iter()
+    .any(|needle| d.contains(needle))
+}
+
+fn is_disk_full(e: &io::Error) -> bool {
+    #[cfg(windows)]
+    {
+        if e.raw_os_error() == Some(ERROR_DISK_FULL) {
+            return true;
+        }
+    }
+    // StorageFull is stable but not returned by every platform for every
+    // syscall, so it is a supplement to the raw code rather than a
+    // replacement.
+    matches!(e.kind(), io::ErrorKind::StorageFull)
+}
+
 /// A model TRACE knows how to fetch and load.
 #[derive(Debug, Clone, Copy)]
 pub struct ModelSpec {
@@ -131,6 +215,73 @@ pub fn require_installed(spec: &ModelSpec) -> Result<PathBuf, ModelError> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_offline_download_says_so_instead_of_suggesting_a_retry() {
+        // The exact text ureq produces varies; what matters is that a
+        // transport failure is not reported as "try again", which wastes the
+        // time of someone who simply has no network.
+        for detail in [
+            "https://example/x.tar.gz: Dns Failed",
+            "https://example/x.tar.gz: io: failed to connect",
+            "https://example/x.tar.gz: network unreachable",
+            "https://example/x.tar.gz: os error 11001",
+        ] {
+            let g = ModelError::Download(detail.into()).guidance();
+            assert!(g.contains("No internet connection"), "{detail} -> {g}");
+        }
+    }
+
+    #[test]
+    fn a_server_side_failure_does_suggest_a_retry() {
+        let g = ModelError::Download("expected 100 bytes, received 40".into()).guidance();
+        assert!(g.contains("trying again is safe"), "{g}");
+        assert!(!g.contains("No internet connection"), "{g}");
+    }
+
+    #[test]
+    fn guidance_keeps_the_technical_detail() {
+        // A bug report with only the friendly half is not worth much.
+        let g = ModelError::Download("https://example/x: Dns Failed".into()).guidance();
+        assert!(g.contains("Dns Failed"), "{g}");
+    }
+
+    #[test]
+    fn a_full_disk_is_named_rather_than_called_an_io_error() {
+        #[cfg(windows)]
+        {
+            let e = ModelError::Io(io::Error::from_raw_os_error(ERROR_DISK_FULL));
+            assert!(
+                e.guidance().contains("Not enough space"),
+                "{}",
+                e.guidance()
+            );
+        }
+
+        let other = ModelError::Io(io::Error::from(io::ErrorKind::PermissionDenied));
+        assert!(!other.guidance().contains("Not enough space"));
+    }
+
+    #[test]
+    fn every_variant_has_guidance() {
+        // A variant added without guidance would fall through to something
+        // unhelpful; this fails loudly instead.
+        let all = [
+            ModelError::NoDataDir,
+            ModelError::NotInstalled("m"),
+            ModelError::Download("d".into()),
+            ModelError::Extract("e".into()),
+            ModelError::Incomplete {
+                name: "m",
+                missing: "f".into(),
+            },
+            ModelError::Io(io::Error::from(io::ErrorKind::Other)),
+        ];
+        for e in all {
+            let g = e.guidance();
+            assert!(g.len() > 20, "thin guidance for {e:?}: {g}");
+        }
+    }
+
     use super::*;
 
     #[test]

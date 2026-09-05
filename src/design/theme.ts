@@ -26,6 +26,22 @@ export const FRAMES = ["rule", "box"] as const;
 
 export type Frame = (typeof FRAMES)[number];
 
+/** Monospace families available to compare. Exact choices are still open. */
+export const MONOS = ["geist", "fragment", "jetbrains", "plex"] as const;
+
+export type Mono = (typeof MONOS)[number];
+
+/**
+ * Where monospace is used.
+ *
+ * The question the eyebrow labels could not answer: a terminal aesthetic on
+ * labels alone is decoration, on the body it is a commitment. `mono` is the
+ * one to judge against a 90-minute transcript.
+ */
+export const TYPES = ["hybrid", "mono", "sans"] as const;
+
+export type TypeRole = (typeof TYPES)[number];
+
 export const THEME_NOTES: Record<Theme, string> = {
   terminal: "The default. Phosphor green, an instrument from an alternate 1987.",
   report: "TR-100 machine report — monochrome, boxed, dithered. No accent at all.",
@@ -41,12 +57,53 @@ export const THEME_FRAME: Record<Theme, Frame> = {
   industrial: "box",
 };
 
-/** `terminal` is the `@theme` default, so selecting it removes the attribute. */
-export function applyTheme(theme: Theme, target: HTMLElement, frame?: Frame): void {
+/** Each look's starting typeface pairing. All of it is overridable in the gallery. */
+export const THEME_TYPE: Record<Theme, { mono: Mono; role: TypeRole }> = {
+  // Today's default, unchanged.
+  terminal: { mono: "geist", role: "hybrid" },
+  // A machine report is monospace all the way down — that is what makes it
+  // a report rather than a document about one.
+  report: { mono: "plex", role: "mono" },
+  // conky is a readout: mono everywhere, tight and even.
+  console: { mono: "jetbrains", role: "mono" },
+  // Industrial signage is a grotesque, with mono for the data.
+  industrial: { mono: "fragment", role: "hybrid" },
+};
+
+export const MONO_NOTES: Record<Mono, string> = {
+  geist: "Geist Mono — the current default.",
+  fragment: "Fragment Mono — single weight, wide, quite characterful.",
+  jetbrains: "JetBrains Mono — tall x-height, built for long reading.",
+  plex: "IBM Plex Mono — the most document-like of the four.",
+};
+
+export const TYPE_NOTES: Record<TypeRole, string> = {
+  hybrid: "Sans for prose, mono for system language.",
+  mono: "Monospace everywhere, including reading mode.",
+  sans: "Proportional everywhere, including transcripts.",
+};
+
+export interface Overrides {
+  frame?: Frame | undefined;
+  mono?: Mono | undefined;
+  role?: TypeRole | undefined;
+}
+
+/**
+ * `terminal` is the `@theme` default, so selecting it removes the attribute.
+ *
+ * Everything else is an attribute rather than a token, because CSS cannot
+ * select on a custom property's value. Each falls back to the theme's own
+ * choice, so the gallery can vary one axis at a time.
+ */
+export function applyTheme(theme: Theme, target: HTMLElement, o: Overrides = {}): void {
   if (theme === "terminal") target.removeAttribute("data-theme");
   else target.setAttribute("data-theme", theme);
 
-  target.setAttribute("data-frame", frame ?? THEME_FRAME[theme]);
+  const type = THEME_TYPE[theme];
+  target.setAttribute("data-frame", o.frame ?? THEME_FRAME[theme]);
+  target.setAttribute("data-mono", o.mono ?? type.mono);
+  target.setAttribute("data-type", o.role ?? type.role);
 }
 
 const STORAGE_KEY = "trace.theme";
@@ -57,6 +114,14 @@ export function isTheme(value: unknown): value is Theme {
 
 export function isFrame(value: unknown): value is Frame {
   return typeof value === "string" && (FRAMES as readonly string[]).includes(value);
+}
+
+export function isMono(value: unknown): value is Mono {
+  return typeof value === "string" && (MONOS as readonly string[]).includes(value);
+}
+
+export function isTypeRole(value: unknown): value is TypeRole {
+  return typeof value === "string" && (TYPES as readonly string[]).includes(value);
 }
 
 export function loadTheme(): Theme {

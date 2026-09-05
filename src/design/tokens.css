@@ -108,8 +108,25 @@
  * dense and instrument-like. This is the "key visual tension" from the design
  * doc, expressed as two token overrides rather than two stylesheets.
  */
+/*
+ * Read by `.trace-measure` and `.trace-prose` in type.css. Both tokens sat
+ * unread from M0 until 2026-09-05 — reading width was a hardcoded max-w-2xl —
+ * which made this split decorative. Check that a token is actually consumed
+ * before trusting that changing it does anything.
+ */
 [data-mode="reading"] {
-  --measure: 68ch;
+  /*
+   * 42rem, not the 68ch this token said at M0.
+   *
+   * The token was never read — reading width was a hardcoded `max-w-2xl`,
+   * which is 42rem — so 68ch was an intention, not a measurement. Connecting
+   * the token at its stated value would have silently narrowed every note by
+   * about 110px under the claim that the default was unchanged.
+   *
+   * 68ch is very likely the better reading measure and is worth trying
+   * deliberately. It is not worth smuggling in.
+   */
+  --measure: 42rem;
   --content-leading: 1.65;
 }
 

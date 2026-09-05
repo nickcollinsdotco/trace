@@ -39,7 +39,7 @@ export function LibraryScreen({
 
   return (
     <div data-mode="reading" className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-10">
+      <div className="trace-measure flex flex-col gap-8 px-6 py-10">
         <div className="flex items-center justify-between">
           <SystemLabel tone="muted">Meetings</SystemLabel>
           <button

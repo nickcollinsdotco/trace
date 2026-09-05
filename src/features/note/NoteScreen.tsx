@@ -66,7 +66,7 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
 
   return (
     <div data-mode="reading" className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-10">
+      <div className="trace-measure flex flex-col gap-6 px-6 py-10">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -238,7 +238,7 @@ function NoteBody({ markdown }: { markdown: string }) {
   const blocks = body.split("\n\n").filter((b) => b.trim().length > 0);
 
   return (
-    <article data-selectable className="flex flex-col gap-4">
+    <article data-selectable className="trace-prose flex flex-col gap-4">
       {blocks.map((block, i) => (
         // Blocks have no stable identity of their own; index is the honest key
         // for a static, non-reorderable rendering of a file's contents.

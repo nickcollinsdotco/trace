@@ -24,11 +24,18 @@ import {
   FRAMES,
   type Frame,
   loadTheme,
+  MONO_NOTES,
+  MONOS,
+  type Mono,
   saveTheme,
   THEME_FRAME,
   THEME_NOTES,
+  THEME_TYPE,
   THEMES,
   type Theme,
+  TYPE_NOTES,
+  TYPES,
+  type TypeRole,
 } from "../design/theme";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
@@ -50,8 +57,11 @@ export function Gallery() {
   );
   const [theme, setTheme] = useState<Theme>(loadTheme);
   const [width, setWidth] = useState<(typeof WIDTHS)[number]["id"]>("default");
-  // null = follow the theme's own choice. Set it to compare framings directly.
+  // null on any axis = follow the theme's own choice, so one thing can be
+  // varied at a time instead of only ever comparing whole looks.
   const [frame, setFrame] = useState<Frame | null>(null);
+  const [mono, setMono] = useState<Mono | null>(null);
+  const [role, setRole] = useState<TypeRole | null>(null);
   const preview = useRef<HTMLDivElement>(null);
 
   const scenario = scenarioById(scenarioId) ?? SCENARIOS[0];
@@ -71,9 +81,15 @@ export function Gallery() {
   useEffect(() => () => installFakeBackend(null), []);
 
   useEffect(() => {
-    if (preview.current) applyTheme(theme, preview.current, frame ?? undefined);
+    if (preview.current) {
+      applyTheme(theme, preview.current, {
+        frame: frame ?? undefined,
+        mono: mono ?? undefined,
+        role: role ?? undefined,
+      });
+    }
     saveTheme(theme);
-  }, [theme, frame]);
+  }, [theme, frame, mono, role]);
 
   useEffect(() => {
     if (scenario) location.hash = `gallery/${scenario.id}`;
@@ -133,6 +149,24 @@ export function Gallery() {
             ]}
             value={frame ?? "auto"}
             onChange={(v) => setFrame(v === "auto" ? null : (v as Frame))}
+          />
+          <Switcher
+            label="Type"
+            options={[
+              { id: "auto", label: `auto (${THEME_TYPE[theme].role})` },
+              ...TYPES.map((t) => ({ id: t, label: t, title: TYPE_NOTES[t] })),
+            ]}
+            value={role ?? "auto"}
+            onChange={(v) => setRole(v === "auto" ? null : (v as TypeRole))}
+          />
+          <Switcher
+            label="Mono"
+            options={[
+              { id: "auto", label: `auto (${THEME_TYPE[theme].mono})` },
+              ...MONOS.map((m) => ({ id: m, label: m, title: MONO_NOTES[m] })),
+            ]}
+            value={mono ?? "auto"}
+            onChange={(v) => setMono(v === "auto" ? null : (v as Mono))}
           />
           <Switcher
             label="Width"

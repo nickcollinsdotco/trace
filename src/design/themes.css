@@ -175,6 +175,9 @@
   --radius-md: 0px;
   --radius-lg: 0px;
 
+  /* Signage is a grotesque. The role axis in type.css can still override. */
+  --font-sans: "Space Grotesk Variable", "Geist Variable", system-ui, sans-serif;
+
   --label-font: var(--font-sans);
   --label-transform: uppercase;
   --label-tracking: 0.16em;

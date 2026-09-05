@@ -1,0 +1,93 @@
+/*
+ * TRACE — typeface axes
+ *
+ * Two independent choices, both pure token changes. Neither spends one of the
+ * three structural-switch slots, because no component forks on them: every
+ * component already asks for `--font-sans` or `--font-mono` and does not care
+ * what answers.
+ *
+ *   data-mono   which monospace family
+ *   data-type   WHERE monospace is used — this is the interesting one
+ *
+ * `data-type` is the question worth actually looking at. A terminal aesthetic
+ * applied only to eyebrow labels is decoration; applied to the body it is a
+ * commitment, and it either survives a 90-minute transcript or it does not.
+ * docs/05-DESIGN-DIRECTION.md says "do not force monospace on every piece of
+ * content", but that was written before there was anything to look at. Now
+ * there is, so it can be tested rather than assumed.
+ *
+ * Order matters: this file is imported AFTER themes.css so the role axis can
+ * override a theme's own family choice. Attribute selectors all weigh the
+ * same, so source order is what decides.
+ */
+
+/* ---------------------------------------------------------------------
+ * Monospace families.
+ *
+ * Every stack keeps real fallbacks: a webfont that fails to load must not
+ * drop the transcript into a proportional face, where the timestamps would
+ * stop aligning.
+ * ------------------------------------------------------------------ */
+/* Must stay byte-identical to the @theme default, or selecting the default
+   theme would quietly change the fallback chain. */
+[data-mono="geist"] {
+  --font-mono:
+    "Geist Mono Variable", ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+}
+
+[data-mono="fragment"] {
+  --font-mono: "Fragment Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+[data-mono="jetbrains"] {
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+[data-mono="plex"] {
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+/* ---------------------------------------------------------------------
+ * Where monospace is used.
+ *
+ *   hybrid  sans for prose, mono for system language      (today's default)
+ *   mono    monospace everywhere, including reading mode
+ *   sans    proportional everywhere, including transcripts
+ * ------------------------------------------------------------------ */
+
+/*
+ * Monospace is wider per character, so an unchanged character measure gets
+ * physically wider and the line becomes tiring exactly where it matters most.
+ * The measure comes in to compensate, and the type drops a notch.
+ */
+[data-type="mono"] {
+  --font-sans: var(--font-mono);
+}
+
+[data-type="mono"] [data-mode="reading"],
+[data-type="mono"][data-mode="reading"] {
+  --measure: 62ch;
+  --content-leading: 1.7;
+}
+
+[data-type="sans"] {
+  --font-mono: var(--font-sans);
+}
+
+/* ---------------------------------------------------------------------
+ * The measure, finally connected.
+ *
+ * `--measure` and `--content-leading` were defined at M0 and never read by
+ * anything — reading width was a hardcoded `max-w-2xl`. That made the
+ * capture-vs-reading token split decorative. It is load-bearing now, which
+ * is what lets the mono compensation above work at all.
+ * ------------------------------------------------------------------ */
+.trace-measure {
+  width: 100%;
+  max-width: var(--measure, 42rem);
+  margin-inline: auto;
+}
+
+[data-mode="reading"] .trace-prose {
+  line-height: var(--content-leading, 1.65);
+}

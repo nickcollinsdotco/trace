@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitSections } from "./sections";
+import { splitSections, withoutHeading } from "./sections";
 
 const FULL = `---
 id: sess-1
@@ -46,6 +46,31 @@ just my own words
 
 **you** \`00:01\` — hello
 `;
+
+describe("withoutHeading", () => {
+  it("drops the section's own heading", () => {
+    // The transcript sits inside a <details> whose <summary> already says
+    // "Transcript". Keeping the heading printed it twice.
+    const s = splitSections(FULL);
+    expect(s.transcript.startsWith("## Transcript")).toBe(true);
+    expect(withoutHeading(s.transcript).startsWith("## ")).toBe(false);
+    expect(withoutHeading(s.transcript)).toContain("shall we ship on friday");
+  });
+
+  it("leaves a body that does not start with a heading alone", () => {
+    expect(withoutHeading("**you** `00:01` — hi")).toBe("**you** `00:01` — hi");
+  });
+
+  it("drops only the first heading", () => {
+    const out = withoutHeading("## A\n\ntext\n\n## B\n\nmore");
+    expect(out).not.toContain("## A");
+    expect(out).toContain("## B");
+  });
+
+  it("handles an empty string", () => {
+    expect(withoutHeading("")).toBe("");
+  });
+});
 
 describe("splitSections", () => {
   it("separates generated sections from the user's own notes", () => {

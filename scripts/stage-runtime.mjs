@@ -18,8 +18,8 @@
  * Wired up as `build.beforeBundleCommand`.
  */
 
-import { copyFileSync, existsSync, readFileSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { copyFileSync, existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 

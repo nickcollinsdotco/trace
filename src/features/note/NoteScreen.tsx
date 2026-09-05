@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SectionHead, SystemLabel } from "../../components/ui/terminal";
 import { hasBackend, ipc } from "../../lib/ipc";
 import { RefinementNotice } from "./RefinementNotice";
-import { splitSections } from "./sections";
+import { splitSections, withoutHeading } from "./sections";
 import { useNoteRefinement } from "./useNoteRefinement";
 
 /**
@@ -137,11 +137,16 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
                 so it does not bury either. */}
             {sections.transcript && (
               <details className="mt-4">
-                <summary className="cursor-pointer list-none">
+                {/*
+                  Shrink-wrapped, so the focus ring hugs the word rather than
+                  drawing a full-width rectangle that reads as a text field.
+                */}
+                <summary className="inline-flex w-fit cursor-pointer list-none rounded-xs">
                   <SystemLabel tone="muted">Transcript</SystemLabel>
                 </summary>
                 <div className="mt-4">
-                  <NoteBody markdown={sections.transcript} />
+                  {/* The summary above is the heading; the body must not repeat it. */}
+                  <NoteBody markdown={withoutHeading(sections.transcript)} />
                 </div>
               </details>
             )}

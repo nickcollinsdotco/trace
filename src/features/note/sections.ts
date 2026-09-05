@@ -67,3 +67,17 @@ export function splitSections(markdown: string): NoteSections {
     hasNotes: notes.some((l) => l.trim() && !l.startsWith("## ")),
   };
 }
+
+/**
+ * Drop a section's own `## ` heading.
+ *
+ * The transcript is rendered inside a `<details>` whose `<summary>` already
+ * names it, so keeping the heading in the body prints "Transcript" twice.
+ * Only the first line is considered, and only when it is a heading — a
+ * transcript that happens to start with speech is left alone.
+ */
+export function withoutHeading(markdown: string): string {
+  const lines = markdown.split("\n");
+  if (lines[0]?.startsWith("## ")) return lines.slice(1).join("\n").trimStart();
+  return markdown;
+}

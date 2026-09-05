@@ -34,6 +34,10 @@ impl OllamaProvider {
         }
     }
 
+    pub fn model(&self) -> &str {
+        &self.model
+    }
+
     /// Models the local instance has pulled.
     pub fn list_models() -> Result<Vec<String>, SynthesisError> {
         let response = ureq::get(&format!("{HOST}/api/tags"))
@@ -168,6 +172,34 @@ fn parse_output(text: &str) -> Result<SynthesisOutput, SynthesisError> {
     )))
 }
 
+/// Ask Ollama to load a model into memory without generating anything.
+///
+/// Called when a meeting starts. The first request after a cold boot pays the
+/// full model load — measured at roughly a minute for the initial read from
+/// disk — and paying that during the meeting, rather than after it, means the
+/// user never waits for it.
+///
+/// Entirely best-effort: a failure here costs nothing but the warmup.
+pub fn warm(model: &str) {
+    let model = model.to_string();
+    std::thread::Builder::new()
+        .name("trace-llm-warm".into())
+        .spawn(move || {
+            let _ = ureq::post(&format!("{HOST}/api/generate"))
+                .config()
+                .timeout_global(Some(Duration::from_secs(300)))
+                .build()
+                .send_json(serde_json::json!({
+                    "model": model,
+                    // Empty prompt loads the model without generating.
+                    "prompt": "",
+                    // Stay resident for a long meeting rather than the
+                    // five-minute default, which would unload mid-call.
+                    "keep_alive": "2h"
+                }));
+        })
+        .ok();
+}
 #[cfg(test)]
 mod tests {
     use super::*;

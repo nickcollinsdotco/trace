@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { SystemLabel } from "../../components/ui/terminal";
-import { ipc, onTranscriptUpdated } from "../../lib/ipc";
+import { ipc } from "../../lib/ipc";
+import { RefinementNotice } from "./RefinementNotice";
+import { useNoteRefinement } from "./useNoteRefinement";
 
 /**
  * Reading mode — quiet, editorial, high readability.
@@ -13,7 +15,6 @@ import { ipc, onTranscriptUpdated } from "../../lib/ipc";
 export function NoteScreen({ path, onBack }: { path: string; onBack: () => void }) {
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [refined, setRefined] = useState(false);
 
   useEffect(() => {
     void ipc
@@ -22,29 +23,9 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
       .catch((e) => setError(String(e)));
   }, [path]);
 
-  // The note on screen may be superseded a minute or two later by the
-  // higher-quality re-pass. Reload it in place rather than leaving the user
-  // reading a version that is no longer what is on disk.
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-
-    void onTranscriptUpdated((info) => {
-      if (disposed || info.notePath !== path) return;
-      void ipc.readNote(path).then((t) => {
-        setText(t);
-        setRefined(true);
-      });
-    }).then((un) => {
-      if (disposed) un();
-      else unlisten = un;
-    });
-
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [path]);
+  // Stable, so the subscription is not torn down and rebuilt on every render.
+  const reload = useCallback((t: string) => setText(t), []);
+  const stage = useNoteRefinement(path, reload);
 
   return (
     <div data-mode="reading" className="h-full overflow-y-auto">
@@ -64,11 +45,7 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
         {text === null && !error && (
           <p className="font-mono text-xs text-ink-faint">&gt; reading…</p>
         )}
-        {refined && (
-          <p className="font-mono text-2xs text-phosphor" role="status">
-            &gt; transcript refined — full-quality pass complete.
-          </p>
-        )}
+        <RefinementNotice stage={stage} />
         {text !== null && <NoteBody markdown={text} />}
 
         {text !== null && (

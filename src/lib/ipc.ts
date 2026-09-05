@@ -149,6 +149,9 @@ export const EVENT = {
   captureError: "trace://capture-error",
   modelProgress: "trace://model-progress",
   transcriptUpdated: "trace://transcript-updated",
+  synthesisProgress: "trace://synthesis-progress",
+  notesGenerated: "trace://notes-generated",
+  synthesisFailed: "trace://synthesis-failed",
 } as const;
 
 /** Subscribe to live transcript segments. */
@@ -194,4 +197,38 @@ export function onTranscriptUpdated(
   return listen(EVENT.transcriptUpdated, (event) =>
     handler(camel<{ notePath: string; segments: number }>(event.payload)),
   );
+}
+
+/** Progress through a long meeting's synthesis windows. */
+export interface SynthesisProgress {
+  window: number;
+  total: number;
+}
+
+/**
+ * Result of generating structured notes.
+ *
+ * `dropped` counts items discarded for citing something that does not exist.
+ * Surfaced rather than hidden: the user should be told the model made things
+ * up, not quietly shown a shorter list.
+ */
+export interface NotesGenerated {
+  notePath: string;
+  dropped: number;
+  fabricated: number;
+  uncited: number;
+}
+
+export function onSynthesisProgress(handler: (p: SynthesisProgress) => void): Promise<UnlistenFn> {
+  return listen(EVENT.synthesisProgress, (e) => handler(camel<SynthesisProgress>(e.payload)));
+}
+
+export function onNotesGenerated(handler: (n: NotesGenerated) => void): Promise<UnlistenFn> {
+  return listen(EVENT.notesGenerated, (e) => handler(camel<NotesGenerated>(e.payload)));
+}
+
+export function onSynthesisFailed(
+  handler: (info: { message: string }) => void,
+): Promise<UnlistenFn> {
+  return listen(EVENT.synthesisFailed, (e) => handler(camel<{ message: string }>(e.payload)));
 }

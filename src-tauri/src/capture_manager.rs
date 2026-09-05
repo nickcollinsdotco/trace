@@ -36,6 +36,12 @@ pub const EVENT_SEGMENT: &str = "trace://segment";
 pub const EVENT_CAPTURE_ERROR: &str = "trace://capture-error";
 /// Emitted when the accurate re-pass has replaced the live transcript.
 pub const EVENT_TRANSCRIPT_UPDATED: &str = "trace://transcript-updated";
+/// Progress through a long meeting's synthesis windows.
+pub const EVENT_SYNTHESIS_PROGRESS: &str = "trace://synthesis-progress";
+/// Structured notes were generated and written.
+pub const EVENT_NOTES_GENERATED: &str = "trace://notes-generated";
+/// Synthesis could not run or failed. The note is still valid without it.
+pub const EVENT_SYNTHESIS_FAILED: &str = "trace://synthesis-failed";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ManagerError {
@@ -155,8 +161,16 @@ impl CaptureManager {
         })?;
         let journal = Arc::new(Mutex::new(journal));
 
-        // Load the engine before capture starts. It takes about a second, and
-        // doing it afterwards would miss the opening of the meeting.
+        // Warm the language model now, in the background. Synthesis does not
+        // run until the meeting ends, but the first load after a cold boot
+        // takes about a minute, and paying it during the meeting means the
+        // user never waits for it afterwards.
+        if let Some(provider) = default_provider() {
+            crate::synthesis::ollama::warm(provider.model());
+        }
+
+        // Load the transcription engine before capture starts. It takes about
+        // a second, and doing it afterwards would miss the opening.
         let live = Transcriber::load()
             .ok()
             .map(LiveTranscriber::start)
@@ -361,6 +375,89 @@ impl CaptureManager {
     }
 }
 
+/// Generate structured notes from the finished transcript.
+///
+/// Best-effort and non-fatal. If no model is installed, or Ollama is not
+/// running, or the model fails, the note keeps its transcript and notes and
+/// simply has no generated sections. A missing summary is a disappointment;
+/// a lost meeting is not, and this must never risk the second to attempt the
+/// first.
+fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::path::Path) {
+    let Some(provider) = default_provider() else {
+        return;
+    };
+
+    let Ok(replay) = crate::store::journal::replay(session_dir) else {
+        return;
+    };
+
+    let result = crate::synthesis::generate(&provider, &replay.meeting, |progress| {
+        let _ = app.emit(
+            EVENT_SYNTHESIS_PROGRESS,
+            serde_json::json!({
+                "window": progress.window,
+                "total": progress.total,
+            }),
+        );
+    });
+
+    let (generated, report) = match result {
+        Ok(pair) => pair,
+        Err(e) => {
+            let _ = app.emit(
+                EVENT_SYNTHESIS_FAILED,
+                serde_json::json!({ "message": e.to_string() }),
+            );
+            return;
+        }
+    };
+
+    // Journal before rewriting, so a crash between the two replays to the
+    // generated version rather than losing it.
+    if let Ok(mut journal) = Journal::open(session_dir) {
+        let _ = journal.append(&JournalEvent::Generated(Box::new(generated)));
+    }
+
+    if let Ok(replay) = crate::store::journal::replay(session_dir) {
+        if store::rewrite_note(note_path, &replay.meeting).is_ok() {
+            let _ = app.emit(
+                EVENT_NOTES_GENERATED,
+                serde_json::json!({
+                    "notePath": note_path.display().to_string(),
+                    // Surfaced rather than logged: the user should be told
+                    // that items were discarded, not quietly shown fewer.
+                    "dropped": report.total_dropped(),
+                    "fabricated": report.fabricated,
+                    "uncited": report.uncited,
+                }),
+            );
+        }
+    }
+}
+
+/// The model to synthesise with.
+///
+/// Prefers a known-good default, falling back to whatever is installed, so a
+/// user who pulled a different model still gets notes rather than silence.
+fn default_provider() -> Option<crate::synthesis::ollama::OllamaProvider> {
+    use crate::synthesis::ollama::OllamaProvider;
+
+    const PREFERRED: &[&str] = &["qwen3:8b", "gemma3:12b"];
+
+    let installed = OllamaProvider::list_models().ok()?;
+    if installed.is_empty() {
+        return None;
+    }
+
+    let chosen = PREFERRED
+        .iter()
+        .find(|p| installed.iter().any(|m| m == *p))
+        .map(|s| (*s).to_string())
+        .or_else(|| installed.first().cloned())?;
+
+    Some(OllamaProvider::new(chosen))
+}
+
 /// Re-transcribe the finished recording at full quality, in the background.
 ///
 /// The live transcript is produced from 4-7 second chunks, which trades the
@@ -429,6 +526,11 @@ fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summar
                     );
                 }
             }
+
+            // Synthesis runs on the re-transcribed text, not the live one.
+            // The live transcript trades accuracy for latency, and summarising
+            // the rougher version would bake those errors into the notes.
+            synthesize(&app, &session_dir, &note_path);
 
             // Now the journal and audio are genuinely expendable.
             let _ = store::discard_session(&session_dir);

@@ -72,11 +72,25 @@ export function SectionHead({
   title,
   index,
   actions,
+  level = 2,
 }: {
   title: string;
   index?: number | undefined;
   actions?: ReactNode;
+  /**
+   * Heading level this section sits at. Two by default, under the screen's
+   * own `h1`.
+   *
+   * A note is a document, and its sections — Summary, Decisions, Transcript —
+   * were styled spans inside a `<header>`. They looked like headings and were
+   * not ones, so a screen reader got no outline of a note at all and no way
+   * to jump between its parts. The visual treatment is unchanged; this only
+   * makes the structure true.
+   */
+  level?: 2 | 3;
 }) {
+  const Heading = level === 3 ? "h3" : "h2";
+
   return (
     <header className="trace-section-head">
       <span aria-hidden className="trace-section-corner font-mono text-2xs text-ink-faint/50">
@@ -85,7 +99,11 @@ export function SectionHead({
       {index !== undefined && (
         <SystemLabel tone="phosphor">{String(index).padStart(2, "0")}</SystemLabel>
       )}
-      <SystemLabel tone="muted">{title}</SystemLabel>
+      {/* The heading carries no styling of its own — SystemLabel still owns
+          the look, so the theme switches keep working untouched. */}
+      <Heading className="contents">
+        <SystemLabel tone="muted">{title}</SystemLabel>
+      </Heading>
       <span aria-hidden className="trace-rule" />
       {actions}
     </header>

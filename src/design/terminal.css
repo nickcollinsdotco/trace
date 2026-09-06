@@ -386,3 +386,19 @@
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------------
+ * Native select.
+ *
+ * The control inherits `.trace-field`, but its dropdown list is drawn by the
+ * OS and ignores a transparent background — so a dark app opened a light
+ * system-coloured list. Both the control and its options need a real colour.
+ * ------------------------------------------------------------------ */
+select.trace-field {
+  background-color: var(--color-surface-2);
+}
+
+select.trace-field option {
+  background-color: var(--color-surface-2);
+  color: var(--color-ink);
+}

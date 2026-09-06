@@ -232,6 +232,33 @@ describe("Gallery", () => {
     expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
   });
 
+  it("gives a note a real heading outline", async () => {
+    // A note is a document. Its sections were styled spans inside a
+    // <header>, so a screen reader got no outline of it and no way to jump
+    // between parts.
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Enhanced note" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: /Pricing page rework/ })).toBeVisible(),
+    );
+    expect(screen.getByRole("heading", { level: 2, name: /Summary/ })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 2, name: /Decisions/ })).toBeVisible();
+  });
+
+  it("truncates a long meeting title rather than overflowing the row", async () => {
+    // `truncate` on an inline <span> does nothing — overflow and
+    // text-overflow do not apply to non-replaced inline elements.
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+
+    const row = await screen.findByRole("button", { name: "Pricing page rework" });
+    expect(row.classList.contains("truncate")).toBe(true);
+    expect(row.classList.contains("min-w-0")).toBe(true);
+  });
+
   it("clears the fake backend when it unmounts", async () => {
     const { hasBackend } = await import("../lib/ipc");
     const { unmount } = render(<Gallery />);

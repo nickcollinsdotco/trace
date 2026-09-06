@@ -217,6 +217,10 @@ function SetupPanel({
             if (e.key === "Enter" && !starting) onStart();
           }}
           placeholder="Untitled meeting"
+          name="meeting-title"
+          // Off deliberately: a meeting title is not a credential, and a
+          // password manager offering to fill it is pure noise.
+          autoComplete="off"
           data-selectable
           // Autofocused because the title is the only thing worth typing here,
           // and everything else has a sensible default.

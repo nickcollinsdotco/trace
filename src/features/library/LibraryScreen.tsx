@@ -203,7 +203,7 @@ function NoteRow({
   async function remove() {
     const ok = window.confirm(
       [
-        `Delete "${note.title}"?`,
+        `Delete “${note.title}”?`,
         "",
         "The note and its transcript are both deleted.",
         "",
@@ -224,10 +224,17 @@ function NoteRow({
         busy ? "opacity-50" : ""
       }`}
     >
-      <button type="button" onClick={() => onOpen(note.path)} className="min-w-0 flex-1 text-left">
-        <span className="trace-title truncate text-base text-ink group-hover:text-phosphor">
-          {note.title}
-        </span>
+      {/*
+        `truncate` lives on the button, not on a span inside it. Overflow and
+        text-overflow do not apply to a non-replaced inline element, so the
+        span version silently did nothing and a long title overflowed its row.
+      */}
+      <button
+        type="button"
+        onClick={() => onOpen(note.path)}
+        className="trace-title min-w-0 flex-1 truncate text-left text-base text-ink group-hover:text-phosphor"
+      >
+        {note.title}
       </button>
 
       <span

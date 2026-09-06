@@ -92,6 +92,19 @@ export interface NoteSummary {
   type: MeetingType;
 }
 
+/** A note that matched a search, with enough context to judge it. */
+export interface SearchHit {
+  path: string;
+  title: string;
+  date: string;
+  type: MeetingType;
+  /** The title matched, not just the body. Ranked first. */
+  inTitle: boolean;
+  /** A body line containing a match, so the reason is visible. */
+  snippet: string;
+  matches: number;
+}
+
 export interface RecoverableSession {
   sessionDir: string;
   title: string;
@@ -191,6 +204,7 @@ export const ipc = {
   listNotes: () => call<NoteSummary[]>("list_notes"),
   readNote: (path: string) => call<string>("read_note", { path }),
   notesRoot: () => call<string>("notes_root"),
+  searchNotes: (query: string) => call<SearchHit[]>("search_notes", { query }),
 
   recoverableSessions: () => call<RecoverableSession[]>("recoverable_sessions"),
   recoverSession: (sessionDir: string) => call<string>("recover_session", { sessionDir }),

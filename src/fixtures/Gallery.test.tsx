@@ -259,6 +259,46 @@ describe("Gallery", () => {
     expect(row.classList.contains("min-w-0")).toBe(true);
   });
 
+  it("searches transcripts, not just titles, and says why each matched", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+
+    // "comparison" appears only in a transcript line, never in a title.
+    await user.type(screen.getByRole("searchbox"), "comparison");
+
+    await waitFor(() => expect(screen.getByText(/1 result/)).toBeInTheDocument());
+    expect(screen.getByText(/comparison table/i)).toBeInTheDocument();
+  });
+
+  it("requires every term to appear", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+
+    await user.type(screen.getByRole("searchbox"), "pricing elephant");
+
+    await waitFor(() => expect(screen.getByText(/nothing matches/)).toBeInTheDocument());
+  });
+
+  it("restores the grouped list when the query is cleared", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+
+    const box = screen.getByRole("searchbox");
+    await user.type(box, "comparison");
+    await waitFor(() => expect(screen.getByText(/1 result/)).toBeInTheDocument());
+
+    await user.clear(box);
+    // Back to the library, not an empty result set.
+    await waitFor(() => expect(screen.queryByText(/result/)).toBeNull());
+    expect(screen.getByText("Monday standup")).toBeInTheDocument();
+  });
+
   it("clears the fake backend when it unmounts", async () => {
     const { hasBackend } = await import("../lib/ipc");
     const { unmount } = render(<Gallery />);

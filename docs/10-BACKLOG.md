@@ -340,9 +340,8 @@ the rest is recorded here rather than guessed at.
    with wall-clock time, so the machinery exists — but silence that is
    *absence* and silence that is *nobody talking* must stay distinguishable,
    because the second is evidence and the first is not.
-2. **Search.** Already M7 in `docs/11-PLAN.md`, over a rebuildable SQLite
-   FTS5 index. It is the feature that makes a library of a hundred meetings
-   usable at all, and everything else here is cosmetic beside it.
+2. ~~**Search.**~~ **Done 2026-09-06**, and without the planned index — a
+   direct scan answers in 106 ms across 1,200 notes. See `store::search`.
 3. **Tags.** `Meeting.tags` already exists in the data model and in
    frontmatter, and nothing writes to it. Cheap once search exists, and much
    less useful before — a tag you cannot search for is decoration.

@@ -16,6 +16,7 @@ use std::path::PathBuf;
 pub mod journal;
 pub mod markdown;
 pub mod paths;
+pub mod search;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {

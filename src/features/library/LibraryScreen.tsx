@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { SectionHead, SystemLabel } from "../../components/ui/terminal";
 import { groupByDate } from "../../lib/dates";
-import { hasBackend, ipc, type NoteSummary, type RecoverableSession } from "../../lib/ipc";
+import {
+  hasBackend,
+  ipc,
+  type NoteSummary,
+  type RecoverableSession,
+  type SearchHit,
+} from "../../lib/ipc";
 
 export function LibraryScreen({
   onNewMeeting,
@@ -14,6 +20,42 @@ export function LibraryScreen({
   const [recoverable, setRecoverable] = useState<RecoverableSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [root, setRoot] = useState<string>("");
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<SearchHit[] | null>(null);
+
+  /*
+   * Search runs on a debounce rather than per keystroke.
+   *
+   * It scans the Markdown — no index — which is ~25ms at a realistic library
+   * and 106ms across 1,200 notes. Fast enough to feel immediate once, wasteful
+   * to repeat on every character.
+   */
+  useEffect(() => {
+    if (!hasBackend()) return;
+
+    const term = query.trim();
+    if (term === "") {
+      setHits(null);
+      return;
+    }
+
+    let cancelled = false;
+    const id = window.setTimeout(() => {
+      void ipc
+        .searchNotes(term)
+        .then((r) => {
+          if (!cancelled) setHits(r);
+        })
+        .catch(() => {
+          if (!cancelled) setHits([]);
+        });
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
+  }, [query]);
 
   const refresh = useCallback(async () => {
     if (!hasBackend()) {
@@ -52,13 +94,28 @@ export function LibraryScreen({
           </button>
         </div>
 
+        {hasBackend() && (
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search meetings and transcripts…"
+            name="search"
+            autoComplete="off"
+            aria-label="Search meetings and transcripts"
+            className="trace-field text-sm"
+          />
+        )}
+
         {/* Interrupted meetings come first: there is unsaved work here and it
             is the only thing on this screen that can still be lost. */}
         {recoverable.map((session) => (
           <RecoveryCard key={session.sessionDir} session={session} onDone={refresh} />
         ))}
 
-        {loading ? (
+        {hits !== null ? (
+          <SearchResults hits={hits} query={query} onOpen={onOpenNote} />
+        ) : loading ? (
           <p className="font-mono text-xs text-ink-faint">&gt; reading notes…</p>
         ) : !hasBackend() ? (
           <BrowserNotice />
@@ -285,5 +342,59 @@ function RowAction({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Search results, replacing the date-grouped list while a query is active.
+ *
+ * Each hit shows the line that matched. Search over a transcript is only
+ * useful if it says *why* something matched — the meeting title alone leaves
+ * the user opening notes to find out.
+ */
+function SearchResults({
+  hits,
+  query,
+  onOpen,
+}: {
+  hits: SearchHit[];
+  query: string;
+  onOpen: (path: string) => void;
+}) {
+  if (hits.length === 0) {
+    return (
+      <div className="trace-hatch flex flex-col gap-2 rounded-sm py-12 text-center">
+        <p className="font-mono text-xs text-ink-faint">&gt; nothing matches “{query}”.</p>
+        <p className="text-sm text-ink-muted">Every word has to appear somewhere in the meeting.</p>
+      </div>
+    );
+  }
+
+  return (
+    <section className="trace-section gap-1">
+      <SectionHead title={`${hits.length} ${hits.length === 1 ? "result" : "results"}`} />
+      {hits.map((hit) => (
+        <button
+          key={hit.path}
+          type="button"
+          onClick={() => onOpen(hit.path)}
+          className="group flex flex-col gap-1 rounded-sm px-2 py-2 text-left trace-press hover:bg-surface-1"
+        >
+          <span className="flex items-baseline gap-3">
+            <span className="trace-title min-w-0 flex-1 truncate text-base text-ink group-hover:text-phosphor">
+              {hit.title}
+            </span>
+            <span className="shrink-0 font-mono text-2xs uppercase tracking-system text-ink-faint">
+              {hit.type}
+            </span>
+          </span>
+          {hit.snippet && (
+            <span className="line-clamp-2 font-mono text-2xs leading-relaxed text-ink-muted">
+              {hit.snippet}
+            </span>
+          )}
+        </button>
+      ))}
+    </section>
   );
 }

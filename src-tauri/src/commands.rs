@@ -168,8 +168,9 @@ pub struct NoteSummary {
 /// List saved notes, newest first.
 ///
 /// Reads the filesystem rather than an index. Markdown is canonical, and at
-/// personal-use volumes a directory walk is instant; the SQLite index arrives
-/// when search does, and will be rebuildable from exactly this.
+/// personal-use volumes a directory walk is instant. Search does the same and
+/// stays under 110 ms across 1,200 notes — see `store::search` for the
+/// measurement that retired the planned SQLite index.
 #[tauri::command]
 pub fn list_notes(manager: State<'_, CaptureManager>) -> CmdResult<Vec<NoteSummary>> {
     let root = manager.notes_root().map_err(err)?;
@@ -473,4 +474,17 @@ pub fn rename_note(
     let root = manager.notes_root().map_err(err)?;
     let path = store::rename_note(&root, &PathBuf::from(note_path), &title).map_err(err)?;
     Ok(path.display().to_string())
+}
+
+/// Search saved notes.
+///
+/// Scans the Markdown rather than an index — see `store::search` for the
+/// measurement behind that.
+#[tauri::command]
+pub fn search_notes(
+    manager: State<'_, CaptureManager>,
+    query: String,
+) -> CmdResult<Vec<store::search::SearchHit>> {
+    let root = manager.notes_root().map_err(err)?;
+    Ok(store::search::search(&root, &query))
 }

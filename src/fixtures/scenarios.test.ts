@@ -21,6 +21,7 @@ const COMMANDS = [
   "set_title",
   "list_notes",
   "notes_root",
+  "search_notes",
   "recoverable_sessions",
   "recover_session",
   "discard_session",

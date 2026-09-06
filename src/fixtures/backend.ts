@@ -104,7 +104,7 @@ export const DEFAULT_STATE: BackendState = {
     accelerator: "CPU · ONNX Runtime (int8)",
     modelName: "Parakeet TDT 0.6B v3 (int8)",
     modelBytes: 478_517_071,
-    modelDir: "C:UsersyouAppDataLocalTRACEmodelsparakeet-tdt-0.6b-v3-int8",
+    modelDir: "C:\\Users\\you\\AppData\\Local\\TRACE\\models\\parakeet-tdt-0.6b-v3-int8",
     diskFreeBytes: 222_290_000_000,
     installed: false,
   },
@@ -242,6 +242,39 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         }
         case "notes_root":
           return state.root;
+
+        case "search_notes": {
+          // Mirrors the real matcher closely enough to be worth looking at:
+          // every term must appear, case-insensitive, title hits first.
+          const terms = String(args?.query ?? "")
+            .toLowerCase()
+            .split(/\s+/)
+            .filter(Boolean);
+          if (terms.length === 0) return [];
+
+          return state.notes
+            .filter((n) => {
+              const body = (state.bodies[n.path] ?? "").toLowerCase();
+              const hay = `${n.title.toLowerCase()} ${body}`;
+              return terms.every((t) => hay.includes(t));
+            })
+            .map((n) => {
+              const body = state.bodies[n.path] ?? "";
+              const line =
+                body
+                  .split("\n")
+                  .find(
+                    (l) => terms.some((t) => l.toLowerCase().includes(t)) && !l.includes(":"),
+                  ) ?? "";
+              return {
+                ...n,
+                inTitle: terms.some((t) => n.title.toLowerCase().includes(t)),
+                snippet: line.replaceAll("**", "").replaceAll("`", "").trim(),
+                matches: 1,
+              };
+            })
+            .sort((a, b) => Number(b.inTitle) - Number(a.inTitle));
+        }
 
         case "recoverable_sessions":
           return state.recoverable;

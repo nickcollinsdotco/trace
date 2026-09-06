@@ -35,7 +35,7 @@ retrofitted into it.
 | **B** | Three candidate themes | ~1–2 sessions |
 | **C** | Live with them | Yours, ~2 weeks |
 | **D** | Commit, then the full visual pass | ~2 sessions |
-| **M7** | Search, command palette, shortcuts | ~1–2 sessions |
+| **M7** | ~~Search~~ done; command palette and shortcuts still after the visual decision | ~1 session |
 | **M8** | First-run download, packaging, signing — **in progress** | ~2 sessions |
 
 ---
@@ -170,13 +170,24 @@ Then the pass that has been waiting since M0:
 
 ## M7 — Search, command palette, shortcuts
 
-Built *after* the visual decision, deliberately. A command palette is one of
-the most theme-expressive components in any app; building it before the
-language is settled means building it twice.
+Split, because only half of it is theme-expressive.
 
-- SQLite FTS5 index over the Markdown, rebuildable and never canonical
-- Command palette, keyboard shortcuts
-- **Verification:** delete `index.sqlite`, relaunch, confirm it rebuilds
+**Search: done 2026-09-06.** A field in the library, matching titles and
+transcripts, showing the line that matched so a hit says *why* it is a hit.
+
+**The planned SQLite FTS5 index was not built, on measurement.** Scanning
+1,200 notes — about 5.4 MB, a daily meeting for five years — takes 106 ms in
+release, and it is I/O-bound, so a debug build is barely slower. A realistic
+first-year library lands near 25 ms. An index would have bought nothing at
+that size and cost a dependency, a C build, and the oldest bug in search: an
+index that disagrees with the thing it indexes.
+`search_is_fast_enough_without_an_index` holds the measurement and is what
+will say when that stops being true.
+
+**Command palette and shortcuts: still after the visual decision.** A palette
+is among the most theme-expressive components in any app, and building it
+before the language is settled means building it twice. `themeForKey` already
+has the typing-target guard a global hotkey needs.
 
 ---
 

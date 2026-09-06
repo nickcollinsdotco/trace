@@ -25,7 +25,16 @@ import { useNoteRefinement } from "./useNoteRefinement";
  */
 type View = "enhanced" | "mine";
 
-export function NoteScreen({ path, onBack }: { path: string; onBack: () => void }) {
+export function NoteScreen({
+  path,
+  onBack,
+  onSearchTag,
+}: {
+  path: string;
+  onBack: () => void;
+  /** Optional: clicking a tag searches for it back in the library. */
+  onSearchTag?: ((tag: string) => void) | undefined;
+}) {
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View | null>(null);
@@ -109,6 +118,8 @@ export function NoteScreen({ path, onBack }: { path: string; onBack: () => void 
         )}
 
         <RefinementNotice stage={stage} />
+
+        <Tags path={path} onSearchTag={onSearchTag} />
 
         {sections && (
           <>
@@ -365,4 +376,109 @@ function splitFrontmatter(markdown: string): { frontmatter: string; body: string
     frontmatter: markdown.slice(4, end),
     body: markdown.slice(end + 5),
   };
+}
+
+/**
+ * A note's tags, editable in place.
+ *
+ * Tags live in the note's own frontmatter, so they travel with the file — a
+ * Markdown-on-disk product should not keep the grouping somewhere the file
+ * cannot see. Clicking one searches for it, because a tag you cannot get back
+ * out of is only a label.
+ *
+ * The rendered set comes from the backend's reply rather than from what was
+ * typed: it normalises, de-duplicates and sorts, and the UI should show what
+ * is on disk.
+ */
+function Tags({
+  path,
+  onSearchTag,
+}: {
+  path: string;
+  onSearchTag?: ((tag: string) => void) | undefined;
+}) {
+  const [tags, setTags] = useState<string[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    if (!hasBackend()) return;
+    void ipc
+      .noteTags(path)
+      .then(setTags)
+      .catch(() => setTags([]));
+  }, [path]);
+
+  function save(next: string[]) {
+    void ipc
+      .setNoteTags(path, next)
+      .then(setTags)
+      .catch(() => {});
+  }
+
+  if (!hasBackend()) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {tags.map((tag) => (
+        <span key={tag} className="flex items-center overflow-hidden rounded-sm bg-phosphor-dim">
+          <button
+            type="button"
+            onClick={() => onSearchTag?.(tag)}
+            disabled={!onSearchTag}
+            title={onSearchTag ? `Find meetings tagged ${tag}` : undefined}
+            className="px-2 py-1 font-mono text-2xs tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:cursor-default"
+          >
+            {tag}
+          </button>
+          <button
+            type="button"
+            aria-label={`Remove tag ${tag}`}
+            onClick={() => save(tags.filter((t) => t !== tag))}
+            className="px-1.5 py-1 font-mono text-2xs text-phosphor-muted trace-press hover:bg-error hover:text-surface-0"
+          >
+            ×
+          </button>
+        </span>
+      ))}
+
+      {adding ? (
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            if (draft.trim()) save([...tags, draft]);
+            setDraft("");
+            setAdding(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              if (draft.trim()) save([...tags, draft]);
+              setDraft("");
+              setAdding(false);
+            }
+            if (e.key === "Escape") {
+              setDraft("");
+              setAdding(false);
+            }
+          }}
+          placeholder="tag…"
+          aria-label="New tag"
+          name="tag"
+          autoComplete="off"
+          // biome-ignore lint/a11y/noAutofocus: opened by an explicit click
+          autoFocus
+          className="trace-field w-28 px-2 py-1 font-mono text-2xs"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="rounded-sm border border-dashed border-line-strong px-2 py-1 font-mono text-2xs tracking-system text-ink-faint trace-press hover:border-phosphor hover:text-phosphor"
+        >
+          + Tag
+        </button>
+      )}
+    </div>
+  );
 }

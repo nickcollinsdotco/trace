@@ -488,3 +488,19 @@ pub fn search_notes(
     let root = manager.notes_root().map_err(err)?;
     Ok(store::search::search(&root, &query))
 }
+
+/// Read a note's tags.
+#[tauri::command]
+pub fn note_tags(note_path: String) -> CmdResult<Vec<String>> {
+    let text = std::fs::read_to_string(PathBuf::from(note_path)).map_err(err)?;
+    Ok(store::tags::read(&text))
+}
+
+/// Replace a note's tags.
+///
+/// Returns the stored set, which is normalised, de-duplicated and sorted — so
+/// the UI shows what is on disk rather than what it sent.
+#[tauri::command]
+pub fn set_note_tags(note_path: String, tags: Vec<String>) -> CmdResult<Vec<String>> {
+    store::tags::write(&PathBuf::from(note_path), &tags).map_err(err)
+}

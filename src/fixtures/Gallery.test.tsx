@@ -299,6 +299,47 @@ describe("Gallery", () => {
     expect(screen.getByText("Monday standup")).toBeInTheDocument();
   });
 
+  it("shows a note's tags and lets one be added", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Enhanced note" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "pricing" })).toBeVisible());
+    await user.click(screen.getByRole("button", { name: "+ Tag" }));
+    await user.type(screen.getByRole("textbox", { name: "New tag" }), "Design Review{Enter}");
+
+    // Normalised on the way in — the UI shows what the store would write.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "design-review" })).toBeVisible(),
+    );
+  });
+
+  it("removes a tag", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Enhanced note" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "client" })).toBeVisible());
+    await user.click(screen.getByRole("button", { name: "Remove tag client" }));
+
+    await waitFor(() => expect(screen.queryByRole("button", { name: "client" })).toBeNull());
+    // The others are untouched.
+    expect(screen.getByRole("button", { name: "pricing" })).toBeVisible();
+  });
+
+  it("narrows to tagged notes with tag:", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await waitFor(() => expect(screen.getByText("Monday standup")).toBeInTheDocument());
+
+    await user.type(screen.getByRole("searchbox"), "tag:client");
+
+    await waitFor(() => expect(screen.getByText(/1 result/)).toBeInTheDocument());
+    expect(screen.getByText("Pricing page rework")).toBeInTheDocument();
+    expect(screen.queryByText("Monday standup")).toBeNull();
+  });
+
   it("clears the fake backend when it unmounts", async () => {
     const { hasBackend } = await import("../lib/ipc");
     const { unmount } = render(<Gallery />);

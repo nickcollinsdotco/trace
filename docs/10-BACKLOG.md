@@ -334,17 +334,23 @@ the rest is recorded here rather than guessed at.
 
 ### Not built, in the order I would do them
 
-1. **Pause and resume a recording.** The hard part is not the button, it is
-   the timeline: a paused stretch has to become a gap rather than a splice,
+1. **Pause and resume a recording.** Now the largest thing left, and the one
+   with real correctness risk — it touches the timeline every evidence
+   citation depends on, so it deserves its own focused pass rather than being
+   squeezed alongside other work.
+
+   The hard part is not the button, it is the timeline: a paused stretch has to become a gap rather than a splice,
    or every timestamp after it is wrong. The loopback path already pads gaps
    with wall-clock time, so the machinery exists — but silence that is
    *absence* and silence that is *nobody talking* must stay distinguishable,
    because the second is evidence and the first is not.
 2. ~~**Search.**~~ **Done 2026-09-06**, and without the planned index — a
    direct scan answers in 106 ms across 1,200 notes. See `store::search`.
-3. **Tags.** `Meeting.tags` already exists in the data model and in
-   frontmatter, and nothing writes to it. Cheap once search exists, and much
-   less useful before — a tag you cannot search for is decoration.
+3. ~~**Tags.**~~ **Done 2026-09-06**, immediately after search, which is what
+   made them worth having — a tag you cannot search for is decoration. They
+   live in the note's own frontmatter, so they travel with the file, and
+   `tag:client` narrows search to them. Clicking a tag on a note searches for
+   it.
 4. **Participants.** Also already in the model, also unwritten. Note that
    speaker attribution comes from audio topology, so TRACE knows "you" and
    "them" but not *who* them is; filling this in means either asking the user
@@ -356,3 +362,24 @@ the rest is recorded here rather than guessed at.
 6. **Hiding or archiving old meetings.** The library groups by date already.
    Worth waiting to see whether this is a real problem at a hundred meetings
    or an imagined one at ten.
+
+### Pause: the design question, before any code
+
+Three options, none obviously right, and picking wrong is expensive:
+
+1. **Write silence while paused.** The WAV stays aligned to wall-clock time
+   and nothing downstream changes. But it costs ~23 MB per minute per stream,
+   and — worse — pure digital silence would drag the adaptive VAD's noise
+   floor to zero, clamping the threshold to its minimum for the *whole*
+   recording. A pause would quietly degrade the transcription around it.
+2. **Excise the pause and shift timestamps.** Disk-efficient and correct, but
+   sample position stops being a linear function of session time, and every
+   timestamp becomes a piecewise mapping. Easy to get subtly wrong, and wrong
+   here means citations point at the wrong words.
+3. **One WAV part per unpaused stretch, each with its own offset.** Reuses
+   `transcribe_stream(wav, source, start_offset_ms)`, which already exists to
+   align the two streams against each other. Probably the right answer, and it
+   touches the file layout, the session summary, recovery and `wav_check`.
+
+Option 1 looks cheapest and is the trap: it is the only one that silently
+damages the transcript.

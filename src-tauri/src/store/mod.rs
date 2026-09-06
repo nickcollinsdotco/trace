@@ -17,6 +17,7 @@ pub mod journal;
 pub mod markdown;
 pub mod paths;
 pub mod search;
+pub mod tags;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {

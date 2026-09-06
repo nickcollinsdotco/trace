@@ -57,6 +57,8 @@ pub fn run() {
             commands::delete_note,
             commands::rename_note,
             commands::search_notes,
+            commands::note_tags,
+            commands::set_note_tags,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TRACE");

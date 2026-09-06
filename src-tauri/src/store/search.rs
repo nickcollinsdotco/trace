@@ -37,6 +37,7 @@ pub struct SearchHit {
     pub date: String,
     #[serde(rename = "type")]
     pub meeting_type: MeetingType,
+    pub tags: Vec<String>,
     /// Whether the title itself matched. Ranked above body-only matches.
     pub in_title: bool,
     /// A line containing a match, so the user can see *why* it matched.
@@ -50,18 +51,35 @@ pub struct SearchHit {
 /// whitespace-only query returns nothing rather than everything: "show me
 /// all notes" is the library's job, not search's.
 pub fn search(root: &Path, query: &str) -> Vec<SearchHit> {
-    let terms: Vec<String> = query
-        .split_whitespace()
-        .map(str::to_lowercase)
-        .filter(|t| !t.is_empty())
-        .collect();
+    // `tag:design` restricts to the tag list; everything else is free text.
+    // Split rather than special-cased downstream, so a note tagged "pricing"
+    // and a note merely mentioning it stay distinguishable.
+    let mut terms = Vec::new();
+    let mut wanted_tags = Vec::new();
 
-    if terms.is_empty() {
+    for word in query.split_whitespace() {
+        match word.strip_prefix("tag:") {
+            Some(tag) => {
+                let t = super::tags::normalise(tag);
+                if !t.is_empty() {
+                    wanted_tags.push(t);
+                }
+            }
+            None => {
+                let t = word.to_lowercase();
+                if !t.is_empty() {
+                    terms.push(t);
+                }
+            }
+        }
+    }
+
+    if terms.is_empty() && wanted_tags.is_empty() {
         return Vec::new();
     }
 
     let mut hits = Vec::new();
-    collect(root, &terms, &mut hits);
+    collect(root, &terms, &wanted_tags, &mut hits);
 
     // Title matches first; within each group, newest first. Filenames begin
     // with the ISO date, so the path comparison is chronological.
@@ -73,7 +91,7 @@ pub fn search(root: &Path, query: &str) -> Vec<SearchHit> {
     hits
 }
 
-fn collect(dir: &Path, terms: &[String], out: &mut Vec<SearchHit>) {
+fn collect(dir: &Path, terms: &[String], wanted_tags: &[String], out: &mut Vec<SearchHit>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -86,7 +104,7 @@ fn collect(dir: &Path, terms: &[String], out: &mut Vec<SearchHit>) {
             if path.file_name().is_some_and(|n| n == ".sessions") {
                 continue;
             }
-            collect(&path, terms, out);
+            collect(&path, terms, wanted_tags, out);
             continue;
         }
 
@@ -97,13 +115,21 @@ fn collect(dir: &Path, terms: &[String], out: &mut Vec<SearchHit>) {
             continue;
         };
 
-        if let Some(hit) = examine(&path, &text, terms) {
+        if let Some(hit) = examine(&path, &text, terms, wanted_tags) {
             out.push(hit);
         }
     }
 }
 
-fn examine(path: &Path, text: &str, terms: &[String]) -> Option<SearchHit> {
+fn examine(path: &Path, text: &str, terms: &[String], wanted_tags: &[String]) -> Option<SearchHit> {
+    let tags = super::tags::read(text);
+
+    // Every requested tag must be present. An exact match, not a substring:
+    // `tag:design` should not pull in `design-review`.
+    if !wanted_tags.iter().all(|w| tags.iter().any(|t| t == w)) {
+        return None;
+    }
+
     let haystack = text.to_lowercase();
 
     // Every term, anywhere. A note missing one is not a match.
@@ -119,16 +145,19 @@ fn examine(path: &Path, text: &str, terms: &[String]) -> Option<SearchHit> {
     let lower_title = title.to_lowercase();
     let in_title = terms.iter().any(|t| lower_title.contains(t.as_str()));
 
-    let matches = terms
+    let matches: usize = terms
         .iter()
         .map(|t| haystack.matches(t.as_str()).count())
         .sum();
+    // A tag-only query matches the note itself, not a word in it.
+    let matches = if terms.is_empty() { 1 } else { matches };
 
     Some(SearchHit {
         path: path.display().to_string(),
         date: super::markdown::frontmatter_value(text, "date").unwrap_or_default(),
         meeting_type: super::markdown::parse_meeting_type(text).unwrap_or_default(),
         snippet: snippet(text, terms),
+        tags,
         title,
         in_title,
         matches,
@@ -202,9 +231,14 @@ mod tests {
     }
 
     fn note(root: &Path, id: &str, title: &str, notes: &str) {
+        tagged(root, id, title, notes, &[]);
+    }
+
+    fn tagged(root: &Path, id: &str, title: &str, notes: &str, tags: &[&str]) {
         let mut m = crate::meeting::Meeting::new(id, title);
         m.date = "2026-09-06".into();
         m.notes = notes.into();
+        m.tags = tags.iter().map(|t| (*t).to_string()).collect();
         write_note(root, &m).unwrap();
     }
 
@@ -298,6 +332,61 @@ mod tests {
         std::fs::write(session.join("notes.md"), "deploy went out").unwrap();
 
         assert_eq!(search(&root, "deploy").len(), 1);
+    }
+
+    #[test]
+    fn a_tag_query_restricts_to_tagged_notes() {
+        let root = scratch("tag");
+        tagged(&root, "s1", "Pricing review", "nothing", &["client"]);
+        note(&root, "s2", "Weekly sync", "we talked about a client");
+
+        // The second note mentions "client" but is not tagged with it.
+        let hits = search(&root, "tag:client");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].title, "Pricing review");
+        assert_eq!(hits[0].tags, vec!["client"]);
+    }
+
+    #[test]
+    fn a_tag_matches_exactly_not_as_a_prefix() {
+        // `tag:design` pulling in `design-review` would make tags useless
+        // for narrowing, which is the only thing they are for.
+        let root = scratch("tag-exact");
+        tagged(&root, "s1", "A", "x", &["design-review"]);
+
+        assert!(search(&root, "tag:design").is_empty());
+        assert_eq!(search(&root, "tag:design-review").len(), 1);
+    }
+
+    #[test]
+    fn tags_combine_with_free_text() {
+        let root = scratch("tag-and-text");
+        tagged(
+            &root,
+            "s1",
+            "Alpha",
+            "the migration timeline slipped",
+            &["client"],
+        );
+        tagged(&root, "s2", "Beta", "nothing relevant", &["client"]);
+
+        let hits = search(&root, "tag:client migration");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].title, "Alpha");
+    }
+
+    #[test]
+    fn a_tag_query_is_normalised_like_the_tag_itself() {
+        let root = scratch("tag-norm");
+        tagged(&root, "s1", "A", "x", &["design-review"]);
+
+        // Typed as the user would say it, not as it is stored.
+        assert_eq!(
+            search(&root, "tag:Design Review").len(),
+            0,
+            "space splits terms"
+        );
+        assert_eq!(search(&root, "tag:DESIGN-REVIEW").len(), 1);
     }
 
     #[test]

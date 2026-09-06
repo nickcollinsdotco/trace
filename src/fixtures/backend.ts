@@ -64,6 +64,8 @@ export interface BackendState {
   immediate: ScriptedEvent[];
   /** Whether the open note's journal still exists. */
   canRegenerate: boolean;
+  /** Note path → tags. */
+  tags: Record<string, string[]>;
   /** Facts shown on the first-run report. */
   systemReport: SystemReport;
   settings: Settings;
@@ -93,6 +95,7 @@ export const DEFAULT_STATE: BackendState = {
   script: [],
   immediate: [],
   canRegenerate: true,
+  tags: {},
   systemReport: {
     host: "NICK-DESKTOP",
     os: "Windows 10 Home",
@@ -142,6 +145,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
   // "Ready" instead of snapping back to "no model" when the download finishes.
   let model = state.model;
   let settings = state.settings;
+  const tags: Record<string, string[]> = { ...state.tags };
 
   const emit = (event: string, payload: unknown) => {
     for (const h of handlers.get(event) ?? []) h(payload);
@@ -245,15 +249,21 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
         case "search_notes": {
           // Mirrors the real matcher closely enough to be worth looking at:
-          // every term must appear, case-insensitive, title hits first.
-          const terms = String(args?.query ?? "")
-            .toLowerCase()
+          // every term must appear, case-insensitive, title hits first, and
+          // `tag:` narrows to the tag list rather than the text.
+          const words = String(args?.query ?? "")
             .split(/\s+/)
             .filter(Boolean);
-          if (terms.length === 0) return [];
+          const wantedTags = words
+            .filter((w) => w.startsWith("tag:"))
+            .map((w) => w.slice(4).toLowerCase());
+          const terms = words.filter((w) => !w.startsWith("tag:")).map((w) => w.toLowerCase());
+          if (terms.length === 0 && wantedTags.length === 0) return [];
 
           return state.notes
             .filter((n) => {
+              const noteTags = tags[n.path] ?? [];
+              if (!wantedTags.every((w) => noteTags.includes(w))) return false;
               const body = (state.bodies[n.path] ?? "").toLowerCase();
               const hay = `${n.title.toLowerCase()} ${body}`;
               return terms.every((t) => hay.includes(t));
@@ -268,6 +278,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
                   ) ?? "";
               return {
                 ...n,
+                tags: tags[n.path] ?? [],
                 inTitle: terms.some((t) => n.title.toLowerCase().includes(t)),
                 snippet: line.replaceAll("**", "").replaceAll("`", "").trim(),
                 matches: 1,
@@ -302,6 +313,23 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return null;
         case "can_regenerate":
           return state.canRegenerate;
+
+        case "note_tags":
+          return tags[args?.notePath as string] ?? [];
+        case "set_note_tags": {
+          // Normalise the way the real store does, so the gallery shows what
+          // would actually be written rather than what was typed.
+          const path = args?.notePath as string;
+          const clean = [
+            ...new Set(
+              ((args?.tags as string[]) ?? [])
+                .map((t) => t.trim().toLowerCase().split(/\s+/).join("-"))
+                .filter(Boolean),
+            ),
+          ].sort();
+          tags[path] = clean;
+          return clean;
+        }
 
         default:
           throw new Error(`fixture backend: unhandled command "${command}"`);

@@ -12,15 +12,18 @@ import {
 export function LibraryScreen({
   onNewMeeting,
   onOpenNote,
+  initialSearch = "",
 }: {
   onNewMeeting: () => void;
   onOpenNote: (path: string) => void;
+  /** Pre-filled query, so clicking a tag on a note lands here searching it. */
+  initialSearch?: string;
 }) {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [recoverable, setRecoverable] = useState<RecoverableSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [root, setRoot] = useState<string>("");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialSearch);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
 
   /*

@@ -13,7 +13,10 @@ import { Wordmark } from "./Wordmark";
  * three screens, and adding react-router here would be exactly the premature
  * infrastructure docs/08-CLAUDE-AUDIT-PROMPT.md warns against.
  */
-type Route = { name: "library" } | { name: "capture" } | { name: "note"; path: string };
+type Route =
+  | { name: "library"; search?: string }
+  | { name: "capture" }
+  | { name: "note"; path: string };
 
 export function App() {
   const [route, setRoute] = useState<Route>({ name: "library" });
@@ -52,6 +55,7 @@ export function App() {
         {route.name === "library" && (
           <LibraryScreen
             key={libraryKey}
+            initialSearch={route.search ?? ""}
             onNewMeeting={() => setRoute({ name: "capture" })}
             onOpenNote={(path) => setRoute({ name: "note", path })}
           />
@@ -72,6 +76,11 @@ export function App() {
             onBack={() => {
               setLibraryKey((k) => k + 1);
               setRoute({ name: "library" });
+            }}
+            // Clicking a tag goes back to the library with it already searched.
+            onSearchTag={(tag) => {
+              setLibraryKey((k) => k + 1);
+              setRoute({ name: "library", search: `tag:${tag}` });
             }}
           />
         )}

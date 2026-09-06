@@ -65,7 +65,14 @@ const NOTES: NoteSummary[] = [
   },
 ];
 
-const POPULATED: Partial<BackendState> = { notes: NOTES, bodies: BODIES };
+/** A few tags, so tag filtering is something you can actually look at. */
+const TAGS: Record<string, string[]> = {
+  [PATHS.pricing]: ["client", "pricing"],
+  [PATHS.planning]: ["planning"],
+  [PATHS.standup]: ["internal"],
+};
+
+const POPULATED: Partial<BackendState> = { notes: NOTES, bodies: BODIES, tags: TAGS };
 
 /**
  * Segments arriving as they do during a real meeting.

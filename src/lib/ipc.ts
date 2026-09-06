@@ -98,6 +98,7 @@ export interface SearchHit {
   title: string;
   date: string;
   type: MeetingType;
+  tags: string[];
   /** The title matched, not just the body. Ranked first. */
   inTitle: boolean;
   /** A body line containing a match, so the reason is visible. */
@@ -205,6 +206,9 @@ export const ipc = {
   readNote: (path: string) => call<string>("read_note", { path }),
   notesRoot: () => call<string>("notes_root"),
   searchNotes: (query: string) => call<SearchHit[]>("search_notes", { query }),
+  noteTags: (notePath: string) => call<string[]>("note_tags", { notePath }),
+  setNoteTags: (notePath: string, tags: string[]) =>
+    call<string[]>("set_note_tags", { notePath, tags }),
 
   recoverableSessions: () => call<RecoverableSession[]>("recoverable_sessions"),
   recoverSession: (sessionDir: string) => call<string>("recover_session", { sessionDir }),

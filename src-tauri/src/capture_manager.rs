@@ -493,6 +493,11 @@ impl Tracked {
         self.publish();
     }
 
+    fn fail_step(&self, reason: &str) {
+        ACTIVITY.fail_step(self.id, reason);
+        self.publish();
+    }
+
     fn fail(&self, message: String) {
         diagnostics::log(format!("summary failed: {message}"));
         self.finish(Outcome::Failed { message });
@@ -677,16 +682,18 @@ fn release_session_audio(session_dir: &std::path::Path) {
     }
 }
 
-/// Re-transcribe the finished recording at full quality, in the background.
+/// Re-transcribe the finished recording at full quality, then write notes,
+/// in the background.
 ///
 /// The live transcript is produced from 4-7 second chunks, which trades the
 /// model's surrounding context for latency. This pass re-runs the same audio
 /// with the offline 20/30 second config, which is measurably more accurate on
 /// exactly the short, ambiguous words the live pass gets wrong.
 ///
-/// Failure here is not an error the user needs to act on: the note already on
-/// disk stays valid, so a failed re-pass simply leaves it as it was. It is
-/// still reported, because it also means no notes were written.
+/// A failed re-pass is not a failed meeting. The note on disk and the journal
+/// both still hold the live transcript, so notes are written from that — the
+/// same notes "Generate summary" would produce from the same journal, without
+/// making the user find the button. The step is shown as failed, with why.
 fn spawn_repass(
     app: AppHandle,
     job: Option<Tracked>,
@@ -698,12 +705,6 @@ fn spawn_repass(
     std::thread::Builder::new()
         .name("trace-repass".into())
         .spawn(move || {
-            let fail = |message: String| {
-                if let Some(job) = &job {
-                    job.finish(Outcome::Failed { message });
-                }
-            };
-
             // One heavy job at a time: a meeting that ends while another's
             // notes are being written waits here, shown as queued.
             let _lane = ACTIVITY.lane();
@@ -711,75 +712,19 @@ fn spawn_repass(
                 job.start(StepKind::Transcript);
             }
 
-            // Loading a second engine only after the live one has been dropped
-            // keeps peak memory to one model rather than two.
-            let mut engine = match Transcriber::load_model(speech) {
-                Ok(engine) => engine,
-                Err(e) => {
-                    diagnostics::log(format!("re-pass skipped, engine did not load: {e}"));
-                    fail(format!("the transcription model did not load ({e})"));
-                    release_session_audio(&session_dir);
-                    return;
-                }
-            };
-
-            let mut segments = Vec::new();
-            for outcome in &summary.streams {
-                if !outcome.is_usable() {
-                    continue;
-                }
-                match engine.transcribe_stream(
-                    &outcome.path,
-                    outcome.source,
-                    outcome.start_offset_ms,
-                ) {
-                    Ok(mut produced) => segments.append(&mut produced),
-                    Err(e) => {
-                        diagnostics::log(format!(
-                            "re-pass failed for {:?}, keeping the live transcript: {e}",
-                            outcome.source
-                        ));
-                        // Abandon rather than half-replace: a transcript
-                        // missing one whole stream would be worse than the
-                        // live one it would overwrite.
-                        fail(format!("the full-quality pass failed ({e})"));
-                        let _ = store::discard_session(&session_dir);
-                        return;
-                    }
+            if let Err(reason) = repass(&app, &session_dir, &note_path, &summary, speech) {
+                diagnostics::log(format!(
+                    "re-pass failed, summarising the live transcript: {reason}"
+                ));
+                if let Some(job) = &job {
+                    job.fail_step(&reason);
                 }
             }
 
-            if segments.is_empty() {
-                fail("the full-quality pass found no speech in the recording".into());
-                release_session_audio(&session_dir);
-                return;
-            }
-
-            let segments = crate::transcribe::merge(segments);
-
-            // Journal before rewriting, so a crash between the two leaves a
-            // journal that replays to the better transcript.
-            if let Ok(mut journal) = Journal::open(&session_dir) {
-                let _ = journal.append(&JournalEvent::TranscriptReplaced {
-                    segments: segments.clone(),
-                });
-            }
-
-            if let Ok(replay) = crate::store::journal::replay(&session_dir) {
-                if store::rewrite_note(&note_path, &replay.meeting).is_ok() {
-                    let _ = app.emit(
-                        EVENT_TRANSCRIPT_UPDATED,
-                        serde_json::json!({
-                            "notePath": note_path.display().to_string(),
-                            "segments": segments.len(),
-                        }),
-                    );
-                }
-            }
-
-            // Synthesis runs on the re-transcribed text, not the live one.
-            // The live transcript trades accuracy for latency, and summarising
-            // the rougher version would bake those errors into the notes.
+            // Synthesis runs on whatever the journal now replays to: the
+            // re-transcribed text when the pass worked, which is why it waits
+            // for it, and the live transcript when it did not. Rougher notes
+            // beat none, and are what regenerating would give anyway.
             match &job {
                 Some(job) => synthesize(&app, job, &session_dir, &note_path),
                 None => diagnostics::log("summary skipped: the note already had a job"),
@@ -787,10 +732,71 @@ fn spawn_repass(
 
             // Audio is expendable now; the journal is not. It is the only
             // structured record left once the note is written, and is what
-            // makes regenerating notes possible later.
+            // makes regenerating notes possible later. Every path reaches here,
+            // so "keep audio" holds on exactly the failures it exists to debug.
             release_session_audio(&session_dir);
         })
         .ok();
+}
+
+/// The full-quality pass itself. On success the journal and note carry the
+/// new transcript; on failure neither has been touched, and the reason says
+/// why in words fit for the note.
+fn repass(
+    app: &AppHandle,
+    session_dir: &std::path::Path,
+    note_path: &std::path::Path,
+    summary: &SessionSummary,
+    speech: &'static crate::models::ModelSpec,
+) -> Result<(), String> {
+    // Loading a second engine only after the live one has been dropped
+    // keeps peak memory to one model rather than two.
+    let mut engine = Transcriber::load_model(speech)
+        .map_err(|e| format!("the transcription model did not load ({e})"))?;
+
+    let mut segments = Vec::new();
+    for outcome in &summary.streams {
+        if !outcome.is_usable() {
+            continue;
+        }
+        // Abandon rather than half-replace: a transcript missing one whole
+        // stream would be worse than the live one it would overwrite. Nothing
+        // is journalled until every stream is done, so returning here leaves
+        // the journal replaying to the complete live transcript — which is
+        // why it is kept. Deleting it, as this once did, lost the one record
+        // regenerating notes could start from.
+        let mut produced = engine
+            .transcribe_stream(&outcome.path, outcome.source, outcome.start_offset_ms)
+            .map_err(|e| format!("the full-quality pass failed on {:?} ({e})", outcome.source))?;
+        segments.append(&mut produced);
+    }
+
+    if segments.is_empty() {
+        return Err("the full-quality pass found no speech in the recording".into());
+    }
+
+    let segments = crate::transcribe::merge(segments);
+
+    // Journal before rewriting, so a crash between the two leaves a journal
+    // that replays to the better transcript.
+    if let Ok(mut journal) = Journal::open(session_dir) {
+        let _ = journal.append(&JournalEvent::TranscriptReplaced {
+            segments: segments.clone(),
+        });
+    }
+
+    if let Ok(replay) = crate::store::journal::replay(session_dir) {
+        if store::rewrite_note(note_path, &replay.meeting).is_ok() {
+            let _ = app.emit(
+                EVENT_TRANSCRIPT_UPDATED,
+                serde_json::json!({
+                    "notePath": note_path.display().to_string(),
+                    "segments": segments.len(),
+                }),
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Forward captured audio to the transcriber, and its output to disk and UI.

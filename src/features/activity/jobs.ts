@@ -21,6 +21,15 @@ export function currentStep(job: Job): JobStep | null {
 }
 
 /**
+ * Why the full-quality pass failed, when notes were written from the live
+ * transcript instead. Null when the pass worked, or has not run yet.
+ */
+export function liveFallback(job: Job): string | null {
+  const step = job.steps.find((s) => s.kind === "transcript" && s.failed);
+  return step ? (step.error ?? "the full-quality pass failed") : null;
+}
+
+/**
  * What a step is called in a list of steps.
  *
  * `parts` is how many the meeting was split into. The final pass also runs
@@ -49,16 +58,16 @@ export function stepLabel(step: JobStep, parts = 0): string {
 export function headline(job: Job): string {
   if (isQueued(job)) return "waiting for another meeting's notes";
   const step = currentStep(job);
-  if (step === null) return "writing notes";
+  // Said while it matters, not only afterwards: these notes will be rougher.
+  const writing = liveFallback(job) ? "writing notes from the live transcript" : "writing notes";
+  if (step === null) return writing;
   switch (step.kind) {
     case "transcript":
       return "refining the transcript";
     case "notes":
-      return "writing notes";
+      return writing;
     case "part":
-      return step.total === 1
-        ? "writing notes"
-        : `writing notes, part ${step.index} of ${step.total}`;
+      return step.total === 1 ? writing : `${writing}, part ${step.index} of ${step.total}`;
     case "combine": {
       const parts = partsTotal(job);
       return parts > 1 ? `combining ${parts} parts` : "choosing the key points";

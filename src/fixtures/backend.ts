@@ -644,6 +644,7 @@ function simulateRegenerate(
         startedAt: i < reached ? rel(marks[i] ?? 0) : null,
         finishedAt: i < reached - 1 || outcome ? rel(marks[i + 1] ?? 0) : null,
         failed: false,
+        error: null,
       })),
       outcome,
     };

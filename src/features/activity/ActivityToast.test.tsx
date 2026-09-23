@@ -8,12 +8,12 @@ const running: Job = {
   notePath: "a.md",
   title: "Weekly sync",
   queuedAt: 0,
-  steps: [{ kind: "notes", startedAt: 1, finishedAt: null, failed: false }],
+  steps: [{ kind: "notes", startedAt: 1, finishedAt: null, failed: false, error: null }],
   outcome: null,
 };
 const done: Job = {
   ...running,
-  steps: [{ kind: "notes", startedAt: 1, finishedAt: 2, failed: false }],
+  steps: [{ kind: "notes", startedAt: 1, finishedAt: 2, failed: false, error: null }],
   outcome: { state: "generated", dropped: 0, fabricated: 0, uncited: 0 },
 };
 

@@ -301,7 +301,14 @@ function Preview({ scenario }: { scenario: Scenario }) {
   const noop = () => {};
   const current: Page | null = scenario.screen === "note" ? null : scenario.screen;
   return (
-    <Shell current={current} onNavigate={noop} onOpenNote={noop}>
+    <Shell
+      current={current}
+      onNavigate={noop}
+      // As the app passes it, so a note scenario is not shown a toast about
+      // itself that the real app would hold back.
+      openNote={scenario.screen === "note" ? (scenario.notePath ?? null) : null}
+      onOpenNote={noop}
+    >
       {scenario.screen === "library" && <LibraryScreen onNewMeeting={noop} onOpenNote={noop} />}
       {scenario.screen === "capture" && <CaptureScreen onFinish={noop} />}
       {scenario.screen === "note" && <NoteScreen path={scenario.notePath ?? ""} onBack={noop} />}

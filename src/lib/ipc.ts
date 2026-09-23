@@ -238,6 +238,8 @@ export type JobStep = StepKind & {
   startedAt: number | null;
   finishedAt: number | null;
   failed: boolean;
+  /** Why it failed, when the job carried on without it. */
+  error: string | null;
 };
 
 export type JobOutcome =

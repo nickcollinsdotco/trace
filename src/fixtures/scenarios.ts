@@ -133,6 +133,8 @@ interface StepAt {
   from?: number;
   to?: number;
   failed?: boolean;
+  /** Why it failed, when the job carried on without it. */
+  error?: string;
 }
 
 /**
@@ -158,7 +160,8 @@ function jobAt(
       ...s.step,
       startedAt: rel(s.from),
       finishedAt: rel(s.to),
-      failed: s.failed ?? false,
+      failed: s.failed ?? s.error !== undefined,
+      error: s.error ?? null,
     })),
     outcome,
   };
@@ -228,6 +231,40 @@ function writingScript(): ScriptedEvent[] {
     snap(P2),
     snap(P3),
     snap(C),
+    { atMs: D, event: EVENT.notesGenerated, payload: { notePath: PATHS.pricing } },
+    snap(D, { state: "generated", dropped: 0, fabricated: 0, uncited: 0 }),
+  ];
+}
+
+/**
+ * The full-quality pass failing, and the notes being written from the live
+ * transcript anyway — rather than the job stopping and leaving the user to
+ * find "Generate summary", which would produce the same notes.
+ */
+function liveFallbackScript(): ScriptedEvent[] {
+  const T = 400;
+  const F = 2_200; // the pass fails; notes start
+  const D = 6_400;
+  const reason = "the transcription model did not load (encoder-model.int8.onnx is missing)";
+
+  const snap = (at: number, outcome: JobOutcome | null = null): ScriptedEvent => {
+    const steps: StepAt[] =
+      at < F
+        ? [
+            { step: { kind: "transcript" }, ...(at >= T && { from: T }) },
+            { step: { kind: "notes" } },
+          ]
+        : [
+            { step: { kind: "transcript" }, from: T, to: F, error: reason },
+            { step: PART(1, 1), from: F, ...(at >= D && { to: D }) },
+          ];
+    return { atMs: at, event: EVENT.activity, payload: [jobAt(at, PRICING_JOB, steps, outcome)] };
+  };
+
+  return [
+    snap(0),
+    snap(T),
+    snap(F),
     { atMs: D, event: EVENT.notesGenerated, payload: { notePath: PATHS.pricing } },
     snap(D, { state: "generated", dropped: 0, fabricated: 0, uncited: 0 }),
   ];
@@ -511,6 +548,20 @@ export const SCENARIOS: Scenario[] = [
       bodies: { ...BODIES, [PATHS.pricing]: NOTE_FRESH },
       afterGenerate: { [PATHS.pricing]: NOTE_ENHANCED },
       script: writingScript(),
+    },
+  },
+  {
+    id: "note-live-fallback",
+    name: "Full-quality pass failed",
+    group: "Reading",
+    note: "The re-transcription could not run. Notes are written from the live transcript anyway, and the line says so; open it for why.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: {
+      ...POPULATED,
+      bodies: { ...BODIES, [PATHS.pricing]: NOTE_FRESH },
+      afterGenerate: { [PATHS.pricing]: NOTE_ENHANCED },
+      script: liveFallbackScript(),
     },
   },
   {

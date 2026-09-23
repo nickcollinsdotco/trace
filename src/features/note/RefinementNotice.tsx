@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Gauge, Spinner } from "../../components/ui/terminal";
 import type { Job } from "../../lib/ipc";
 import { JobSteps } from "../activity/JobSteps";
-import { formatDuration, headline, partsDone, startedAt } from "../activity/jobs";
+import { formatDuration, headline, liveFallback, partsDone, startedAt } from "../activity/jobs";
 import { useNow } from "../activity/useActivity";
 
 /**
@@ -30,6 +30,9 @@ export function RefinementNotice({ job }: { job: Job | null }) {
 
   const outcome = job.outcome;
   const warn = outcome?.state === "failed";
+  // Notes written from the live transcript because the full-quality pass
+  // failed. Said on the line itself; the reason is one click away.
+  const fromLive = liveFallback(job) !== null;
 
   return (
     <div className="flex flex-col gap-2">
@@ -40,7 +43,9 @@ export function RefinementNotice({ job }: { job: Job | null }) {
           ? headline(job)
           : outcome.state === "failed"
             ? `Notes could not be generated: ${outcome.message}`
-            : "Notes generated"}
+            : fromLive
+              ? "Notes generated from the live transcript"
+              : "Notes generated"}
       </span>
       <button
         type="button"
@@ -61,6 +66,7 @@ export function RefinementNotice({ job }: { job: Job | null }) {
           ) : (
             <>
               notes generated
+              {fromLive && <span className="text-warn"> from the live transcript</span>}
               {outcome.dropped > 0 && (
                 <>
                   {" — "}

@@ -12,6 +12,7 @@ function step(kind: StepKind, from?: number, to?: number): JobStep {
     startedAt: from === undefined ? null : NOW + from,
     finishedAt: to === undefined ? null : NOW + to,
     failed: false,
+    error: null,
   };
 }
 
@@ -78,6 +79,34 @@ describe("RefinementNotice", () => {
     expect(screen.getByText("full-quality transcript")).toBeInTheDocument();
     expect(screen.getByText("38s")).toBeInTheDocument();
     expect(screen.getByText("41s")).toBeInTheDocument();
+  });
+
+  it("says notes came from the live transcript, and why, when the pass failed", async () => {
+    const user = userEvent.setup();
+    render(
+      <RefinementNotice
+        job={job(
+          [
+            {
+              ...step({ kind: "transcript" }, -60_000, -58_000),
+              failed: true,
+              error: "the transcription model did not load (missing file)",
+            },
+            step(part(1, 1), -58_000, -10_000),
+          ],
+          { state: "generated", dropped: 0, fabricated: 0, uncited: 0 },
+        )}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Notes generated from the live transcript",
+    );
+    const toggle = screen.getByRole("button", { name: /notes generated from the live transcript/ });
+
+    await user.click(toggle);
+    expect(
+      screen.getByText("└ the transcription model did not load (missing file)"),
+    ).toBeInTheDocument();
   });
 
   it("counts discarded items rather than quietly showing fewer", () => {

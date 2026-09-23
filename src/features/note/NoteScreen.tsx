@@ -40,6 +40,8 @@ export function NoteScreen({
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View | null>(null);
+  // Set once the user picks a half, after which nothing switches it for them.
+  const [picked, setPicked] = useState(false);
   // Only bridges the moment between the press and the backend listing the
   // job; after that the job itself says the note is busy.
   const [requesting, setRequesting] = useState(false);
@@ -87,6 +89,13 @@ export function NoteScreen({
     setView(sections.hasEnhanced || !sections.hasNotes || busy ? "enhanced" : "mine");
   }, [sections, view, busy]);
 
+  // The note and the job list load separately, so the job can arrive after
+  // the half was chosen above. Only ever towards the generated half, and
+  // never over the user's own choice.
+  useEffect(() => {
+    if (busy && !picked) setView("enhanced");
+  }, [busy, picked]);
+
   async function regenerate() {
     setRequesting(true);
     setError(null);
@@ -118,7 +127,10 @@ export function NoteScreen({
             <ViewToggle
               view={active}
               hasEnhanced={sections.hasEnhanced}
-              onChange={setView}
+              onChange={(v) => {
+                setPicked(true);
+                setView(v);
+              }}
               onRegenerate={regenerate}
               regenerating={busy}
               replayable={replayable}

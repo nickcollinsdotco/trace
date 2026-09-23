@@ -414,6 +414,50 @@ describe("Gallery", () => {
     expect(bar).not.toHaveTextContent("writing notes");
   }, 15_000);
 
+  it("writes notes from the live transcript when the full-quality pass fails", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Full-quality pass failed");
+
+    const bar = await screen.findByRole("contentinfo");
+    await waitFor(() => expect(bar).toHaveTextContent("writing notes from the live transcript"), {
+      timeout: 4_000,
+    });
+
+    // It carries on to the end rather than stopping at the failure.
+    const done = await screen.findByRole(
+      "button",
+      { name: /notes generated from the live transcript/ },
+      { timeout: 8_000 },
+    );
+    expect(
+      await screen.findByText("Drop-off concentrates at the comparison table, not the prices"),
+    ).toBeInTheDocument();
+
+    // Already on this note, so no toast repeating it.
+    expect(screen.queryByText(/notes ready/)).toBeNull();
+
+    await user.click(done);
+    expect(screen.getByText(/└ the transcription model did not load/)).toBeInTheDocument();
+    expect(screen.getByText("FAIL")).toBeInTheDocument();
+  }, 15_000);
+
+  it("opens on the generated half while notes are written, but never overrides a choice", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Notes being written");
+
+    const enhanced = await screen.findByRole("button", { name: "Enhanced" });
+    await waitFor(() => expect(enhanced).toHaveAttribute("aria-pressed", "true"));
+
+    const mine = screen.getByRole("button", { name: "My notes" });
+    await user.click(mine);
+    // Later updates to the job must not pull the reader back.
+    const bar = await screen.findByRole("contentinfo");
+    await waitFor(() => expect(bar).toHaveTextContent("part 1 of 3"), { timeout: 4_000 });
+    expect(mine).toHaveAttribute("aria-pressed", "true");
+  }, 10_000);
+
   it("says what the summary model is holding in memory", async () => {
     const user = userEvent.setup();
     render(<Gallery />);

@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { Job, JobStep, StepKind } from "../../lib/ipc";
-import { currentStep, formatDuration, headline, isQueued, partsDone, stepLabel } from "./jobs";
+import {
+  currentStep,
+  formatDuration,
+  headline,
+  isQueued,
+  liveFallback,
+  partsDone,
+  stepLabel,
+} from "./jobs";
 
 function step(kind: StepKind, from: number | null = null, to: number | null = null): JobStep {
-  return { ...kind, startedAt: from, finishedAt: to, failed: false };
+  return { ...kind, startedAt: from, finishedAt: to, failed: false, error: null };
 }
 
 function job(steps: JobStep[], outcome: Job["outcome"] = null): Job {
@@ -35,6 +43,20 @@ describe("jobs", () => {
     const split = job([step(part(3, 3), 1, 2), step({ kind: "combine" }, 2)]);
     expect(headline(split)).toBe("combining 3 parts");
     expect(stepLabel(step({ kind: "combine" }), 3)).toBe("combine into one summary");
+  });
+
+  it("says notes are coming from the live transcript when the pass failed", () => {
+    const failed = { ...step({ kind: "transcript" }, 1, 2), failed: true, error: "no model" };
+    const single = job([failed, step(part(1, 1), 2)]);
+    expect(liveFallback(single)).toBe("no model");
+    expect(headline(single)).toBe("writing notes from the live transcript");
+
+    const split = job([failed, step(part(2, 4), 2)]);
+    expect(headline(split)).toBe("writing notes from the live transcript, part 2 of 4");
+
+    // A pass that worked, or has not run, is no fallback.
+    expect(liveFallback(job([step({ kind: "transcript" }, 1, 2), step(part(1, 1), 2)]))).toBeNull();
+    expect(liveFallback(job([step({ kind: "transcript" }, 1)]))).toBeNull();
   });
 
   it("describes the transcript pass as what it is doing", () => {

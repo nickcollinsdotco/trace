@@ -24,6 +24,9 @@ export function JobSteps({ job, now }: { job: Job; now: number }) {
           const running = step.startedAt !== null && step.finishedAt === null;
           const done = step.finishedAt !== null && !step.failed;
           const took = step.startedAt === null ? null : (step.finishedAt ?? now) - step.startedAt;
+          // A step the job carried on without is a warning, not an error:
+          // nothing was lost, the result is only rougher.
+          const failTone = step.error ? "text-warn" : "text-error";
 
           return (
             <li
@@ -32,37 +35,36 @@ export function JobSteps({ job, now }: { job: Job; now: number }) {
               // biome-ignore lint/suspicious/noArrayIndexKey: see above
               key={i}
               aria-current={running ? "step" : undefined}
-              className="flex items-baseline gap-1.5"
+              className="flex flex-col gap-0.5"
             >
-              <span className="shrink-0 tabular-nums text-ink-faint">
-                [{String(i + 1).padStart(2, "0")}]
-              </span>
-              {/* Labels hold their width and the dotted leader gives way;
+              <div className="flex items-baseline gap-1.5">
+                <span className="shrink-0 tabular-nums text-ink-faint">
+                  [{String(i + 1).padStart(2, "0")}]
+                </span>
+                {/* Labels hold their width and the dotted leader gives way;
                   otherwise its long run of dots squeezes them onto three lines. */}
-              <span
-                className={`shrink-0 whitespace-nowrap ${
-                  step.failed
-                    ? "text-error"
-                    : step.startedAt === null
-                      ? "text-ink-faint"
-                      : "text-ink"
-                }`}
-              >
-                {stepLabel(step, partsTotal(job))}
-              </span>
-              <span aria-hidden className="trace-leader" />
-              {running && <Spinner className="text-phosphor" />}
-              {done && (
-                <span aria-hidden className="text-phosphor">
-                  ✓
+                <span
+                  className={`shrink-0 whitespace-nowrap ${
+                    step.failed ? failTone : step.startedAt === null ? "text-ink-faint" : "text-ink"
+                  }`}
+                >
+                  {stepLabel(step, partsTotal(job))}
                 </span>
-              )}
-              {step.failed && <span className="text-error">FAIL</span>}
-              {took !== null && (
-                <span className="w-12 shrink-0 text-right tabular-nums text-ink-muted">
-                  {formatDuration(took)}
-                </span>
-              )}
+                <span aria-hidden className="trace-leader" />
+                {running && <Spinner className="text-phosphor" />}
+                {done && (
+                  <span aria-hidden className="text-phosphor">
+                    ✓
+                  </span>
+                )}
+                {step.failed && <span className={failTone}>FAIL</span>}
+                {took !== null && (
+                  <span className="w-12 shrink-0 text-right tabular-nums text-ink-muted">
+                    {formatDuration(took)}
+                  </span>
+                )}
+              </div>
+              {step.error && <p className="pl-8 text-ink-faint">└ {step.error}</p>}
             </li>
           );
         })}

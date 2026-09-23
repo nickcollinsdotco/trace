@@ -44,6 +44,9 @@ pub struct Step {
     pub started_at: Option<u64>,
     pub finished_at: Option<u64>,
     pub failed: bool,
+    /// Why a step failed when the job carried on without it. A job that
+    /// stopped says why in its `Outcome` instead.
+    pub error: Option<String>,
 }
 
 impl Step {
@@ -53,6 +56,7 @@ impl Step {
             started_at: None,
             finished_at: None,
             failed: false,
+            error: None,
         }
     }
 
@@ -203,6 +207,23 @@ impl Activity {
         });
     }
 
+    /// Close the running step as failed and carry on.
+    ///
+    /// For a step the job can do without: a failed full-quality pass leaves
+    /// the live transcript, which is still worth summarising. The reason is
+    /// kept on the step, because "notes generated" alone would hide that they
+    /// came from the rougher transcript.
+    pub fn fail_step(&self, id: u64, reason: &str) {
+        self.with(id, |job| {
+            let now = now_ms();
+            for step in job.steps.iter_mut().filter(|s| s.running()) {
+                step.finished_at = Some(now);
+                step.failed = true;
+                step.error = Some(reason.to_string());
+            }
+        });
+    }
+
     /// Finish the job. A running step is closed as failed or done to match,
     /// and steps that never started are dropped rather than left pending
     /// forever.
@@ -331,6 +352,37 @@ mod tests {
         let id = a.begin("a.md", "A", false).unwrap();
         a.start(id, StepKind::Part { index: 1, total: 1 });
         assert_eq!(kinds(&a), vec![StepKind::Part { index: 1, total: 1 }]);
+    }
+
+    #[test]
+    fn a_failed_step_does_not_end_the_job() {
+        let a = Activity::new();
+        let id = a.begin("a.md", "A", true).unwrap();
+        a.start(id, StepKind::Transcript);
+        a.fail_step(id, "the transcription model did not load");
+        a.start(id, StepKind::Notes);
+
+        let job = &a.snapshot()[0];
+        assert!(!job.finished(), "notes are still being written");
+        assert!(job.steps[0].failed);
+        assert_eq!(
+            job.steps[0].error.as_deref(),
+            Some("the transcription model did not load")
+        );
+        assert!(job.steps[1].running());
+
+        // And a job finishing well afterwards keeps the record of it.
+        a.finish(
+            id,
+            Outcome::Generated {
+                dropped: 0,
+                fabricated: 0,
+                uncited: 0,
+            },
+        );
+        let job = &a.snapshot()[0];
+        assert!(job.steps[0].failed);
+        assert!(!job.steps[1].failed);
     }
 
     #[test]

@@ -425,12 +425,36 @@ pub fn regenerate(app: &AppHandle, session_dir: &std::path::Path, note_path: &st
 }
 
 fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::path::Path) {
-    let Some(provider) = default_provider() else {
-        return;
+    // Every early return says why. Returning quietly here once made a closed
+    // Ollama indistinguishable from a feature that did not exist: the note
+    // simply never gained a summary, and nothing on screen said so.
+    let fail = |message: String| {
+        let _ = app.emit(
+            EVENT_SYNTHESIS_FAILED,
+            serde_json::json!({
+                "notePath": note_path.display().to_string(),
+                "message": message,
+            }),
+        );
     };
 
-    let Ok(replay) = crate::store::journal::replay(session_dir) else {
-        return;
+    let readiness = crate::synthesis::ollama::Readiness::check();
+    let provider = match readiness {
+        crate::synthesis::ollama::Readiness::Ready { model } => {
+            crate::synthesis::ollama::OllamaProvider::new(model)
+        }
+        unready => {
+            fail(unready.guidance().unwrap_or_default());
+            return;
+        }
+    };
+
+    let replay = match crate::store::journal::replay(session_dir) {
+        Ok(r) => r,
+        Err(e) => {
+            fail(format!("the meeting record could not be read: {e}"));
+            return;
+        }
     };
 
     let result = crate::synthesis::generate(&provider, &replay.meeting, |progress| {
@@ -446,10 +470,7 @@ fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::p
     let (generated, report) = match result {
         Ok(pair) => pair,
         Err(e) => {
-            let _ = app.emit(
-                EVENT_SYNTHESIS_FAILED,
-                serde_json::json!({ "message": e.to_string() }),
-            );
+            fail(e.to_string());
             return;
         }
     };
@@ -477,27 +498,14 @@ fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::p
     }
 }
 
-/// The model to synthesise with.
-///
-/// Prefers a known-good default, falling back to whatever is installed, so a
-/// user who pulled a different model still gets notes rather than silence.
+/// The model to synthesise with, if one can be used right now.
 fn default_provider() -> Option<crate::synthesis::ollama::OllamaProvider> {
-    use crate::synthesis::ollama::OllamaProvider;
+    use crate::synthesis::ollama::{OllamaProvider, Readiness};
 
-    const PREFERRED: &[&str] = &["qwen3:8b", "gemma3:12b"];
-
-    let installed = OllamaProvider::list_models().ok()?;
-    if installed.is_empty() {
-        return None;
+    match Readiness::check() {
+        Readiness::Ready { model } => Some(OllamaProvider::new(model)),
+        _ => None,
     }
-
-    let chosen = PREFERRED
-        .iter()
-        .find(|p| installed.iter().any(|m| m == *p))
-        .map(|s| (*s).to_string())
-        .or_else(|| installed.first().cloned())?;
-
-    Some(OllamaProvider::new(chosen))
 }
 
 /// Re-transcribe the finished recording at full quality, in the background.

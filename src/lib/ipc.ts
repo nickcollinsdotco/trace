@@ -90,7 +90,19 @@ export interface NoteSummary {
   title: string;
   date: string;
   type: MeetingType;
+  /** One line on what the meeting was about. Null until notes are generated. */
+  gist: string | null;
 }
+
+/**
+ * Whether notes can be generated right now.
+ *
+ * Three states because each has a different fix: open Ollama, or pull a model.
+ */
+export type LlmStatus =
+  | { state: "not_running" }
+  | { state: "no_model"; suggested: string }
+  | { state: "ready"; model: string };
 
 /** A note that matched a search, with enough context to judge it. */
 export interface SearchHit {
@@ -219,6 +231,9 @@ export const ipc = {
   renameNote: (notePath: string, title: string) => call<string>("rename_note", { notePath, title }),
   regenerateNotes: (notePath: string) => call<void>("regenerate_notes", { notePath }),
   canRegenerate: (notePath: string) => call<boolean>("can_regenerate", { notePath }),
+
+  llmStatus: () => call<LlmStatus>("llm_status"),
+  startOllama: () => call<void>("start_ollama"),
 };
 
 /* ------------------------------------------------------------------ *
@@ -306,7 +321,7 @@ export function onNotesGenerated(handler: (n: NotesGenerated) => void): Promise<
 }
 
 export function onSynthesisFailed(
-  handler: (info: { message: string }) => void,
+  handler: (info: { notePath?: string; message: string }) => void,
 ): Promise<UnlistenFn> {
   return subscribe(EVENT.synthesisFailed, handler);
 }

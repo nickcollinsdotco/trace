@@ -163,6 +163,9 @@ pub struct NoteSummary {
     pub date: String,
     #[serde(rename = "type")]
     pub meeting_type: MeetingType,
+    /// One line on what the meeting was about. Absent until notes are
+    /// generated, and on notes written before the gist existed.
+    pub gist: Option<String>,
 }
 
 /// List saved notes, newest first.
@@ -216,6 +219,7 @@ fn collect_notes(dir: &std::path::Path, out: &mut Vec<NoteSummary>) {
             }),
             date: frontmatter_field(&text, "date").unwrap_or_default(),
             meeting_type: store::markdown::parse_meeting_type(&text).unwrap_or_default(),
+            gist: frontmatter_field(&text, "gist"),
             path: path.display().to_string(),
         });
     }
@@ -503,4 +507,26 @@ pub fn note_tags(note_path: String) -> CmdResult<Vec<String>> {
 #[tauri::command]
 pub fn set_note_tags(note_path: String, tags: Vec<String>) -> CmdResult<Vec<String>> {
     store::tags::write(&PathBuf::from(note_path), &tags).map_err(err)
+}
+
+/* ------------------------------------------------------------------ *
+ * Language model
+ * ------------------------------------------------------------------ */
+
+/// Whether notes can be generated right now.
+///
+/// Asked by the UI up front, so a closed Ollama is something the user is told
+/// before a meeting rather than discovers after one. Blocking, but bounded by
+/// the two-second probe timeout on a loopback address.
+#[tauri::command]
+pub async fn llm_status() -> crate::synthesis::ollama::Readiness {
+    tauri::async_runtime::spawn_blocking(crate::synthesis::ollama::Readiness::check)
+        .await
+        .unwrap_or(crate::synthesis::ollama::Readiness::NotRunning)
+}
+
+/// Open Ollama. The UI polls `llm_status` afterwards to learn when it is up.
+#[tauri::command]
+pub fn start_ollama() -> CmdResult<()> {
+    crate::synthesis::ollama::launch()
 }

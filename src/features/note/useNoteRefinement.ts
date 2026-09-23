@@ -70,6 +70,7 @@ export function useNoteRefinement(path: string, onReload: (text: string) => void
     });
 
     track(onSynthesisFailed, (info) => {
+      if (info.notePath !== undefined && info.notePath !== path) return;
       setStage({ kind: "failed", message: info.message });
     });
 

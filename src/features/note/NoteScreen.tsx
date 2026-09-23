@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SectionHead, SystemLabel } from "../../components/ui/terminal";
-import { hasBackend, ipc } from "../../lib/ipc";
+import { hasBackend, ipc, type LlmStatus } from "../../lib/ipc";
+import { LlmNotice } from "../llm/LlmNotice";
+import { useLlmStatus } from "../llm/useLlmStatus";
 import { RefinementNotice } from "./RefinementNotice";
 import { splitSections, withoutHeading } from "./sections";
 import { useNoteRefinement } from "./useNoteRefinement";
@@ -64,13 +66,19 @@ export function NoteScreen({
   // Stable, so the subscription is not torn down and rebuilt on every render.
   const reload = useCallback((t: string) => setText(t), []);
   const stage = useNoteRefinement(path, reload);
+  const llm = useLlmStatus();
 
   const sections = useMemo(() => (text === null ? null : splitSections(text)), [text]);
 
-  // Default to whichever half exists rather than forcing a choice.
+  /*
+   * Open on the generated half unless the user typed notes and nothing has
+   * been generated. A meeting with neither used to open on "no notes were
+   * typed" — a dead end for the common case of taking no notes at all, when
+   * the thing wanted is the summary and the way to generate it.
+   */
   useEffect(() => {
     if (view !== null || sections === null) return;
-    setView(sections.hasEnhanced ? "enhanced" : "mine");
+    setView(sections.hasEnhanced || !sections.hasNotes ? "enhanced" : "mine");
   }, [sections, view]);
 
   async function regenerate() {
@@ -130,6 +138,8 @@ export function NoteScreen({
                 <NoteBody markdown={sections.enhanced} />
               ) : (
                 <NotEnhancedYet
+                  llm={llm.status}
+                  onRecheck={llm.recheck}
                   onRegenerate={regenerate}
                   regenerating={regenerating}
                   replayable={replayable}
@@ -247,30 +257,43 @@ function Segment({
 }
 
 function NotEnhancedYet({
+  llm,
+  onRecheck,
   onRegenerate,
   regenerating,
   replayable,
 }: {
+  llm: LlmStatus | null;
+  onRecheck: () => void;
   onRegenerate: () => void;
   regenerating: boolean;
   replayable: boolean;
 }) {
+  // Unknown counts as usable: the backend says why if it is not, and a
+  // button that is briefly disabled on every open would read as broken.
+  const usable = llm === null || llm.state === "ready";
+
   return (
     <div className="flex flex-col items-start gap-3 py-8">
-      <p className="font-mono text-xs text-ink-faint">&gt; no generated notes for this meeting.</p>
+      <p className="font-mono text-xs text-ink-faint">&gt; no summary for this meeting yet.</p>
       <p className="text-sm text-ink-muted">
         {replayable
-          ? "Notes are written automatically when a meeting ends. This one has none — the model may not have been available at the time."
-          : "Notes are written automatically when a meeting ends. This one has none, and its transcript record is no longer on disk, so it cannot be generated now. The transcript below is still complete."}
+          ? "A summary and action items are written automatically when a meeting ends. This one has none — Ollama was probably closed at the time. Generate them from the transcript now."
+          : "A summary and action items are written automatically when a meeting ends. This one has none, and its transcript record is no longer on disk, so they cannot be generated now. The transcript below is still complete."}
       </p>
+      {replayable && (
+        <div className="self-stretch">
+          <LlmNotice status={llm} onRecheck={onRecheck} context="note" />
+        </div>
+      )}
       {hasBackend() && replayable && (
         <button
           type="button"
           onClick={onRegenerate}
-          disabled={regenerating}
+          disabled={regenerating || !usable}
           className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
         >
-          {regenerating ? "Generating…" : "Generate now"}
+          {regenerating ? "Generating…" : "Generate summary"}
         </button>
       )}
     </div>

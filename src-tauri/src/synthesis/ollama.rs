@@ -74,6 +74,114 @@ impl OllamaProvider {
     }
 }
 
+/// Models tried first, in order, when more than one is installed.
+const PREFERRED: &[&str] = &["qwen3:8b", "gemma3:12b"];
+
+/// The model to suggest pulling when none is installed.
+pub const SUGGESTED_MODEL: &str = PREFERRED[0];
+
+/// Whether notes can be generated right now, and if not, why.
+///
+/// Three states rather than a boolean because the fixes differ: a closed
+/// Ollama needs opening, an empty one needs a model pulled, and telling the
+/// user the wrong one sends them looking in the wrong place.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum Readiness {
+    NotRunning,
+    /// Carries the model to pull, so the UI never has its own copy to drift.
+    NoModel {
+        suggested: &'static str,
+    },
+    Ready {
+        model: String,
+    },
+}
+
+impl Readiness {
+    /// Probe the local instance. Two short requests at most.
+    pub fn check() -> Self {
+        match OllamaProvider::list_models() {
+            Err(_) => Readiness::NotRunning,
+            Ok(installed) => match pick_model(&installed) {
+                Some(model) => Readiness::Ready { model },
+                None => Readiness::NoModel {
+                    suggested: SUGGESTED_MODEL,
+                },
+            },
+        }
+    }
+
+    /// What to tell the user, in the words of the failure they will see.
+    pub fn guidance(&self) -> Option<String> {
+        match self {
+            Readiness::NotRunning => Some(
+                "Ollama is not running, so notes could not be written. Open Ollama and try again"
+                    .into(),
+            ),
+            Readiness::NoModel { suggested } => Some(format!(
+                "Ollama has no model installed. Run `ollama pull {suggested}` and try again"
+            )),
+            Readiness::Ready { .. } => None,
+        }
+    }
+}
+
+/// Prefer a known-good default, falling back to whatever is installed, so a
+/// user who pulled a different model still gets notes rather than silence.
+pub fn pick_model(installed: &[String]) -> Option<String> {
+    PREFERRED
+        .iter()
+        .find(|p| installed.iter().any(|m| m == *p))
+        .map(|s| (*s).to_string())
+        .or_else(|| installed.first().cloned())
+}
+
+/// Open Ollama, for a user who quit it.
+///
+/// Prefers the desktop app, which is how Ollama is normally run on Windows and
+/// which puts its tray icon back. `ollama serve` is the fallback for an
+/// install without the app. Neither is waited on: the caller polls
+/// `Readiness::check` instead, because Ollama takes a few seconds to listen
+/// and a launched process says nothing about when it is ready.
+pub fn launch() -> Result<(), String> {
+    use std::process::{Command, Stdio};
+
+    #[cfg(windows)]
+    {
+        if let Some(app) = std::env::var_os("LOCALAPPDATA")
+            .map(|d| std::path::PathBuf::from(d).join("Programs\\Ollama\\ollama app.exe"))
+            .filter(|p| p.exists())
+        {
+            return Command::new(app)
+                .spawn()
+                .map(drop)
+                .map_err(|e| e.to_string());
+        }
+    }
+
+    let mut serve = Command::new("ollama");
+    serve
+        .arg("serve")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    // Without this a console window opens beside TRACE and closing it kills
+    // Ollama.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        serve.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    serve.spawn().map(drop).map_err(|_| {
+        "Ollama could not be found. Install it from ollama.com, or open it from the Start menu"
+            .to_string()
+    })
+}
+
 impl LlmProvider for OllamaProvider {
     fn name(&self) -> String {
         format!("ollama/{}", self.model)
@@ -252,6 +360,61 @@ mod tests {
         assert_eq!(
             OllamaProvider::new("gemma3:12b").name(),
             "ollama/gemma3:12b"
+        );
+    }
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn a_preferred_model_wins_over_install_order() {
+        let installed = names(&["llama3:8b", "gemma3:12b", "qwen3:8b"]);
+        assert_eq!(pick_model(&installed).as_deref(), Some("qwen3:8b"));
+    }
+
+    #[test]
+    fn any_installed_model_beats_none() {
+        let installed = names(&["mistral:7b"]);
+        assert_eq!(pick_model(&installed).as_deref(), Some("mistral:7b"));
+        assert_eq!(pick_model(&[]), None);
+    }
+
+    #[test]
+    fn each_unready_state_says_what_to_do() {
+        assert!(Readiness::NotRunning
+            .guidance()
+            .unwrap()
+            .contains("Open Ollama"));
+        assert!(Readiness::NoModel {
+            suggested: SUGGESTED_MODEL
+        }
+        .guidance()
+        .unwrap()
+        .contains(SUGGESTED_MODEL));
+        assert_eq!(
+            Readiness::Ready {
+                model: "qwen3:8b".into()
+            }
+            .guidance(),
+            None
+        );
+    }
+
+    #[test]
+    fn readiness_crosses_ipc_as_a_tagged_state() {
+        // The frontend switches on `state`; a rename here breaks it silently.
+        let json = serde_json::to_value(Readiness::Ready {
+            model: "qwen3:8b".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({ "state": "ready", "model": "qwen3:8b" })
+        );
+        assert_eq!(
+            serde_json::to_value(Readiness::NotRunning).unwrap(),
+            serde_json::json!({ "state": "not_running" })
         );
     }
 

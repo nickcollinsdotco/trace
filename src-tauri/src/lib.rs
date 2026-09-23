@@ -59,6 +59,8 @@ pub fn run() {
             commands::search_notes,
             commands::note_tags,
             commands::set_note_tags,
+            commands::llm_status,
+            commands::start_ollama,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TRACE");

@@ -136,22 +136,72 @@ pub fn json_schema() -> serde_json::Value {
     })
 }
 
-/// The schema without the constraints some Ollama versions refuse.
+/// How much of the schema's optional constraints an Ollama can take.
 ///
-/// `pattern`, `maxLength` and `maxItems` are what stop a runaway citation, but
-/// an Ollama that cannot turn them into a grammar rejects the whole request
-/// with a 400 — which is worse than the problem they solve, because then
-/// nothing is generated at all. Without them the structure is still enforced,
+/// Ollama turns the schema into a decoding grammar, and which JSON Schema
+/// keywords survive that conversion varies by version. A keyword it cannot
+/// convert fails the whole request with a 400 — worse than the problem the
+/// keyword solves, because then nothing is generated at all.
+///
+/// So the constraints are dropped a step at a time rather than all at once,
+/// least valuable first. Ollama 0.34.0 was seen rejecting the full schema
+/// with "failed to parse grammar"; stepping down keeps whatever it *can*
+/// enforce. At every level the structure is still enforced by the grammar,
 /// and every citation is still checked against the transcript afterwards.
-pub fn relaxed(schema: &serde_json::Value) -> serde_json::Value {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FormatLevel {
+    /// Everything: id pattern, length caps, citation count.
+    Strict = 0,
+    /// Without the id `pattern` — the regex is the likeliest keyword for a
+    /// grammar converter to refuse, and the least needed: fabricated ids are
+    /// dropped by validation anyway. The length caps, which are what stop a
+    /// runaway citation, stay.
+    NoPattern = 1,
+    /// Structure only.
+    Relaxed = 2,
+}
+
+impl FormatLevel {
+    pub const ALL: [FormatLevel; 3] = [Self::Strict, Self::NoPattern, Self::Relaxed];
+
+    pub fn from_index(i: u8) -> Self {
+        Self::ALL[usize::from(i).min(Self::ALL.len() - 1)]
+    }
+
+    pub fn next(self) -> Option<Self> {
+        Self::ALL.get(self as usize + 1).copied()
+    }
+
+    /// What this level gives up, for the log.
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::Strict => "the full format",
+            Self::NoPattern => "the format without the citation id pattern",
+            Self::Relaxed => "the format without id or length constraints",
+        }
+    }
+
+    /// The schema at this level.
+    pub fn schema(self) -> serde_json::Value {
+        let full = json_schema();
+        match self {
+            Self::Strict => full,
+            Self::NoPattern => without(&full, &["pattern"]),
+            Self::Relaxed => without(&full, &["pattern", "maxLength", "maxItems"]),
+        }
+    }
+}
+
+/// A schema with the named keywords removed, at every depth.
+fn without(schema: &serde_json::Value, keys: &[&str]) -> serde_json::Value {
     match schema {
         serde_json::Value::Object(map) => map
             .iter()
-            .filter(|(k, _)| !matches!(k.as_str(), "pattern" | "maxLength" | "maxItems"))
-            .map(|(k, v)| (k.clone(), relaxed(v)))
+            .filter(|(k, _)| !keys.contains(&k.as_str()))
+            .map(|(k, v)| (k.clone(), without(v, keys)))
             .collect::<serde_json::Map<_, _>>()
             .into(),
-        serde_json::Value::Array(items) => items.iter().map(relaxed).collect(),
+        serde_json::Value::Array(items) => items.iter().map(|v| without(v, keys)).collect(),
         other => other.clone(),
     }
 }
@@ -225,19 +275,40 @@ mod tests {
     }
 
     #[test]
-    fn the_relaxed_schema_drops_only_the_optional_constraints() {
-        let strict = json_schema();
-        let loose = relaxed(&strict);
-        let text = loose.to_string();
+    fn each_level_gives_up_only_its_own_constraints() {
+        let no_pattern = FormatLevel::NoPattern.schema().to_string();
+        assert!(!no_pattern.contains("pattern"));
+        // The runaway guard survives the first step down.
+        assert!(no_pattern.contains("maxLength"));
+        assert!(no_pattern.contains("maxItems"));
 
-        assert!(!text.contains("pattern"));
-        assert!(!text.contains("maxLength"));
-        assert!(!text.contains("maxItems"));
-        // What makes the output usable at all survives.
-        let evidence = &loose["properties"]["decisions"]["items"]["properties"]["evidence"];
-        assert_eq!(evidence["minItems"], 1);
-        assert_eq!(loose["additionalProperties"], false);
-        assert_eq!(loose["required"], strict["required"]);
+        let relaxed = FormatLevel::Relaxed.schema().to_string();
+        for key in ["pattern", "maxLength", "maxItems"] {
+            assert!(!relaxed.contains(key), "{key}");
+        }
+    }
+
+    #[test]
+    fn every_level_keeps_what_makes_the_output_usable() {
+        let strict = FormatLevel::Strict.schema();
+        assert_eq!(strict, json_schema());
+        for level in FormatLevel::ALL {
+            let s = level.schema();
+            let evidence = &s["properties"]["decisions"]["items"]["properties"]["evidence"];
+            assert_eq!(evidence["minItems"], 1, "{level:?}");
+            assert_eq!(s["additionalProperties"], false, "{level:?}");
+            assert_eq!(s["required"], strict["required"], "{level:?}");
+        }
+    }
+
+    #[test]
+    fn levels_step_down_in_order_and_stop() {
+        assert_eq!(FormatLevel::Strict.next(), Some(FormatLevel::NoPattern));
+        assert_eq!(FormatLevel::NoPattern.next(), Some(FormatLevel::Relaxed));
+        assert_eq!(FormatLevel::Relaxed.next(), None);
+        assert_eq!(FormatLevel::from_index(1), FormatLevel::NoPattern);
+        // A stored index past the end means the loosest, never a panic.
+        assert_eq!(FormatLevel::from_index(9), FormatLevel::Relaxed);
     }
 
     #[test]

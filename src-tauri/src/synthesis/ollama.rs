@@ -10,7 +10,9 @@
 
 use std::time::Duration;
 
-use super::schema::{json_schema, relaxed, SynthesisOutput};
+use std::sync::atomic::{AtomicU8, Ordering};
+
+use super::schema::{FormatLevel, SynthesisOutput};
 use super::{prompt, LlmProvider, SynthesisError};
 
 /// Local-only. Not configurable, by design.
@@ -22,6 +24,13 @@ const HOST: &str = "http://127.0.0.1:11434";
 /// timing out on a meeting the user just recorded would be worse than waiting.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(600);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// The format level this Ollama has accepted, as a `FormatLevel` index.
+///
+/// Per run of the app rather than saved: an Ollama upgrade may accept the
+/// full format again, and one refused request at the next start is a small
+/// price for finding out.
+static FORMAT_LEVEL: AtomicU8 = AtomicU8::new(FormatLevel::Strict as u8);
 
 /// Context window requested for every call, in tokens.
 ///
@@ -428,27 +437,35 @@ impl LlmProvider for OllamaProvider {
 
 impl OllamaProvider {
     fn attempt(&self, user_prompt: &str) -> Result<SynthesisOutput, SynthesisError> {
-        let strict = json_schema();
-        match self.request(user_prompt, &strict) {
-            // A 400 is Ollama refusing the request before generating, and the
-            // one part of the request that varies by Ollama version is what
-            // the grammar converter accepts. So try once more without the
-            // optional constraints rather than producing nothing.
-            Err(Rejected(reason)) => {
-                crate::diagnostics::log(format!(
-                    "Ollama rejected the strict format ({reason}); retrying without length and \
-                     id constraints"
-                ));
-                self.request(user_prompt, &relaxed(&strict))
-                    .map_err(|e| match e {
-                        Rejected(reason) => SynthesisError::Request(format!(
+        let mut level = FormatLevel::from_index(FORMAT_LEVEL.load(Ordering::Relaxed));
+        loop {
+            match self.request(user_prompt, &level.schema()) {
+                Ok(output) => return Ok(output),
+                Err(Failed(e)) => return Err(e),
+                // A 400 is Ollama refusing the request before generating, and
+                // the part of the request that varies by Ollama version is
+                // what its grammar converter accepts. Step down and remember,
+                // so the next window — and the next meeting — starts where
+                // this one succeeded instead of paying the same refusal again.
+                Err(Rejected(reason)) => {
+                    let Some(next) = level.next() else {
+                        return Err(SynthesisError::Request(format!(
                             "Ollama rejected the request: {reason}"
-                        )),
-                        Failed(e) => e,
-                    })
+                        )));
+                    };
+                    let previous = FORMAT_LEVEL.fetch_max(next as u8, Ordering::Relaxed);
+                    // Logged once per step, not per window: two meetings
+                    // summarising together would otherwise both report it.
+                    if previous < next as u8 {
+                        crate::diagnostics::log(format!(
+                            "Ollama rejected {} ({reason}); using {} until TRACE restarts",
+                            level.describe(),
+                            next.describe()
+                        ));
+                    }
+                    level = next;
+                }
             }
-            Err(Failed(e)) => Err(e),
-            Ok(output) => Ok(output),
         }
     }
 

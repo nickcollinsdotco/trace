@@ -7,12 +7,14 @@ const FULLY_ON_GPU: LoadedModel = {
   sizeBytes: 10_000,
   vramBytes: 10_000,
   contextLength: 8192,
+  expiresAt: null,
 };
 const PARTLY_ON_CPU: LoadedModel = {
   name: "gemma3:12b",
   sizeBytes: 10_000,
   vramBytes: 6_000,
   contextLength: null,
+  expiresAt: null,
 };
 
 const REPORT: DiagnosticsReport = {

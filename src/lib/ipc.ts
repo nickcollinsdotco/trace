@@ -93,6 +93,8 @@ export interface SummaryModels {
   llm: LlmStatus;
   installed: SummaryModel[];
   recommended: OfferedModel[];
+  /** What Ollama is holding in memory right now. */
+  loaded: LoadedModel[];
 }
 
 export type Folder = "notes" | "models" | "logs";
@@ -193,6 +195,8 @@ export interface LoadedModel {
   sizeBytes: number;
   vramBytes: number;
   contextLength: number | null;
+  /** When Ollama will unload it, RFC 3339. */
+  expiresAt: string | null;
 }
 
 /** Everything worth knowing when something has gone wrong. */
@@ -217,6 +221,42 @@ export interface DiagnosticsReport {
   logDir: string;
   /** Recent log lines, oldest first. */
   recent: string[];
+}
+
+/**
+ * One stage of a job. Only the kind is known until it starts; the parts of a
+ * long meeting appear once it has been split.
+ */
+export type StepKind =
+  | { kind: "transcript" }
+  | { kind: "notes" }
+  | { kind: "part"; index: number; total: number }
+  | { kind: "combine" };
+
+export type JobStep = StepKind & {
+  /** Unix milliseconds; null while the step is waiting. */
+  startedAt: number | null;
+  finishedAt: number | null;
+  failed: boolean;
+};
+
+export type JobOutcome =
+  | { state: "generated"; dropped: number; fabricated: number; uncited: number }
+  | { state: "failed"; message: string };
+
+/**
+ * Heavy work on a note after its meeting ended: the full-quality
+ * re-transcription, then the summary. The backend owns these, so every screen
+ * sees the same thing and a note cannot have two at once.
+ */
+export interface Job {
+  id: number;
+  notePath: string;
+  title: string;
+  queuedAt: number;
+  steps: JobStep[];
+  /** null while queued or running. */
+  outcome: JobOutcome | null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -329,6 +369,7 @@ export const ipc = {
   renameNote: (notePath: string, title: string) => call<string>("rename_note", { notePath, title }),
   regenerateNotes: (notePath: string) => call<void>("regenerate_notes", { notePath }),
   canRegenerate: (notePath: string) => call<boolean>("can_regenerate", { notePath }),
+  activity: () => call<Job[]>("activity"),
 
   llmStatus: () => call<LlmStatus>("llm_status"),
   startOllama: () => call<void>("start_ollama"),
@@ -346,9 +387,8 @@ export const EVENT = {
   captureError: "trace://capture-error",
   modelProgress: "trace://model-progress",
   transcriptUpdated: "trace://transcript-updated",
-  synthesisProgress: "trace://synthesis-progress",
   notesGenerated: "trace://notes-generated",
-  synthesisFailed: "trace://synthesis-failed",
+  activity: "trace://activity",
   summaryPull: "trace://summary-pull",
 } as const;
 
@@ -394,40 +434,18 @@ export function onTranscriptUpdated(
   return subscribe(EVENT.transcriptUpdated, handler);
 }
 
-/** Progress through a long meeting's synthesis windows. */
-export interface SynthesisProgress {
-  window: number;
-  total: number;
-  /** The parts are done and the final pass is combining them into one. */
-  combining?: boolean;
-}
-
 /**
- * Result of generating structured notes.
- *
- * `dropped` counts items discarded for citing something that does not exist.
- * Surfaced rather than hidden: the user should be told the model made things
- * up, not quietly shown a shorter list.
+ * Fires once generated notes have been written into a note, so a screen
+ * showing it can read it again. What was dropped, and failures, are on the
+ * job — see `onActivity`.
  */
-export interface NotesGenerated {
-  notePath: string;
-  dropped: number;
-  fabricated: number;
-  uncited: number;
-}
-
-export function onSynthesisProgress(handler: (p: SynthesisProgress) => void): Promise<UnlistenFn> {
-  return subscribe(EVENT.synthesisProgress, handler);
-}
-
-export function onNotesGenerated(handler: (n: NotesGenerated) => void): Promise<UnlistenFn> {
+export function onNotesGenerated(handler: (n: { notePath: string }) => void): Promise<UnlistenFn> {
   return subscribe(EVENT.notesGenerated, handler);
 }
 
-export function onSynthesisFailed(
-  handler: (info: { notePath?: string; message: string }) => void,
-): Promise<UnlistenFn> {
-  return subscribe(EVENT.synthesisFailed, handler);
+/** The whole job list, whenever any of it changes. */
+export function onActivity(handler: (jobs: Job[]) => void): Promise<UnlistenFn> {
+  return subscribe(EVENT.activity, handler);
 }
 
 /** Progress of a summary model downloading through Ollama. */

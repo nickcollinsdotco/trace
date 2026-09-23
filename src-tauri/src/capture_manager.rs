@@ -23,6 +23,7 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter};
 
+use crate::activity::{Outcome, StepKind, ACTIVITY, EVENT_ACTIVITY};
 use crate::audio::session::{CaptureSession, SessionSummary};
 use crate::audio::{CapturedAudio, StreamSource};
 use crate::diagnostics;
@@ -37,12 +38,10 @@ pub const EVENT_SEGMENT: &str = "trace://segment";
 pub const EVENT_CAPTURE_ERROR: &str = "trace://capture-error";
 /// Emitted when the accurate re-pass has replaced the live transcript.
 pub const EVENT_TRANSCRIPT_UPDATED: &str = "trace://transcript-updated";
-/// Progress through a long meeting's synthesis windows.
-pub const EVENT_SYNTHESIS_PROGRESS: &str = "trace://synthesis-progress";
-/// Structured notes were generated and written.
+/// Structured notes were generated and written. Progress and failure are
+/// reported through `activity`, which every screen reads, rather than as
+/// events only the screen open at the time would hear.
 pub const EVENT_NOTES_GENERATED: &str = "trace://notes-generated";
-/// Synthesis could not run or failed. The note is still valid without it.
-pub const EVENT_SYNTHESIS_FAILED: &str = "trace://synthesis-failed";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ManagerError {
@@ -424,8 +423,17 @@ impl CaptureManager {
         // The session directory is deliberately NOT discarded here — the
         // re-pass still needs the WAVs and the journal.
 
+        // Queued here rather than in the thread, so the job is on screen from
+        // the moment the meeting ends. A note path is new per meeting, so this
+        // cannot collide with a job already running.
+        let job = ACTIVITY
+            .begin(&note_path.display().to_string(), &meeting.title, true)
+            .ok()
+            .map(|id| Tracked::new(app.clone(), id));
+
         spawn_repass(
             app,
+            job,
             active.dir.clone(),
             note_path.clone(),
             summary.clone(),
@@ -460,6 +468,80 @@ fn log_streams(summary: &SessionSummary) {
     }
 }
 
+/// A job's handle. Every change is published to the UI, and a job its thread
+/// abandons without an outcome is closed rather than left running forever —
+/// which would leave the note unable to be regenerated until a restart.
+struct Tracked {
+    app: AppHandle,
+    id: u64,
+}
+
+impl Tracked {
+    fn new(app: AppHandle, id: u64) -> Self {
+        let tracked = Self { app, id };
+        tracked.publish();
+        tracked
+    }
+
+    fn start(&self, kind: StepKind) {
+        ACTIVITY.start(self.id, kind);
+        self.publish();
+    }
+
+    fn finish(&self, outcome: Outcome) {
+        ACTIVITY.finish(self.id, outcome);
+        self.publish();
+    }
+
+    fn fail(&self, message: String) {
+        diagnostics::log(format!("summary failed: {message}"));
+        self.finish(Outcome::Failed { message });
+    }
+
+    fn publish(&self) {
+        let _ = self.app.emit(EVENT_ACTIVITY, ACTIVITY.snapshot());
+    }
+}
+
+impl Drop for Tracked {
+    fn drop(&mut self) {
+        // A no-op when the job already has its outcome.
+        ACTIVITY.finish(
+            self.id,
+            Outcome::Failed {
+                message: "stopped before the notes were written".into(),
+            },
+        );
+        self.publish();
+    }
+}
+
+/// Re-run synthesis for an already-saved note.
+///
+/// Refused while the note already has a job, so a second press cannot start
+/// a run that races the first to rewrite the file. Otherwise it waits for
+/// the heavy-work lane like any other job.
+pub fn regenerate(
+    app: &AppHandle,
+    session_dir: &std::path::Path,
+    note_path: &std::path::Path,
+) -> Result<(), crate::activity::Busy> {
+    let title = crate::store::journal::replay(session_dir)
+        .map(|r| r.meeting.title)
+        .unwrap_or_else(|_| {
+            note_path
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default()
+        });
+    let id = ACTIVITY.begin(&note_path.display().to_string(), &title, false)?;
+    let job = Tracked::new(app.clone(), id);
+
+    let _lane = ACTIVITY.lane();
+    synthesize(app, &job, session_dir, note_path);
+    Ok(())
+}
+
 /// Generate structured notes from the finished transcript.
 ///
 /// Best-effort and non-fatal. If no model is installed, or Ollama is not
@@ -467,25 +549,20 @@ fn log_streams(summary: &SessionSummary) {
 /// simply has no generated sections. A missing summary is a disappointment;
 /// a lost meeting is not, and this must never risk the second to attempt the
 /// first.
-/// Re-run synthesis for an already-saved note.
-pub fn regenerate(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::path::Path) {
-    synthesize(app, session_dir, note_path);
-}
-
-fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::path::Path) {
+fn synthesize(
+    app: &AppHandle,
+    job: &Tracked,
+    session_dir: &std::path::Path,
+    note_path: &std::path::Path,
+) {
     // Every early return says why. Returning quietly here once made a closed
     // Ollama indistinguishable from a feature that did not exist: the note
     // simply never gained a summary, and nothing on screen said so.
-    let fail = |message: String| {
-        diagnostics::log(format!("summary failed: {message}"));
-        let _ = app.emit(
-            EVENT_SYNTHESIS_FAILED,
-            serde_json::json!({
-                "notePath": note_path.display().to_string(),
-                "message": message,
-            }),
-        );
-    };
+    let fail = |message: String| job.fail(message);
+
+    // Shown as started before Ollama is asked anything, so the wait for a
+    // cold model to load is visibly this step rather than a stall.
+    job.start(StepKind::Notes);
 
     let readiness = crate::synthesis::ollama::Readiness::check();
     let provider = match readiness {
@@ -509,14 +586,14 @@ fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::p
     };
 
     let result = crate::synthesis::generate(&provider, &replay.meeting, |progress| {
-        let _ = app.emit(
-            EVENT_SYNTHESIS_PROGRESS,
-            serde_json::json!({
-                "window": progress.window,
-                "total": progress.total,
-                "combining": progress.combining,
-            }),
-        );
+        job.start(if progress.combining {
+            StepKind::Combine
+        } else {
+            StepKind::Part {
+                index: progress.window,
+                total: progress.total,
+            }
+        });
     });
 
     let (generated, report) = match result {
@@ -542,21 +619,29 @@ fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::p
         let _ = journal.append(&JournalEvent::Generated(Box::new(generated)));
     }
 
-    if let Ok(replay) = crate::store::journal::replay(session_dir) {
-        if store::rewrite_note(note_path, &replay.meeting).is_ok() {
-            let _ = app.emit(
-                EVENT_NOTES_GENERATED,
-                serde_json::json!({
-                    "notePath": note_path.display().to_string(),
-                    // Surfaced rather than logged: the user should be told
-                    // that items were discarded, not quietly shown fewer.
-                    "dropped": report.total_dropped(),
-                    "fabricated": report.fabricated,
-                    "uncited": report.uncited,
-                }),
-            );
-        }
+    let written = crate::store::journal::replay(session_dir)
+        .map_err(|e| e.to_string())
+        .and_then(|replay| {
+            store::rewrite_note(note_path, &replay.meeting).map_err(|e| e.to_string())
+        });
+    if let Err(e) = written {
+        fail(format!(
+            "the notes were written but the file could not be updated: {e}"
+        ));
+        return;
     }
+
+    let _ = app.emit(
+        EVENT_NOTES_GENERATED,
+        serde_json::json!({ "notePath": note_path.display().to_string() }),
+    );
+    // Surfaced rather than logged: the user should be told that items were
+    // discarded, not quietly shown fewer.
+    job.finish(Outcome::Generated {
+        dropped: report.total_dropped(),
+        fabricated: report.fabricated,
+        uncited: report.uncited,
+    });
 }
 
 /// The model to synthesise with, if one can be used right now.
@@ -569,14 +654,6 @@ fn default_provider() -> Option<crate::synthesis::ollama::OllamaProvider> {
     }
 }
 
-/// Re-transcribe the finished recording at full quality, in the background.
-///
-/// The live transcript is produced from 4-7 second chunks, which trades the
-/// model.s surrounding context for latency. This pass re-runs the same audio
-/// with the offline 20/30 second config, which is measurably more accurate on
-/// exactly the short, ambiguous words the live pass gets wrong.
-///
-/// Failure here is not an error the user needs to act on: the note already on
 /// Discard a session's audio unless the user asked to keep it.
 ///
 /// Every path that finishes with a session goes through here — success,
@@ -600,9 +677,19 @@ fn release_session_audio(session_dir: &std::path::Path) {
     }
 }
 
-/// disk stays valid, so a failed re-pass simply leaves it as it was.
+/// Re-transcribe the finished recording at full quality, in the background.
+///
+/// The live transcript is produced from 4-7 second chunks, which trades the
+/// model's surrounding context for latency. This pass re-runs the same audio
+/// with the offline 20/30 second config, which is measurably more accurate on
+/// exactly the short, ambiguous words the live pass gets wrong.
+///
+/// Failure here is not an error the user needs to act on: the note already on
+/// disk stays valid, so a failed re-pass simply leaves it as it was. It is
+/// still reported, because it also means no notes were written.
 fn spawn_repass(
     app: AppHandle,
+    job: Option<Tracked>,
     session_dir: PathBuf,
     note_path: PathBuf,
     summary: SessionSummary,
@@ -611,12 +698,26 @@ fn spawn_repass(
     std::thread::Builder::new()
         .name("trace-repass".into())
         .spawn(move || {
+            let fail = |message: String| {
+                if let Some(job) = &job {
+                    job.finish(Outcome::Failed { message });
+                }
+            };
+
+            // One heavy job at a time: a meeting that ends while another's
+            // notes are being written waits here, shown as queued.
+            let _lane = ACTIVITY.lane();
+            if let Some(job) = &job {
+                job.start(StepKind::Transcript);
+            }
+
             // Loading a second engine only after the live one has been dropped
             // keeps peak memory to one model rather than two.
             let mut engine = match Transcriber::load_model(speech) {
                 Ok(engine) => engine,
                 Err(e) => {
                     diagnostics::log(format!("re-pass skipped, engine did not load: {e}"));
+                    fail(format!("the transcription model did not load ({e})"));
                     release_session_audio(&session_dir);
                     return;
                 }
@@ -641,6 +742,7 @@ fn spawn_repass(
                         // Abandon rather than half-replace: a transcript
                         // missing one whole stream would be worse than the
                         // live one it would overwrite.
+                        fail(format!("the full-quality pass failed ({e})"));
                         let _ = store::discard_session(&session_dir);
                         return;
                     }
@@ -648,6 +750,7 @@ fn spawn_repass(
             }
 
             if segments.is_empty() {
+                fail("the full-quality pass found no speech in the recording".into());
                 release_session_audio(&session_dir);
                 return;
             }
@@ -677,7 +780,10 @@ fn spawn_repass(
             // Synthesis runs on the re-transcribed text, not the live one.
             // The live transcript trades accuracy for latency, and summarising
             // the rougher version would bake those errors into the notes.
-            synthesize(&app, &session_dir, &note_path);
+            match &job {
+                Some(job) => synthesize(&app, job, &session_dir, &note_path),
+                None => diagnostics::log("summary skipped: the note already had a job"),
+            }
 
             // Audio is expendable now; the journal is not. It is the only
             // structured record left once the note is written, and is what

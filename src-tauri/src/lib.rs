@@ -8,6 +8,7 @@
 //!        (audio)          (transcribe)   (store)    (store)
 //! ```
 
+pub mod activity;
 pub mod audio;
 pub mod capture_manager;
 pub mod commands;
@@ -68,6 +69,7 @@ pub fn run() {
             commands::reveal_notes_folder,
             commands::regenerate_notes,
             commands::can_regenerate,
+            commands::activity,
             commands::system_report,
             commands::get_settings,
             commands::set_audio_retention,

@@ -13,9 +13,16 @@
  * to design if you never see it.
  */
 
-import { EVENT, type NoteSummary } from "../lib/ipc";
+import { EVENT, type Job, type JobOutcome, type NoteSummary, type StepKind } from "../lib/ipc";
 import type { BackendState, ScriptedEvent } from "./backend";
-import { NOTE_ENHANCED, NOTE_LONG, NOTE_NOTHING, NOTE_RAW, NOTE_TRANSCRIPT_ONLY } from "./notes";
+import {
+  NOTE_ENHANCED,
+  NOTE_FRESH,
+  NOTE_LONG,
+  NOTE_NOTHING,
+  NOTE_RAW,
+  NOTE_TRANSCRIPT_ONLY,
+} from "./notes";
 
 export type ScreenName =
   | "library"
@@ -120,6 +127,112 @@ const TAGS: Record<string, string[]> = {
 
 const POPULATED: Partial<BackendState> = { notes: NOTES, bodies: BODIES, tags: TAGS };
 
+/** A step, with when it started and finished on the scenario's own clock. */
+interface StepAt {
+  step: StepKind;
+  from?: number;
+  to?: number;
+  failed?: boolean;
+}
+
+/**
+ * A job as the backend lists it `at` a moment in the scenario.
+ *
+ * Steps are written against one clock for the whole scenario and converted
+ * to "ms ago" for the moment the snapshot is sent, which is what the fixture
+ * backend expects — so a timeline reads as a timeline.
+ */
+function jobAt(
+  at: number,
+  job: { id: number; notePath: string; title: string; queuedAt?: number },
+  steps: StepAt[],
+  outcome: JobOutcome | null = null,
+): Job {
+  const rel = (t: number | undefined) => (t === undefined ? null : t - at);
+  return {
+    id: job.id,
+    notePath: job.notePath,
+    title: job.title,
+    queuedAt: (job.queuedAt ?? 0) - at,
+    steps: steps.map((s) => ({
+      ...s.step,
+      startedAt: rel(s.from),
+      finishedAt: rel(s.to),
+      failed: s.failed ?? false,
+    })),
+    outcome,
+  };
+}
+
+const PART = (index: number, total = 3): StepKind => ({ kind: "part", index, total });
+const PRICING_JOB = { id: 1, notePath: PATHS.pricing, title: "Pricing page rework" };
+
+/** One meeting's notes part-way written, and the next meeting's waiting. */
+const QUEUED: Job[] = [
+  jobAt(0, { ...PRICING_JOB, queuedAt: -95_000 }, [
+    { step: { kind: "transcript" }, from: -95_000, to: -58_000 },
+    { step: PART(1), from: -58_000, to: -21_000 },
+    { step: PART(2), from: -21_000 },
+    { step: PART(3) },
+    { step: { kind: "combine" } },
+  ]),
+  jobAt(0, { id: 2, notePath: PATHS.vendor, title: "Vendor call — Northwind", queuedAt: -8_000 }, [
+    { step: { kind: "transcript" } },
+    { step: { kind: "notes" } },
+  ]),
+];
+
+/**
+ * A meeting ending and its notes being written, start to finish: queued,
+ * the full-quality transcript, three parts, the combining pass, done.
+ */
+function writingScript(): ScriptedEvent[] {
+  // When each stage starts on the scenario's clock; each ends as the next begins.
+  const T = 400;
+  const P1 = 2_600;
+  const P2 = 5_200;
+  const P3 = 7_800;
+  const C = 9_400;
+  const D = 11_400;
+
+  const snap = (at: number, outcome: JobOutcome | null = null): ScriptedEvent => {
+    const span = (step: StepKind, from: number, to: number): StepAt => ({
+      step,
+      ...(at >= from && { from }),
+      ...(at >= to && { to }),
+    });
+    // The parts are only known once the transcript is done and the meeting
+    // has been split, exactly as the backend reports it.
+    const steps =
+      at < P1
+        ? [span({ kind: "transcript" }, T, P1), { step: { kind: "notes" } as StepKind }]
+        : [
+            span({ kind: "transcript" }, T, P1),
+            span(PART(1), P1, P2),
+            span(PART(2), P2, P3),
+            span(PART(3), P3, C),
+            span({ kind: "combine" }, C, D),
+          ];
+    return { atMs: at, event: EVENT.activity, payload: [jobAt(at, PRICING_JOB, steps, outcome)] };
+  };
+
+  return [
+    snap(0),
+    snap(T),
+    {
+      atMs: P1,
+      event: EVENT.transcriptUpdated,
+      payload: { notePath: PATHS.pricing, segments: 148 },
+    },
+    snap(P1),
+    snap(P2),
+    snap(P3),
+    snap(C),
+    { atMs: D, event: EVENT.notesGenerated, payload: { notePath: PATHS.pricing } },
+    snap(D, { state: "generated", dropped: 0, fabricated: 0, uncited: 0 }),
+  ];
+}
+
 /**
  * Segments arriving as they do during a real meeting.
  *
@@ -218,6 +331,23 @@ export const SCENARIOS: Scenario[] = [
       llm: { state: "no_model", suggested: "qwen3:8b" },
       summaryInstalled: [],
     },
+  },
+
+  {
+    id: "library-working",
+    name: "Working in the background",
+    group: "Library",
+    note: "A meeting just ended. The status bar shows its notes being written; when they finish, a toast says so, because nothing on this screen would.",
+    screen: "library",
+    state: { ...POPULATED, script: writingScript() },
+  },
+  {
+    id: "library-queued",
+    name: "Two meetings queued",
+    group: "Library",
+    note: "Back-to-back meetings. One is written at a time; the status bar says the other is waiting.",
+    screen: "library",
+    state: { ...POPULATED, activity: QUEUED },
   },
 
   /* --- Capture ----------------------------------------------------- */
@@ -373,32 +503,43 @@ export const SCENARIOS: Scenario[] = [
     id: "note-synthesising",
     name: "Notes being written",
     group: "Reading",
-    note: "Re-transcribe, then synthesis across three windows, the final pass combining them, then the result.",
+    note: "Just ended: placeholders where the summary will be, then the transcript refined, three parts, the combining pass, and the note filling in. Open the line for the steps.",
     screen: "note",
     notePath: PATHS.pricing,
     state: {
       ...POPULATED,
-      script: [
-        {
-          atMs: 900,
-          event: EVENT.transcriptUpdated,
-          payload: { notePath: PATHS.pricing, segments: 148 },
-        },
-        { atMs: 2600, event: EVENT.synthesisProgress, payload: { window: 1, total: 3 } },
-        { atMs: 5200, event: EVENT.synthesisProgress, payload: { window: 2, total: 3 } },
-        { atMs: 7800, event: EVENT.synthesisProgress, payload: { window: 3, total: 3 } },
-        {
-          atMs: 9_100,
-          event: EVENT.synthesisProgress,
-          payload: { window: 3, total: 3, combining: true },
-        },
-        {
-          atMs: 11_400,
-          event: EVENT.notesGenerated,
-          payload: { notePath: PATHS.pricing, dropped: 0, fabricated: 0, uncited: 0 },
-        },
+      bodies: { ...BODIES, [PATHS.pricing]: NOTE_FRESH },
+      afterGenerate: { [PATHS.pricing]: NOTE_ENHANCED },
+      script: writingScript(),
+    },
+  },
+  {
+    id: "note-regenerating",
+    name: "Regenerating",
+    group: "Reading",
+    note: "Notes written again over existing ones. The old ones stay, dimmed, until the new ones land; ↻ is disabled.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: {
+      ...POPULATED,
+      activity: [
+        jobAt(0, PRICING_JOB, [
+          { step: PART(1), from: -48_000, to: -17_000 },
+          { step: PART(2), from: -17_000 },
+          { step: PART(3) },
+          { step: { kind: "combine" } },
+        ]),
       ],
     },
+  },
+  {
+    id: "note-queued",
+    name: "Waiting its turn",
+    group: "Reading",
+    note: "This meeting ended while another's notes were being written. It says it is waiting, not stuck.",
+    screen: "note",
+    notePath: PATHS.vendor,
+    state: { ...POPULATED, activity: QUEUED },
   },
   {
     id: "note-dropped",
@@ -409,12 +550,16 @@ export const SCENARIOS: Scenario[] = [
     notePath: PATHS.pricing,
     state: {
       ...POPULATED,
-      script: [
-        {
-          atMs: 900,
-          event: EVENT.notesGenerated,
-          payload: { notePath: PATHS.pricing, dropped: 2, fabricated: 2, uncited: 0 },
-        },
+      activity: [
+        jobAt(
+          0,
+          PRICING_JOB,
+          [
+            { step: { kind: "transcript" }, from: -140_000, to: -101_000 },
+            { step: PART(1, 1), from: -101_000, to: -52_000 },
+          ],
+          { state: "generated", dropped: 2, fabricated: 2, uncited: 0 },
+        ),
       ],
     },
   },
@@ -427,12 +572,20 @@ export const SCENARIOS: Scenario[] = [
     notePath: PATHS.standup,
     state: {
       ...POPULATED,
-      script: [
-        {
-          atMs: 900,
-          event: EVENT.synthesisFailed,
-          payload: { message: "could not reach ollama at 127.0.0.1:11434" },
-        },
+      activity: [
+        jobAt(
+          0,
+          { id: 1, notePath: PATHS.standup, title: "Monday standup" },
+          [
+            { step: { kind: "transcript" }, from: -40_000, to: -12_000 },
+            { step: { kind: "notes" }, from: -12_000, to: -11_900, failed: true },
+          ],
+          {
+            state: "failed",
+            message:
+              "Ollama is not running, so notes could not be written. Open Ollama and try again",
+          },
+        ),
       ],
     },
   },

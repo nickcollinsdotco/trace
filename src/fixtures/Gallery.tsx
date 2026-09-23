@@ -301,7 +301,7 @@ function Preview({ scenario }: { scenario: Scenario }) {
   const noop = () => {};
   const current: Page | null = scenario.screen === "note" ? null : scenario.screen;
   return (
-    <Shell current={current} onNavigate={noop}>
+    <Shell current={current} onNavigate={noop} onOpenNote={noop}>
       {scenario.screen === "library" && <LibraryScreen onNewMeeting={noop} onOpenNote={noop} />}
       {scenario.screen === "capture" && <CaptureScreen onFinish={noop} />}
       {scenario.screen === "note" && <NoteScreen path={scenario.notePath ?? ""} onBack={noop} />}

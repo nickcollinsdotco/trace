@@ -1,13 +1,6 @@
-import { useEffect, useState } from "react";
-import {
-  hasBackend,
-  ipc,
-  type NotesGenerated,
-  onNotesGenerated,
-  onSynthesisFailed,
-  onSynthesisProgress,
-  onTranscriptUpdated,
-} from "../../lib/ipc";
+import { useEffect } from "react";
+import { hasBackend, ipc, type Job, onNotesGenerated, onTranscriptUpdated } from "../../lib/ipc";
+import { useActivity } from "../activity/useActivity";
 
 /**
  * What is still happening to a note after the meeting ended.
@@ -16,16 +9,14 @@ import {
  * twice in the background: re-transcribed at full quality, then summarised.
  * Without something reporting that, the note simply changes under the reader
  * with no explanation.
+ *
+ * The job comes from the backend's list rather than from events this screen
+ * happened to hear. That is what keeps it on screen after the note is closed
+ * and reopened mid-run — it used to reset to nothing, and offer to regenerate
+ * notes that were still being written.
  */
-export type RefinementStage =
-  | { kind: "idle" }
-  | { kind: "transcribed" }
-  | { kind: "summarising"; window: number; total: number; combining: boolean }
-  | { kind: "generated"; result: NotesGenerated }
-  | { kind: "failed"; message: string };
-
-export function useNoteRefinement(path: string, onReload: (text: string) => void) {
-  const [stage, setStage] = useState<RefinementStage>({ kind: "idle" });
+export function useNoteRefinement(path: string, onReload: (text: string) => void): Job | null {
+  const jobs = useActivity();
 
   useEffect(() => {
     if (!hasBackend()) return;
@@ -39,45 +30,17 @@ export function useNoteRefinement(path: string, onReload: (text: string) => void
       });
     };
 
-    const track = <T>(
-      subscribe: (h: (v: T) => void) => Promise<() => void>,
-      handler: (v: T) => void,
-    ) => {
-      void subscribe((v) => {
-        if (!disposed) handler(v);
-      }).then((un) => {
+    // Events carry the path they refer to, so a note open in the background
+    // is not reloaded by another meeting finishing.
+    const forThisNote = (info: { notePath: string }) => {
+      if (!disposed && info.notePath === path) reload();
+    };
+    for (const subscribe of [onTranscriptUpdated, onNotesGenerated]) {
+      void subscribe(forThisNote).then((un) => {
         if (disposed) un();
         else unlisteners.push(un);
       });
-    };
-
-    // Events carry the path they refer to, so a note open in the background
-    // is not updated by another meeting finishing.
-    track(onTranscriptUpdated, (info) => {
-      if (info.notePath !== path) return;
-      setStage({ kind: "transcribed" });
-      reload();
-    });
-
-    track(onSynthesisProgress, (p) => {
-      setStage({
-        kind: "summarising",
-        window: p.window,
-        total: p.total,
-        combining: p.combining ?? false,
-      });
-    });
-
-    track(onNotesGenerated, (result) => {
-      if (result.notePath !== path) return;
-      setStage({ kind: "generated", result });
-      reload();
-    });
-
-    track(onSynthesisFailed, (info) => {
-      if (info.notePath !== undefined && info.notePath !== path) return;
-      setStage({ kind: "failed", message: info.message });
-    });
+    }
 
     return () => {
       disposed = true;
@@ -85,5 +48,5 @@ export function useNoteRefinement(path: string, onReload: (text: string) => void
     };
   }, [path, onReload]);
 
-  return stage;
+  return jobs.find((j) => j.notePath === path) ?? null;
 }

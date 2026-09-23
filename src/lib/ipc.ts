@@ -143,6 +143,21 @@ export interface NoteSummary {
   type: MeetingType;
   /** One line on what the meeting was about. Null until notes are generated. */
   gist: string | null;
+  tags: string[];
+  /** RFC 3339. Orders meetings within a day. */
+  startedAt: string | null;
+  /** Null when the meeting never recorded an end, e.g. one recovered after a crash. */
+  durationMs: number | null;
+}
+
+/**
+ * What the user has said about a meeting since it ended. Feeds the next
+ * regeneration; never cited, because nobody said it in the meeting.
+ */
+export interface NoteContext {
+  context: string;
+  /** The people behind "them", in the order given. */
+  participants: string[];
 }
 
 /**
@@ -361,6 +376,9 @@ export const ipc = {
   noteTags: (notePath: string) => call<string[]>("note_tags", { notePath }),
   setNoteTags: (notePath: string, tags: string[]) =>
     call<string[]>("set_note_tags", { notePath, tags }),
+  noteContext: (notePath: string) => call<NoteContext>("note_context", { notePath }),
+  setNoteContext: (notePath: string, context: string, participants: string[]) =>
+    call<NoteContext>("set_note_context", { notePath, context, participants }),
 
   recoverableSessions: () => call<RecoverableSession[]>("recoverable_sessions"),
   recoverSession: (sessionDir: string) => call<string>("recover_session", { sessionDir }),

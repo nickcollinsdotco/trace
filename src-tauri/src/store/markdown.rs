@@ -47,6 +47,9 @@ pub fn serialize(meeting: &Meeting) -> String {
     if let Some(project) = &meeting.project {
         push_field(&mut out, "project", project);
     }
+    if let Some(context) = meeting.context.as_deref().filter(|c| !c.trim().is_empty()) {
+        push_field(&mut out, "context", context.trim());
+    }
     push_list(&mut out, "participants", &meeting.participants);
     push_list(&mut out, "tags", &meeting.tags);
     out.push_str("---\n\n");
@@ -85,7 +88,7 @@ pub fn serialize(meeting: &Meeting) -> String {
         for segment in &meeting.transcript {
             out.push_str(&format!(
                 "**{}** `{}` — {}\n\n",
-                segment.speaker_label(),
+                meeting.speaker_name(segment),
                 fmt_timestamp(segment.start_ms),
                 segment.text.trim()
             ));
@@ -227,6 +230,7 @@ fn push_list(out: &mut String, key: &str, values: &[String]) {
 /// becomes unparseable.
 fn yaml_scalar(value: &str) -> String {
     let needs_quotes = value.is_empty()
+        || value.contains(['\n', '\r'])
         || value.contains(':')
         || value.contains('#')
         // Legal bare YAML, but quoting removes a whole class of edge case.
@@ -239,7 +243,15 @@ fn yaml_scalar(value: &str) -> String {
         );
 
     if needs_quotes {
-        format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+        // Line breaks escaped, because the reader takes one line per key. A
+        // context paragraph written raw would end the value at its first
+        // break and leave the rest as garbage frontmatter.
+        let escaped = value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace("\r\n", "\\n")
+            .replace(['\n', '\r'], "\\n");
+        format!("\"{escaped}\"")
     } else {
         value.to_string()
     }
@@ -289,16 +301,161 @@ pub fn frontmatter_value(markdown: &str, key: &str) -> Option<String> {
         // looking, not give up. Written the other way first, which found the
         // key only when it happened to be the first line.
         if let Some(value) = line.strip_prefix(&format!("{key}:")) {
-            let value = value.trim();
-            let unquoted = value
-                .strip_prefix('"')
-                .and_then(|v| v.strip_suffix('"'))
-                .map(|v| v.replace("\\\"", "\"").replace("\\\\", "\\"))
-                .unwrap_or_else(|| value.to_string());
-            return Some(unquoted);
+            return Some(unquote(value.trim()));
         }
     }
     None
+}
+
+/// Undo `yaml_scalar`'s quoting.
+///
+/// One pass over the characters rather than chained `replace` calls, which
+/// read `\\n` — an escaped backslash followed by an `n` — as a line break.
+pub fn unquote(value: &str) -> String {
+    let Some(inner) = value.strip_prefix('"').and_then(|v| v.strip_suffix('"')) else {
+        return value.to_string();
+    };
+
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('n') => out.push('\n'),
+            Some(other) => out.push(other),
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
+/// Read a frontmatter list.
+///
+/// Block style is what `serialize` writes. The inline `[a, b]` form is read
+/// too, because it is what people type by hand in another editor, and a list
+/// silently read as empty would be quietly overwritten on the next save.
+pub fn frontmatter_list(markdown: &str, key: &str) -> Vec<String> {
+    let mut lines = markdown.lines();
+    // `is_some_and` rather than `is_none_or`: the latter is stable only from
+    // Rust 1.82 and this crate's MSRV is 1.77.2.
+    if !lines.next().is_some_and(|l| l.trim() == "---") {
+        return Vec::new();
+    }
+
+    let prefix = format!("{key}:");
+    let mut out = Vec::new();
+    let mut in_list = false;
+
+    for line in lines {
+        if line.trim() == "---" {
+            break;
+        }
+
+        if let Some(rest) = line.strip_prefix(&prefix) {
+            let rest = rest.trim();
+            if let Some(inline) = rest.strip_prefix('[').and_then(|r| r.strip_suffix(']')) {
+                out.extend(
+                    inline
+                        .split(',')
+                        .map(|v| unquote(v.trim()))
+                        .filter(|v| !v.is_empty()),
+                );
+                return out;
+            }
+            in_list = true;
+            continue;
+        }
+
+        if in_list {
+            // Items are indented; anything at column zero ends the list.
+            let Some(item) = line.strip_prefix("  - ") else {
+                if !line.starts_with(' ') {
+                    in_list = false;
+                }
+                continue;
+            };
+            let value = unquote(item.trim());
+            if !value.is_empty() {
+                out.push(value);
+            }
+        }
+    }
+
+    out
+}
+
+/// Replace one frontmatter list, leaving every other byte of the file alone.
+///
+/// An empty list removes the key rather than leaving `key:` with nothing under
+/// it, which is not valid YAML. A file with no frontmatter is returned as it
+/// was: refusing beats inventing one on a file that may not be a note at all.
+pub fn replace_frontmatter_list(markdown: &str, key: &str, values: &[String]) -> String {
+    let mut block = String::new();
+    push_list(&mut block, key, values);
+    replace_frontmatter_key(markdown, key, &block)
+}
+
+/// Set or clear one frontmatter scalar, leaving every other byte alone.
+pub fn replace_frontmatter_scalar(markdown: &str, key: &str, value: Option<&str>) -> String {
+    let mut line = String::new();
+    if let Some(value) = value {
+        push_field(&mut line, key, value);
+    }
+    replace_frontmatter_key(markdown, key, &line)
+}
+
+/// Swap a key's lines — the key and any indented lines under it — for
+/// `replacement`, or add it before the closing marker if it was absent.
+fn replace_frontmatter_key(markdown: &str, key: &str, replacement: &str) -> String {
+    let mut lines = markdown.lines();
+    if !lines.next().is_some_and(|l| l.trim() == "---") {
+        return markdown.to_string();
+    }
+
+    let prefix = format!("{key}:");
+    let mut out = String::with_capacity(markdown.len() + replacement.len());
+    out.push_str("---\n");
+    let mut in_key = false;
+    let mut written = false;
+
+    for line in lines {
+        if line.trim() == "---" {
+            if !written {
+                out.push_str(replacement);
+            }
+            out.push_str("---\n");
+            // Everything after the closing marker is the body, verbatim.
+            let rest = markdown
+                .split_once("\n---\n")
+                .map(|(_, body)| body)
+                .unwrap_or("");
+            out.push_str(rest);
+            return out;
+        }
+
+        if line.starts_with(&prefix) {
+            in_key = true;
+            out.push_str(replacement);
+            written = true;
+            continue;
+        }
+
+        if in_key {
+            if line.starts_with(' ') {
+                continue; // the old value's items, dropped
+            }
+            in_key = false;
+        }
+
+        out.push_str(line);
+        out.push('\n');
+    }
+
+    // Frontmatter that never closed: not a note this can safely edit.
+    markdown.to_string()
 }
 
 /// Replace the title in both the frontmatter and the `# ` heading.

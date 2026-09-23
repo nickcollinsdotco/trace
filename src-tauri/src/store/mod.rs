@@ -13,6 +13,7 @@
 
 use std::path::PathBuf;
 
+pub mod context;
 pub mod journal;
 pub mod markdown;
 pub mod paths;
@@ -81,20 +82,17 @@ pub fn scan_recoverable(notes_root: &std::path::Path) -> Vec<Recoverable> {
 /// Used by the accurate re-pass and by synthesis, which must replace the note
 /// already written rather than creating a second file beside it.
 ///
-/// The title and tags on disk win over the journal's. Both are edited in the
-/// file directly — rename and tagging deliberately never rebuild the meeting —
-/// so the journal still holds the originals, and replaying it verbatim quietly
-/// undid a rename and dropped every tag the moment notes were regenerated.
+/// The title, tags, context and names on disk win over the journal's. All are
+/// edited in the file directly — see `context::apply_edits` — so replaying the
+/// journal verbatim quietly undid a rename and dropped every tag the moment
+/// notes were regenerated.
 pub fn rewrite_note(
     path: &std::path::Path,
     meeting: &crate::meeting::Meeting,
 ) -> Result<(), StoreError> {
     let mut meeting = meeting.clone();
     if let Ok(existing) = std::fs::read_to_string(path) {
-        if let Some(title) = markdown::frontmatter_value(&existing, "title") {
-            meeting.title = title;
-        }
-        meeting.tags = tags::read(&existing);
+        context::apply_edits(&mut meeting, &existing);
     }
     paths::write_atomic(path, &markdown::serialize(&meeting))
 }
@@ -326,6 +324,31 @@ mod tests {
         );
         assert!(text.contains("# Pricing review"));
         assert_eq!(tags::read(&text), vec!["client", "pricing"]);
+    }
+
+    #[test]
+    fn rewriting_keeps_context_and_names_and_labels_them_by_name() {
+        let root = scratch("rewrite-context");
+        let mut meeting = a_meeting("sess-1", "Huspy #2");
+        meeting.transcript = vec![crate::transcribe::Segment {
+            id: "sys_0000".into(),
+            start_ms: 4_000,
+            end_ms: 6_000,
+            text: "thanks for having me".into(),
+            source: crate::audio::StreamSource::System,
+        }];
+        let written = write_note(&root, &meeting).unwrap();
+        assert!(std::fs::read_to_string(&written)
+            .unwrap()
+            .contains("**them** `00:04`"));
+
+        context::write(&written, "An interview.", &["Amira".into()]).unwrap();
+        rewrite_note(&written, &meeting).unwrap();
+
+        let text = std::fs::read_to_string(&written).unwrap();
+        assert_eq!(context::read(&text).context, "An interview.");
+        assert_eq!(context::read(&text).participants, vec!["Amira"]);
+        assert!(text.contains("**Amira** `00:04`"), "got:\n{text}");
     }
 
     #[test]

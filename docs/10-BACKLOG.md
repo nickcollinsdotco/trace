@@ -382,10 +382,12 @@ the rest is recorded here rather than guessed at.
    live in the note's own frontmatter, so they travel with the file, and
    `tag:client` narrows search to them. Clicking a tag on a note searches for
    it.
-4. **Participants.** Also already in the model, also unwritten. Note that
-   speaker attribution comes from audio topology, so TRACE knows "you" and
-   "them" but not *who* them is; filling this in means either asking the user
-   or the voice-embedding work in Phase 3.
+4. ~~**Participants.**~~ **Asked of the user, 2026-09-23**, alongside free-text
+   context ("this was an interview"). Both live in frontmatter and feed the
+   next regeneration; context is never citable. One name replaces "them" in
+   the transcript. Several are given to the model as a set but never pinned
+   to lines, because the system stream cannot tell remote voices apart — that
+   still needs the voice-embedding work in Phase 3.
 5. **Folders and grouping.** Notes are already nested `YYYY/MM` on disk. A
    project or client grouping is a second axis, and worth resisting until
    search exists — folders are what people reach for when they cannot search,
@@ -393,6 +395,12 @@ the rest is recorded here rather than guessed at.
 6. **Hiding or archiving old meetings.** The library groups by date already.
    Worth waiting to see whether this is a real problem at a hundred meetings
    or an imagined one at ten.
+7. **More library filters: length and type.** Newest/oldest and a tag filter
+   are built, and each row shows its length. Filtering by type waits on type
+   being something a meeting is given — nothing sets it yet, so every meeting
+   is "general" and a type filter would always show everything. A length
+   filter is cheap once someone asks for it; `NoteSummary.duration_ms` is
+   already there.
 
 ### Pause: the design question, before any code
 

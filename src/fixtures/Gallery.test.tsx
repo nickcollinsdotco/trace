@@ -682,6 +682,110 @@ describe("Gallery", () => {
     expect(screen.getByRole("button", { name: "pricing" })).toBeVisible();
   });
 
+  it("shows each meeting's tags in the library and filters by one", async () => {
+    // Every row used to read "general" — the meeting type, which nothing sets
+    // — so tagging looked broken from the library.
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Meetings");
+    await waitFor(() => expect(screen.getByText("Monday standup")).toBeInTheDocument());
+
+    expect(screen.queryByText("general")).toBeNull();
+    const filters = screen.getByRole("group", { name: "Filter by tag" });
+    await user.click(within(filters).getByRole("button", { name: "internal" }));
+
+    await waitFor(() => expect(screen.queryByText("Pricing page rework")).toBeNull());
+    expect(screen.getByText("Monday standup")).toBeInTheDocument();
+
+    await user.click(within(filters).getByRole("button", { name: "All" }));
+    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+  });
+
+  it("orders the library oldest first on request", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Meetings");
+    await waitFor(() => expect(screen.getByText("Monday standup")).toBeInTheDocument());
+
+    const titles = () =>
+      [...document.querySelectorAll(".trace-section .trace-title")].map((e) => e.textContent);
+    expect(titles()[0]).toBe("Catch-up with Dev");
+
+    await user.click(screen.getByRole("button", { name: "Oldest" }));
+    await waitFor(() => expect(titles()[0]).toBe("Acme discovery call"));
+    expect(titles().at(-1)).toBe("Catch-up with Dev");
+  });
+
+  it("frames each section of a note so it can be closed, with the transcript closed", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Enhanced note");
+
+    const summary = await screen.findByRole("button", { name: "Summary" });
+    expect(summary).toHaveAttribute("aria-expanded", "true");
+    expect(summary.closest(".trace-section")).not.toBeNull();
+    expect(screen.getByText(/most visitors leave at the comparison table/)).toBeVisible();
+
+    await user.click(summary);
+    expect(screen.queryByText(/most visitors leave at the comparison table/)).toBeNull();
+
+    const transcript = screen.getByRole("button", { name: "Transcript" });
+    expect(transcript).toHaveAttribute("aria-expanded", "false");
+    await user.click(transcript);
+    expect(screen.getByText(/I pulled the numbers this morning/)).toBeVisible();
+  });
+
+  it("keeps the note's title in its sticky header", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Enhanced note");
+
+    const title = await screen.findByRole("heading", { level: 1, name: "Pricing page rework" });
+    expect(title.closest("header")).toHaveClass("sticky");
+  });
+
+  it("names THEM in the transcript once one name is given", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Context and a name given");
+
+    await user.click(await screen.findByRole("button", { name: "Transcript" }));
+    // The transcript line itself, found by what was said, not any "Dev" on
+    // screen — the "With" summary above says Dev too.
+    const said = await screen.findByText("quiet, which was the point");
+    const line = said.closest("p");
+    expect(line).not.toBeNull();
+    expect(within(line as HTMLElement).getByTitle("Dev")).toHaveTextContent("Dev");
+    expect(within(line as HTMLElement).queryByText("them")).toBeNull();
+    // The user's own line is untouched.
+    const mine = screen.getByText("how was the weekend").closest("p") as HTMLElement;
+    expect(within(mine).getByText("you")).toBeInTheDocument();
+    expect(screen.getByText(/joined the design team last month/)).toBeVisible();
+  });
+
+  it("saves context and names, then regenerates with them", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Enhanced note");
+
+    await user.click(await screen.findByRole("button", { name: "+ Context & names" }));
+    await user.type(screen.getByRole("textbox", { name: "Who was on the other end?" }), "Sarah");
+    await user.type(
+      screen.getByRole("textbox", { name: "What should the summary know?" }),
+      "A design review with the growth team.",
+    );
+    await user.click(screen.getByRole("button", { name: "Save and regenerate" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("A design review with the growth team.")).toBeVisible(),
+    );
+    expect(screen.getByText("Sarah")).toBeVisible();
+    // The regeneration it asked for is running.
+    await waitFor(() =>
+      expect(screen.getAllByText(/rewriting — these are the previous notes/).length).toBe(1),
+    );
+  });
+
   it("narrows to tagged notes with tag:", async () => {
     const user = userEvent.setup();
     render(<Gallery />);

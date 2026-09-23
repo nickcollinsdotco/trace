@@ -20,6 +20,7 @@ import {
   type Job,
   type LlmStatus,
   type ModelStatus,
+  type NoteContext,
   type NoteSummary,
   type OfferedModel,
   type RecoverableSession,
@@ -87,6 +88,8 @@ export interface BackendState {
   afterGenerate: Record<string, string>;
   /** Note path → tags. */
   tags: Record<string, string[]>;
+  /** Note path → what the user has said about the meeting since. */
+  contexts: Record<string, NoteContext>;
   /** Facts shown on the first-run report. */
   systemReport: SystemReport;
   settings: Settings;
@@ -130,6 +133,7 @@ export const DEFAULT_STATE: BackendState = {
   activity: [],
   afterGenerate: {},
   tags: {},
+  contexts: {},
   systemReport: {
     host: "NICK-DESKTOP",
     os: "Windows 10 Home",
@@ -266,6 +270,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
       : [];
   };
   const tags: Record<string, string[]> = { ...state.tags };
+  const contexts: Record<string, NoteContext> = { ...state.contexts };
 
   const bodies: Record<string, string> = { ...state.bodies };
   let jobs = rebase(state.activity);
@@ -443,7 +448,9 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         }
 
         case "list_notes":
-          return state.notes;
+          // Tags from the live map, so one added on a note shows in the
+          // library on the way back — the thing that was broken for real.
+          return state.notes.map((n) => ({ ...n, tags: tags[n.path] ?? [] }));
         case "read_note": {
           const path = args?.path as string;
           const body = bodies[path];
@@ -579,6 +586,22 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           ].sort();
           tags[path] = clean;
           return clean;
+        }
+
+        case "note_context":
+          return contexts[args?.notePath as string] ?? { context: "", participants: [] };
+        case "set_note_context": {
+          const path = args?.notePath as string;
+          const names: string[] = [];
+          for (const raw of (args?.participants as string[]) ?? []) {
+            const name = raw.trim();
+            if (name && !names.some((n) => n.toLowerCase() === name.toLowerCase())) {
+              names.push(name);
+            }
+          }
+          const stored = { context: String(args?.context ?? "").trim(), participants: names };
+          contexts[path] = stored;
+          return stored;
         }
 
         default:

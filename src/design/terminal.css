@@ -217,6 +217,14 @@
   background: var(--color-surface-0);
 }
 
+/*
+ * A closed section keeps its box but loses the body's room, so it reads as
+ * a drawer shut rather than a panel with nothing in it.
+ */
+[data-frame="box"] .trace-section[data-open="false"] {
+  padding-bottom: 0.2rem;
+}
+
 [data-frame="box"] .trace-section-head .trace-rule,
 [data-frame="box"] .trace-section-corner {
   display: none;

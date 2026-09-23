@@ -237,6 +237,12 @@ pub struct NoteSummary {
     /// One line on what the meeting was about. Absent until notes are
     /// generated, and on notes written before the gist existed.
     pub gist: Option<String>,
+    pub tags: Vec<String>,
+    /// RFC 3339, when recording began. What orders meetings on one day.
+    pub started_at: Option<String>,
+    /// How long it ran. Absent for a meeting that never recorded an end —
+    /// one recovered after a crash — rather than guessed.
+    pub duration_ms: Option<u64>,
 }
 
 /// List saved notes, newest first.
@@ -251,10 +257,29 @@ pub fn list_notes(manager: State<'_, CaptureManager>) -> CmdResult<Vec<NoteSumma
     let mut notes = Vec::new();
     collect_notes(&root, &mut notes);
 
-    // Filename begins with the ISO date, so a reverse lexical sort is
-    // chronological.
-    notes.sort_by(|a: &NoteSummary, b: &NoteSummary| b.path.cmp(&a.path));
+    notes.sort_by(|a, b| newest_first(b).cmp(&newest_first(a)));
     Ok(notes)
+}
+
+/// What orders the library: date, then start time, then path.
+///
+/// The path alone — which begins with the date — was used before, and is
+/// chronological only across days. Within one it sorted by title slug, so a
+/// morning meeting called "Weekly" sat above an afternoon one called "Huspy".
+fn newest_first(note: &NoteSummary) -> (&str, i64, &str) {
+    let started = note
+        .started_at
+        .as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map_or(0, |t| t.timestamp_millis());
+    (note.date.as_str(), started, note.path.as_str())
+}
+
+/// Milliseconds between two RFC 3339 times, if both parse and are in order.
+fn duration_between(started: Option<&str>, ended: Option<&str>) -> Option<u64> {
+    let parse = |s: &str| chrono::DateTime::parse_from_rfc3339(s).ok();
+    let ms = (parse(ended?)? - parse(started?)?).num_milliseconds();
+    u64::try_from(ms).ok()
 }
 
 fn collect_notes(dir: &std::path::Path, out: &mut Vec<NoteSummary>) {
@@ -291,6 +316,12 @@ fn collect_notes(dir: &std::path::Path, out: &mut Vec<NoteSummary>) {
             date: frontmatter_field(&text, "date").unwrap_or_default(),
             meeting_type: store::markdown::parse_meeting_type(&text).unwrap_or_default(),
             gist: frontmatter_field(&text, "gist"),
+            tags: store::tags::read(&text),
+            duration_ms: duration_between(
+                frontmatter_field(&text, "started_at").as_deref(),
+                frontmatter_field(&text, "ended_at").as_deref(),
+            ),
+            started_at: frontmatter_field(&text, "started_at"),
             path: path.display().to_string(),
         });
     }
@@ -386,6 +417,74 @@ pub fn reveal_notes_folder(manager: State<'_, CaptureManager>) -> CmdResult<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn summary(path: &str, date: &str, started: Option<&str>) -> NoteSummary {
+        NoteSummary {
+            path: path.into(),
+            title: String::new(),
+            date: date.into(),
+            meeting_type: MeetingType::General,
+            gist: None,
+            tags: Vec::new(),
+            started_at: started.map(str::to_string),
+            duration_ms: None,
+        }
+    }
+
+    #[test]
+    fn meetings_on_one_day_sort_by_when_they_started_not_by_title() {
+        let mut notes = [
+            summary(
+                "2026/09/2026-09-23-weekly.md",
+                "2026-09-23",
+                Some("2026-09-23T09:00:00+01:00"),
+            ),
+            summary(
+                "2026/09/2026-09-22-retro.md",
+                "2026-09-22",
+                Some("2026-09-22T16:00:00+01:00"),
+            ),
+            summary(
+                "2026/09/2026-09-23-huspy.md",
+                "2026-09-23",
+                Some("2026-09-23T15:00:00+01:00"),
+            ),
+        ];
+        notes.sort_by(|a, b| newest_first(b).cmp(&newest_first(a)));
+        let order: Vec<&str> = notes.iter().map(|n| n.path.as_str()).collect();
+        assert_eq!(
+            order,
+            vec![
+                "2026/09/2026-09-23-huspy.md",
+                "2026/09/2026-09-23-weekly.md",
+                "2026/09/2026-09-22-retro.md",
+            ]
+        );
+    }
+
+    #[test]
+    fn duration_is_only_given_when_both_ends_are_known() {
+        assert_eq!(
+            duration_between(
+                Some("2026-09-23T10:00:00+01:00"),
+                Some("2026-09-23T10:42:30+01:00")
+            ),
+            Some(2_550_000)
+        );
+        assert_eq!(
+            duration_between(Some("2026-09-23T10:00:00+01:00"), None),
+            None
+        );
+        assert_eq!(
+            duration_between(Some("nonsense"), Some("2026-09-23T10:00:00Z")),
+            None
+        );
+        // Ends before it began: a clock change, not a negative meeting.
+        assert_eq!(
+            duration_between(Some("2026-09-23T11:00:00Z"), Some("2026-09-23T10:00:00Z")),
+            None
+        );
+    }
 
     #[test]
     fn frontmatter_fields_are_read_back() {
@@ -604,6 +703,27 @@ pub fn note_tags(note_path: String) -> CmdResult<Vec<String>> {
 #[tauri::command]
 pub fn set_note_tags(note_path: String, tags: Vec<String>) -> CmdResult<Vec<String>> {
     store::tags::write(&PathBuf::from(note_path), &tags).map_err(err)
+}
+
+/// What the user has said about a meeting since it ended.
+#[tauri::command]
+pub fn note_context(note_path: String) -> CmdResult<store::context::NoteContext> {
+    let text = std::fs::read_to_string(PathBuf::from(note_path)).map_err(err)?;
+    Ok(store::context::read(&text))
+}
+
+/// Replace a note's context and participant names.
+///
+/// Saving does not regenerate. The UI asks for that separately, because a
+/// regeneration takes minutes and replaces the notes, and correcting a typo in
+/// a name should not cost either.
+#[tauri::command]
+pub fn set_note_context(
+    note_path: String,
+    context: String,
+    participants: Vec<String>,
+) -> CmdResult<store::context::NoteContext> {
+    store::context::write(&PathBuf::from(note_path), &context, &participants).map_err(err)
 }
 
 /* ------------------------------------------------------------------ *

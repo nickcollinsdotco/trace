@@ -19,7 +19,7 @@
 
 use std::path::Path;
 
-use super::{paths, StoreError};
+use super::{markdown, paths, StoreError};
 
 /// Normalise a tag: lower-case, trimmed, inner whitespace collapsed to `-`.
 ///
@@ -34,48 +34,8 @@ pub fn normalise(tag: &str) -> String {
 }
 
 /// Read a note's tags from its frontmatter.
-pub fn read(markdown: &str) -> Vec<String> {
-    let mut lines = markdown.lines();
-    // `is_some_and` rather than `is_none_or`: the latter is stable only from
-    // Rust 1.82 and this crate's MSRV is 1.77.2.
-    if !lines.next().is_some_and(|l| l.trim() == "---") {
-        return Vec::new();
-    }
-
-    let mut out = Vec::new();
-    let mut in_tags = false;
-
-    for line in lines {
-        if line.trim() == "---" {
-            break;
-        }
-
-        if line.starts_with("tags:") {
-            in_tags = true;
-            continue;
-        }
-
-        if in_tags {
-            // Items are indented; anything at column zero ends the list.
-            let Some(item) = line.strip_prefix("  - ") else {
-                if !line.starts_with(' ') {
-                    in_tags = false;
-                }
-                continue;
-            };
-            let value = item.trim();
-            let unquoted = value
-                .strip_prefix('"')
-                .and_then(|v| v.strip_suffix('"'))
-                .map(|v| v.replace("\\\"", "\"").replace("\\\\", "\\"))
-                .unwrap_or_else(|| value.to_string());
-            if !unquoted.is_empty() {
-                out.push(unquoted);
-            }
-        }
-    }
-
-    out
+pub fn read(text: &str) -> Vec<String> {
+    markdown::frontmatter_list(text, "tags")
 }
 
 /// Replace a note's tags, leaving the rest of the file untouched.
@@ -101,69 +61,8 @@ pub fn write(note_path: &Path, tags: &[String]) -> Result<Vec<String>, StoreErro
 }
 
 /// Rewrite the `tags:` block in a frontmatter string.
-fn replace_tags(markdown: &str, tags: &[String]) -> String {
-    let mut out = String::with_capacity(markdown.len() + tags.len() * 16);
-    let mut lines = markdown.lines();
-
-    let Some(first) = lines.next() else {
-        return markdown.to_string();
-    };
-    if first.trim() != "---" {
-        // No frontmatter to edit. Refusing beats inventing one on a file that
-        // may not be a note at all.
-        return markdown.to_string();
-    }
-
-    out.push_str("---\n");
-    let mut in_tags = false;
-    let mut written = false;
-
-    for line in lines {
-        if line.trim() == "---" {
-            // Frontmatter had no tags key; add one before closing.
-            if !written && !tags.is_empty() {
-                push_tags(&mut out, tags);
-            }
-            out.push_str("---\n");
-            // Everything after the closing marker is the body, verbatim.
-            let rest = markdown
-                .split_once("\n---\n")
-                .map(|(_, body)| body)
-                .unwrap_or("");
-            out.push_str(rest);
-            return out;
-        }
-
-        if line.starts_with("tags:") {
-            in_tags = true;
-            if !tags.is_empty() {
-                push_tags(&mut out, tags);
-            }
-            written = true;
-            continue;
-        }
-
-        if in_tags {
-            if line.starts_with("  - ") || line.starts_with(' ') {
-                continue; // old item, dropped
-            }
-            in_tags = false;
-        }
-
-        out.push_str(line);
-        out.push('\n');
-    }
-
-    out
-}
-
-fn push_tags(out: &mut String, tags: &[String]) {
-    out.push_str("tags:\n");
-    for tag in tags {
-        out.push_str("  - ");
-        out.push_str(tag);
-        out.push('\n');
-    }
+fn replace_tags(text: &str, tags: &[String]) -> String {
+    markdown::replace_frontmatter_list(text, "tags", tags)
 }
 
 #[cfg(test)]

@@ -147,11 +147,21 @@ fn assemble(
 
     out.push_str(&format!("MEETING: {}\n", meeting.title));
     out.push_str(&format!("DATE: {}\n", meeting.date));
-    if !meeting.participants.is_empty() {
-        out.push_str(&format!(
-            "PARTICIPANTS: {}\n",
-            meeting.participants.join(", ")
-        ));
+    // The labels stay `you` and `them` in the lines themselves: they are
+    // facts about which device heard the words, and the system prompt defines
+    // them. Names are said once here instead.
+    match meeting.participants.as_slice() {
+        [] => {}
+        [only] => out.push_str(&format!(
+            "THEM: every line labelled 'them' was spoken by {only}. Refer to \
+             them as {only}.\n"
+        )),
+        several => out.push_str(&format!(
+            "THEM: lines labelled 'them' were spoken by one of {}. The \
+             recording cannot tell them apart, so name one only when the \
+             transcript makes it plain who is speaking.\n",
+            several.join(", ")
+        )),
     }
 
     if total > 1 {
@@ -161,6 +171,20 @@ fn assemble(
             "\nThis is part {index} of {total} of a longer meeting. Extract only \
              what is present in this part.\n"
         ));
+    }
+
+    // Not citable, and said so: it is the user's framing after the fact, and
+    // a claim resting on it would be a claim nobody made in the meeting.
+    if let Some(context) = meeting.context.as_deref().filter(|c| !c.trim().is_empty()) {
+        out.push_str(
+            "\nCONTEXT FROM THE USER\n\
+             Written after the meeting to explain it. Use it to understand what \
+             kind of meeting this was and who was in it, and write the notes \
+             for that. It is not part of the meeting: never cite it, and never \
+             report it as something that was said.\n\n",
+        );
+        out.push_str(context.trim());
+        out.push('\n');
     }
 
     if !notes.is_empty() {
@@ -314,6 +338,55 @@ mod tests {
         m.date = "2026-09-05".into();
         m.transcript = segments;
         m
+    }
+
+    #[test]
+    fn context_is_given_to_every_window_but_is_not_citable() {
+        let mut m = meeting_with(vec![segment(
+            "sys_0000",
+            0,
+            "tell me about your last role",
+            StreamSource::System,
+        )]);
+        m.context = Some("This was an interview for the design lead role.".into());
+        let prompt = &windows(&m)[0].prompt;
+
+        assert!(prompt.contains("CONTEXT FROM THE USER"));
+        assert!(prompt.contains("This was an interview for the design lead role."));
+        assert!(prompt.contains("never cite it"));
+        // No id, so nothing can cite it.
+        assert!(!prompt.contains("] This was an interview"));
+    }
+
+    #[test]
+    fn no_context_means_no_context_section() {
+        let m = meeting_with(vec![segment(
+            "mic_0000",
+            0,
+            "hello",
+            StreamSource::Microphone,
+        )]);
+        assert!(!windows(&m)[0].prompt.contains("CONTEXT FROM THE USER"));
+        assert!(!windows(&m)[0].prompt.contains("THEM:"));
+    }
+
+    #[test]
+    fn one_name_says_who_them_is() {
+        let mut m = meeting_with(vec![segment("sys_0000", 0, "hi", StreamSource::System)]);
+        m.participants = vec!["Amira".into()];
+        let prompt = &windows(&m)[0].prompt;
+        assert!(prompt.contains("spoken by Amira"), "got:\n{prompt}");
+        // The line keeps its factual label.
+        assert!(prompt.contains("[sys_0000] (00:00) them: hi"));
+    }
+
+    #[test]
+    fn several_names_are_not_attributed_to_lines() {
+        let mut m = meeting_with(vec![segment("sys_0000", 0, "hi", StreamSource::System)]);
+        m.participants = vec!["Amira".into(), "Tom".into()];
+        let prompt = &windows(&m)[0].prompt;
+        assert!(prompt.contains("one of Amira, Tom"), "got:\n{prompt}");
+        assert!(prompt.contains("cannot tell them apart"));
     }
 
     #[test]

@@ -398,6 +398,8 @@ export function onTranscriptUpdated(
 export interface SynthesisProgress {
   window: number;
   total: number;
+  /** The parts are done and the final pass is combining them into one. */
+  combining?: boolean;
 }
 
 /**

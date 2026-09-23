@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use super::schema::{FormatLevel, SynthesisOutput};
+use super::schema::{condense_schema, CondenseOutput, FormatLevel, SynthesisOutput};
 use super::{prompt, LlmProvider, SynthesisError};
 
 /// Local-only. Not configurable, by design.
@@ -423,23 +423,52 @@ impl LlmProvider for OllamaProvider {
             .unwrap_or(false)
     }
 
-    fn synthesize(&self, user_prompt: &str) -> Result<SynthesisOutput, SynthesisError> {
+    fn synthesize(
+        &self,
+        user_prompt: &str,
+        label: &str,
+    ) -> Result<SynthesisOutput, SynthesisError> {
         // One retry, for output that could not be read. Sampling is not
         // deterministic, so a second attempt at a window that ran away often
         // does not; anything else — Ollama down, a bad request — would fail
         // the same way twice.
-        match self.attempt(user_prompt) {
-            Err(SynthesisError::Malformed(_)) => self.attempt(user_prompt),
+        match self.attempt(user_prompt, label) {
+            Err(SynthesisError::Malformed(_)) => self.attempt(user_prompt, label),
             other => other,
         }
+    }
+
+    fn condense(
+        &self,
+        summaries: &[String],
+        key_points: &[super::schema::RawClaim],
+    ) -> Result<CondenseOutput, SynthesisError> {
+        let texts: Vec<String> = key_points.iter().map(|c| c.text.clone()).collect();
+        let body = self
+            .generate(
+                prompt::CONDENSE_SYSTEM_PROMPT,
+                &prompt::condense_prompt(summaries, &texts),
+                &condense_schema(),
+                "final pass",
+            )
+            .map_err(|e| match e {
+                Rejected(reason) => {
+                    SynthesisError::Request(format!("Ollama rejected the request: {reason}"))
+                }
+                Failed(e) => e,
+            })?;
+        parse_json(response_text(&body)?)
     }
 }
 
 impl OllamaProvider {
-    fn attempt(&self, user_prompt: &str) -> Result<SynthesisOutput, SynthesisError> {
+    fn attempt(&self, user_prompt: &str, label: &str) -> Result<SynthesisOutput, SynthesisError> {
         let mut level = FormatLevel::from_index(FORMAT_LEVEL.load(Ordering::Relaxed));
         loop {
-            match self.request(user_prompt, &level.schema()) {
+            let result = self
+                .generate(prompt::SYSTEM_PROMPT, user_prompt, &level.schema(), label)
+                .and_then(|body| Ok(parse_output(response_text(&body)?)?));
+            match result {
                 Ok(output) => return Ok(output),
                 Err(Failed(e)) => return Err(e),
                 // A 400 is Ollama refusing the request before generating, and
@@ -469,14 +498,20 @@ impl OllamaProvider {
         }
     }
 
-    fn request(
+    /// One request to Ollama, returning its response body.
+    ///
+    /// Every call is logged with what it cost — see `describe_stats` — so the
+    /// diagnostics report can say where the time in a slow summary went.
+    fn generate(
         &self,
+        system: &str,
         user_prompt: &str,
         format: &serde_json::Value,
-    ) -> Result<SynthesisOutput, Attempt> {
+        label: &str,
+    ) -> Result<serde_json::Value, Attempt> {
         let request = serde_json::json!({
             "model": self.model,
-            "system": prompt::SYSTEM_PROMPT,
+            "system": system,
             "prompt": user_prompt,
             "stream": false,
             // Applied as a decoding grammar, not a suggestion.
@@ -531,6 +566,10 @@ impl OllamaProvider {
         let body: serde_json::Value =
             serde_json::from_str(&text).map_err(|e| SynthesisError::Malformed(e.to_string()))?;
 
+        // Before the checks below, so a request that fails them is still
+        // accounted for.
+        crate::diagnostics::log(describe_stats(label, &body));
+
         // Ollama trims an oversized prompt rather than rejecting it, and says
         // so only in its own log. How many prompt tokens it read is the one
         // trace of that here: past the space left for the answer, either the
@@ -557,12 +596,59 @@ impl OllamaProvider {
             .into());
         }
 
-        let output = body["response"]
-            .as_str()
-            .ok_or_else(|| SynthesisError::Malformed("no `response` field".into()))?;
-
-        Ok(parse_output(output)?)
+        Ok(body)
     }
+}
+
+fn response_text(body: &serde_json::Value) -> Result<&str, SynthesisError> {
+    body["response"]
+        .as_str()
+        .ok_or_else(|| SynthesisError::Malformed("no `response` field".into()))
+}
+
+/// One line on what a request cost, for the diagnostics log.
+///
+/// Ollama reports durations in nanoseconds. "Thinking" is whether the model
+/// wrote a reasoning pass before its answer — in a separate `thinking` field
+/// on current Ollama, or inline `<think>` tags on older ones. It counts toward
+/// the output tokens and the time, and nothing in the answer shows it, so it
+/// is named here or it cannot be told apart from a slow model.
+fn describe_stats(label: &str, body: &serde_json::Value) -> String {
+    let secs = |key: &str| body[key].as_u64().unwrap_or(0) as f64 / 1e9;
+    let tokens_in = body["prompt_eval_count"].as_u64().unwrap_or(0);
+    let tokens_out = body["eval_count"].as_u64().unwrap_or(0);
+    let generating = secs("eval_duration");
+    let rate = if generating > 0.0 {
+        format!(", {:.0} tokens/s", tokens_out as f64 / generating)
+    } else {
+        String::new()
+    };
+    let loading = secs("load_duration");
+    let loaded = if loading >= 1.0 {
+        format!(", model loaded in {loading:.1}s")
+    } else {
+        String::new()
+    };
+
+    let separate = body["thinking"].as_str().map(str::len).unwrap_or(0);
+    let inline = body["response"]
+        .as_str()
+        .and_then(|r| {
+            let start = r.find("<think>")?;
+            let end = r.find("</think>").unwrap_or(r.len());
+            Some(end.saturating_sub(start))
+        })
+        .unwrap_or(0);
+    let thinking = match separate.max(inline) {
+        0 => "no".to_string(),
+        n => format!("yes, {n} characters"),
+    };
+
+    format!(
+        "{label}: {tokens_in} tokens in, {tokens_out} out, generated in {generating:.1}s{rate}, \
+         prompt read in {:.1}s{loaded}, thinking: {thinking}",
+        secs("prompt_eval_duration")
+    )
 }
 
 /// How one request ended, when it did not succeed.
@@ -597,15 +683,19 @@ fn ollama_error(body: &str, status: u16) -> String {
     }
 }
 
+fn parse_output(text: &str) -> Result<SynthesisOutput, SynthesisError> {
+    parse_json(text)
+}
+
 /// Parse the model's JSON, tolerating the wrappers models sometimes add.
 ///
 /// The grammar should make this unnecessary. It is here because a proxy, an
 /// older Ollama, or a model that ignores `format` would otherwise turn a
 /// recoverable formatting quirk into a lost summary.
-fn parse_output(text: &str) -> Result<SynthesisOutput, SynthesisError> {
+fn parse_json<T: serde::de::DeserializeOwned>(text: &str) -> Result<T, SynthesisError> {
     let trimmed = text.trim();
 
-    if let Ok(parsed) = serde_json::from_str::<SynthesisOutput>(trimmed) {
+    if let Ok(parsed) = serde_json::from_str::<T>(trimmed) {
         return Ok(parsed);
     }
 
@@ -615,14 +705,14 @@ fn parse_output(text: &str) -> Result<SynthesisOutput, SynthesisError> {
         .trim_start_matches("```")
         .trim_end_matches("```")
         .trim();
-    if let Ok(parsed) = serde_json::from_str::<SynthesisOutput>(unfenced) {
+    if let Ok(parsed) = serde_json::from_str::<T>(unfenced) {
         return Ok(parsed);
     }
 
     // Prose around a JSON object.
     if let (Some(start), Some(end)) = (trimmed.find('{'), trimmed.rfind('}')) {
         if start < end {
-            if let Ok(parsed) = serde_json::from_str::<SynthesisOutput>(&trimmed[start..=end]) {
+            if let Ok(parsed) = serde_json::from_str::<T>(&trimmed[start..=end]) {
                 return Ok(parsed);
             }
         }
@@ -888,6 +978,47 @@ mod tests {
         assert_eq!(ollama_error("Bad Request", 400), "HTTP 400: Bad Request");
         assert_eq!(ollama_error("", 500), "HTTP 500");
         assert!(ollama_error(&"x".repeat(10_000), 400).len() < 250);
+    }
+
+    #[test]
+    fn each_request_says_what_it_cost() {
+        let body = serde_json::json!({
+            "prompt_eval_count": 3120,
+            "prompt_eval_duration": 1_400_000_000u64,
+            "eval_count": 812,
+            "eval_duration": 20_300_000_000u64,
+            "load_duration": 50_000_000u64,
+            "response": "{}"
+        });
+        let line = describe_stats("part 3 of 8", &body);
+        assert_eq!(
+            line,
+            "part 3 of 8: 3120 tokens in, 812 out, generated in 20.3s, 40 tokens/s, \
+             prompt read in 1.4s, thinking: no"
+        );
+    }
+
+    #[test]
+    fn thinking_is_named_in_either_form() {
+        let separate = serde_json::json!({ "thinking": "let me see", "response": "{}" });
+        assert!(describe_stats("x", &separate).ends_with("thinking: yes, 10 characters"));
+
+        let inline = serde_json::json!({ "response": "<think>hmm</think>{}" });
+        assert!(describe_stats("x", &inline).contains("thinking: yes"));
+    }
+
+    #[test]
+    fn a_cold_model_load_is_called_out() {
+        let body = serde_json::json!({ "load_duration": 61_000_000_000u64, "response": "{}" });
+        assert!(describe_stats("x", &body).contains("model loaded in 61.0s"));
+    }
+
+    #[test]
+    fn missing_numbers_do_not_break_the_line() {
+        // An older Ollama, or an error body: still one readable line.
+        let line = describe_stats("final pass", &serde_json::json!({}));
+        assert!(line.starts_with("final pass: 0 tokens in, 0 out"));
+        assert!(!line.contains("tokens/s"));
     }
 
     #[test]

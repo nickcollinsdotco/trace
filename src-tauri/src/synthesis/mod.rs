@@ -1,9 +1,9 @@
 //! Turning a transcript into structured meeting notes.
 //!
 //! ```text
-//!   Meeting ──> windows ──> LlmProvider ──> merge ──> validate ──> GeneratedMeeting
-//!               (nothing     (per window)   (union)   (drops
-//!                dropped)                              fabrications)
+//!   Meeting ──> windows ──> LlmProvider ──> merge ──> condense ──> validate ──> GeneratedMeeting
+//!               (nothing     (per window)   (union)   (long         (drops
+//!                dropped)                              meetings)     fabrications)
 //! ```
 //!
 //! The provider is a trait taking a prepared prompt. Windowing, merging and
@@ -41,15 +41,27 @@ pub trait LlmProvider: Send {
     /// Whether this provider can currently be used.
     fn available(&self) -> bool;
 
-    /// Extract structure from one prepared prompt.
-    fn synthesize(&self, user_prompt: &str) -> Result<schema::SynthesisOutput, SynthesisError>;
+    /// Extract structure from one prepared prompt. `label` names the window
+    /// ("part 3 of 8") for the diagnostics log.
+    fn synthesize(
+        &self,
+        user_prompt: &str,
+        label: &str,
+    ) -> Result<schema::SynthesisOutput, SynthesisError>;
 
-    /// Merge several part-summaries into one.
+    /// The final pass over a long meeting: one summary from the parts', and
+    /// the key points that matter most, naming their sources by index.
     ///
-    /// Defaulted so a provider need not implement it; joining is correct if
-    /// inelegant, and a failed consolidation must not lose the parts.
-    fn consolidate(&self, summaries: &[String]) -> Result<String, SynthesisError> {
-        Ok(summaries.join(" "))
+    /// Defaulted to unsupported, which `generate` answers with a plain
+    /// fallback — a failed pass must never cost the notes it was tidying.
+    fn condense(
+        &self,
+        _summaries: &[String],
+        _key_points: &[schema::RawClaim],
+    ) -> Result<schema::CondenseOutput, SynthesisError> {
+        Err(SynthesisError::Unavailable(
+            "this provider has no final pass".into(),
+        ))
     }
 }
 
@@ -58,6 +70,9 @@ pub trait LlmProvider: Send {
 pub struct SynthesisProgress {
     pub window: usize,
     pub total: usize,
+    /// The windows are done and the final pass is combining them. Reported
+    /// because it takes a window's worth of time with nothing else moving.
+    pub combining: bool,
 }
 
 /// Synthesise a meeting and discard anything the model made up.
@@ -82,9 +97,15 @@ pub fn generate(
         on_progress(SynthesisProgress {
             window: window.index,
             total,
+            combining: false,
         });
 
-        let output = provider.synthesize(&window.prompt)?;
+        let label = if total == 1 {
+            "notes".to_string()
+        } else {
+            format!("part {} of {total}", window.index)
+        };
+        let output = provider.synthesize(&window.prompt, &label)?;
 
         if !output.summary.trim().is_empty() {
             summaries.push(output.summary.clone());
@@ -92,19 +113,105 @@ pub fn generate(
         merge_into(&mut merged, output);
     }
 
-    // One window needs no consolidation; several do, and the input to that is
-    // summaries rather than transcript, so it stays small however long the
-    // meeting was.
-    merged.summary = match summaries.len() {
-        0 => String::new(),
-        1 => summaries.remove(0),
-        _ => provider
-            .consolidate(&summaries)
-            .unwrap_or_else(|_| summaries.join(" ")),
-    };
+    // One window needs no final pass. Several need their summaries made into
+    // one, and their key points — stacked, one list per window — cut down to
+    // the few that matter. Both happen in a single request.
+    let combine_summaries = summaries.len() > 1;
+    let cut_points = merged.key_points.len() > prompt::KEY_POINTS_MAX;
+
+    if combine_summaries || cut_points {
+        on_progress(SynthesisProgress {
+            window: total,
+            total,
+            combining: true,
+        });
+        match provider.condense(&summaries, &merged.key_points) {
+            Ok(condensed) => {
+                if combine_summaries && !condensed.summary.trim().is_empty() {
+                    merged.summary = condensed.summary;
+                }
+                if cut_points {
+                    let points = resolve_condensed(&condensed.key_points, &merged.key_points);
+                    merged.key_points = if points.is_empty() {
+                        fallback_key_points(merged.key_points)
+                    } else {
+                        points
+                    };
+                }
+            }
+            Err(e) => {
+                crate::diagnostics::log(format!(
+                    "final pass failed ({e}); keeping the parts' summaries and the strongest \
+                     key points"
+                ));
+                if cut_points {
+                    merged.key_points = fallback_key_points(merged.key_points);
+                }
+            }
+        }
+    }
+
+    if merged.summary.trim().is_empty() {
+        merged.summary = summaries.join(" ");
+    }
 
     let citable = CitableSet::from_meeting(meeting);
     Ok(validate::validate(merged, &citable, &provider.name()))
+}
+
+/// Turn the final pass's numbered choices back into cited key points.
+///
+/// Each point's evidence is the union of its sources' evidence, and its
+/// confidence the highest of theirs, so nothing is cited that was not cited
+/// before. Out-of-range numbers are ignored; a point with no valid source is
+/// dropped rather than trusted.
+fn resolve_condensed(
+    chosen: &[schema::CondensedPoint],
+    sources: &[schema::RawClaim],
+) -> Vec<schema::RawClaim> {
+    chosen
+        .iter()
+        .filter_map(|point| {
+            let text = point.text.trim();
+            let from: Vec<&schema::RawClaim> = point
+                .from
+                .iter()
+                .filter_map(|&i| usize::try_from(i).ok().and_then(|i| sources.get(i)))
+                .collect();
+            if text.is_empty() || from.is_empty() {
+                return None;
+            }
+
+            let mut evidence: Vec<String> = Vec::new();
+            for id in from.iter().flat_map(|c| &c.evidence) {
+                if !evidence.contains(id) {
+                    evidence.push(id.clone());
+                }
+            }
+            Some(schema::RawClaim {
+                text: text.to_string(),
+                evidence,
+                confidence: from.iter().map(|c| c.confidence).fold(0.0, f32::max),
+            })
+        })
+        .take(prompt::KEY_POINTS_MAX)
+        .collect()
+}
+
+/// Without a final pass: the most confident points, in meeting order.
+///
+/// Order is kept because key points read as the course of the meeting; the
+/// model's confidence only decides which survive.
+fn fallback_key_points(points: Vec<schema::RawClaim>) -> Vec<schema::RawClaim> {
+    if points.len() <= prompt::KEY_POINTS_MAX {
+        return points;
+    }
+    let mut ranked: Vec<usize> = (0..points.len()).collect();
+    // Stable, so equal confidence keeps the earlier point.
+    ranked.sort_by(|&a, &b| points[b].confidence.total_cmp(&points[a].confidence));
+    let mut keep = ranked[..prompt::KEY_POINTS_MAX].to_vec();
+    keep.sort_unstable();
+    keep.into_iter().map(|i| points[i].clone()).collect()
 }
 
 /// Union one window's output into the running result.
@@ -148,6 +255,9 @@ mod tests {
     struct StubProvider {
         outputs: Mutex<Vec<schema::SynthesisOutput>>,
         seen: Mutex<Vec<String>>,
+        /// The final pass's answer; `None` means the pass is unsupported.
+        condensed: Option<schema::CondenseOutput>,
+        condense_calls: Mutex<usize>,
     }
 
     impl StubProvider {
@@ -155,7 +265,16 @@ mod tests {
             Self {
                 outputs: Mutex::new(outputs),
                 seen: Mutex::new(Vec::new()),
+                condensed: None,
+                condense_calls: Mutex::new(0),
             }
+        }
+        fn condensing(mut self, answer: schema::CondenseOutput) -> Self {
+            self.condensed = Some(answer);
+            self
+        }
+        fn condense_calls(&self) -> usize {
+            *self.condense_calls.lock().unwrap()
         }
         fn calls(&self) -> usize {
             self.seen.lock().unwrap().len()
@@ -169,7 +288,11 @@ mod tests {
         fn available(&self) -> bool {
             true
         }
-        fn synthesize(&self, prompt: &str) -> Result<schema::SynthesisOutput, SynthesisError> {
+        fn synthesize(
+            &self,
+            prompt: &str,
+            _label: &str,
+        ) -> Result<schema::SynthesisOutput, SynthesisError> {
             self.seen.lock().unwrap().push(prompt.to_string());
             let mut queue = self.outputs.lock().unwrap();
             if queue.is_empty() {
@@ -177,6 +300,45 @@ mod tests {
             } else {
                 Ok(queue.remove(0))
             }
+        }
+        fn condense(
+            &self,
+            _summaries: &[String],
+            _key_points: &[schema::RawClaim],
+        ) -> Result<schema::CondenseOutput, SynthesisError> {
+            *self.condense_calls.lock().unwrap() += 1;
+            self.condensed
+                .clone()
+                .ok_or_else(|| SynthesisError::Unavailable("stub".into()))
+        }
+    }
+
+    /// Two windows' outputs carrying `n` distinct key points between them,
+    /// each citing a real line, with confidence rising with the index.
+    fn two_windows_of_points(n: usize) -> Vec<schema::SynthesisOutput> {
+        let point = |i: usize| schema::RawClaim {
+            text: format!("point {i}"),
+            evidence: vec![format!("mic_{:04}", i % 800)],
+            confidence: i as f32 / n as f32,
+        };
+        vec![
+            schema::SynthesisOutput {
+                summary: "First part.".into(),
+                key_points: (0..n / 2).map(point).collect(),
+                ..Default::default()
+            },
+            schema::SynthesisOutput {
+                summary: "Second part.".into(),
+                key_points: (n / 2..n).map(point).collect(),
+                ..Default::default()
+            },
+        ]
+    }
+
+    fn chosen(text: &str, from: &[i64]) -> schema::CondensedPoint {
+        schema::CondensedPoint {
+            text: text.into(),
+            from: from.to_vec(),
         }
     }
 
@@ -342,6 +504,130 @@ mod tests {
         let (g, r) = generate(&p, &m, |_| {}).unwrap();
         assert!(g.decisions.is_empty());
         assert_eq!(r.fabricated, 1);
+    }
+
+    #[test]
+    fn a_long_meeting_ends_with_the_few_key_points_that_matter() {
+        let m = meeting_with_lines(800);
+        let p = StubProvider::new(two_windows_of_points(49)).condensing(schema::CondenseOutput {
+            summary: "The whole meeting, in one.".into(),
+            key_points: vec![
+                chosen("points one and two, merged", &[1, 2]),
+                chosen("point 40", &[40]),
+            ],
+        });
+
+        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+
+        assert_eq!(p.condense_calls(), 1);
+        assert_eq!(g.summary, "The whole meeting, in one.");
+        assert_eq!(g.key_points.len(), 2);
+        // Evidence is rebuilt from the sources, never taken from the model.
+        assert_eq!(
+            g.key_points[0].evidence.segment_ids,
+            vec!["mic_0001", "mic_0002"]
+        );
+        assert_eq!(g.key_points[1].evidence.segment_ids, vec!["mic_0040"]);
+        // The strongest source's confidence.
+        assert!((g.key_points[0].confidence - 2.0 / 49.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_final_pass_cannot_keep_more_than_the_cap() {
+        let m = meeting_with_lines(800);
+        let many = (0..30)
+            .map(|i| chosen(&format!("kept {i}"), &[i]))
+            .collect();
+        let p = StubProvider::new(two_windows_of_points(30)).condensing(schema::CondenseOutput {
+            summary: "s".into(),
+            key_points: many,
+        });
+
+        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        assert_eq!(g.key_points.len(), prompt::KEY_POINTS_MAX);
+    }
+
+    #[test]
+    fn a_point_with_no_real_source_is_dropped_not_trusted() {
+        let m = meeting_with_lines(800);
+        let p = StubProvider::new(two_windows_of_points(20)).condensing(schema::CondenseOutput {
+            summary: "s".into(),
+            key_points: vec![
+                chosen("real", &[3]),
+                chosen("out of range", &[99]),
+                chosen("negative", &[-1]),
+                chosen("   ", &[4]),
+            ],
+        });
+
+        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        let texts: Vec<&str> = g.key_points.iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(texts, vec!["real"]);
+    }
+
+    #[test]
+    fn without_a_final_pass_the_strongest_points_survive_in_meeting_order() {
+        let m = meeting_with_lines(800);
+        // No `condensing`: the pass is unsupported, as a failure would be.
+        let p = StubProvider::new(two_windows_of_points(49));
+
+        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+
+        assert_eq!(g.key_points.len(), prompt::KEY_POINTS_MAX);
+        let texts: Vec<&str> = g.key_points.iter().map(|c| c.text.as_str()).collect();
+        // Confidence rises with the index, so the last ten, still in order.
+        let expected: Vec<String> = (39..49).map(|i| format!("point {i}")).collect();
+        assert_eq!(
+            texts,
+            expected.iter().map(String::as_str).collect::<Vec<_>>()
+        );
+        // The parts' summaries are kept rather than lost.
+        assert_eq!(g.summary, "First part. Second part.");
+    }
+
+    #[test]
+    fn a_pass_that_chooses_nothing_usable_falls_back() {
+        let m = meeting_with_lines(800);
+        let p = StubProvider::new(two_windows_of_points(20)).condensing(schema::CondenseOutput {
+            summary: String::new(),
+            key_points: vec![chosen("nothing real", &[500])],
+        });
+
+        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        assert_eq!(g.key_points.len(), prompt::KEY_POINTS_MAX);
+        assert_eq!(
+            g.summary, "First part. Second part.",
+            "an empty summary is not used"
+        );
+    }
+
+    #[test]
+    fn a_short_meeting_needs_no_final_pass() {
+        let m = meeting_with_lines(2);
+        let p = StubProvider::new(vec![schema::SynthesisOutput {
+            summary: "One part.".into(),
+            key_points: (0..8)
+                .map(|i| claim(&format!("p{i}"), &["mic_0000"]))
+                .collect(),
+            ..Default::default()
+        }]);
+
+        let mut combining = false;
+        let (g, _) = generate(&p, &m, |x| combining |= x.combining).unwrap();
+        assert_eq!(p.condense_calls(), 0);
+        assert!(!combining);
+        assert_eq!(g.key_points.len(), 8);
+    }
+
+    #[test]
+    fn the_final_pass_is_reported_as_combining() {
+        let m = meeting_with_lines(800);
+        let p = StubProvider::new(two_windows_of_points(20));
+
+        let mut progress = Vec::new();
+        generate(&p, &m, |x| progress.push(x.combining)).unwrap();
+        assert_eq!(progress.last(), Some(&true));
+        assert_eq!(progress.iter().filter(|c| **c).count(), 1);
     }
 
     #[test]

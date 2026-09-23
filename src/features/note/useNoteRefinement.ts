@@ -20,7 +20,7 @@ import {
 export type RefinementStage =
   | { kind: "idle" }
   | { kind: "transcribed" }
-  | { kind: "summarising"; window: number; total: number }
+  | { kind: "summarising"; window: number; total: number; combining: boolean }
   | { kind: "generated"; result: NotesGenerated }
   | { kind: "failed"; message: string };
 
@@ -60,7 +60,12 @@ export function useNoteRefinement(path: string, onReload: (text: string) => void
     });
 
     track(onSynthesisProgress, (p) => {
-      setStage({ kind: "summarising", window: p.window, total: p.total });
+      setStage({
+        kind: "summarising",
+        window: p.window,
+        total: p.total,
+        combining: p.combining ?? false,
+      });
     });
 
     track(onNotesGenerated, (result) => {

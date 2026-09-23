@@ -16,7 +16,7 @@
         [ OK ] CONTEXT BUFFER
         [ -- ] AWAITING SESSION
 
-        TRACE // BUILD 0.2.0
+        TRACE // BUILD 0.3.0
 
 · · · · · · · · · · · · · · · · · · · · · · · ·
 ```
@@ -94,21 +94,36 @@ cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
 
 ### Update your installed copy
 
-TRACE is installed from an installer you build yourself. To update it:
+TRACE is installed from an installer you build yourself. To update it, open
+PowerShell in the trace folder:
 
 ```powershell
-pnpm update-app          # pull main, build, close TRACE, launch the installer
-pnpm update-app -Yes     # the same, without asking before closing TRACE
+cd C:\Users\nfbco\Documents\GITHUB\TRACE\trace
+pnpm update-app -Check   # what would an update bring? Changes nothing
+pnpm update-app          # update
 ```
 
-The script stops with a clear message before touching anything if there are
-uncommitted changes, the pull fails, or the build fails, so a failed update
-leaves the TRACE you have working. It only closes TRACE once a fresh
-installer exists, and asks first, because closing it mid-meeting ends the
-recording.
+`-Check` fetches from GitHub and shows the version you have installed, the
+version on `main`, and the commits in between, then stops. Use it to decide
+whether an update is worth a few minutes.
 
-To run it from any folder as `Update-Trace`, add this to your PowerShell
-profile (`notepad $PROFILE`; create the file if it does not exist):
+`pnpm update-app` shows the same, then asks **"Build now?"** before doing
+anything slow. It pulls `main`, installs dependencies and builds; TRACE stays
+usable during the build. It then asks again before closing TRACE — closing it
+mid-meeting ends the recording — and opens the new installer. Add `-Yes` to
+skip both questions.
+
+It stops with a clear message, and nothing installed, if there are
+uncommitted changes, the pull fails, or the build fails.
+
+`pnpm open-installers` opens the folder the installers are built into
+(`src-tauri\target\release\bundle\nsis`) and names the newest.
+
+#### Optional: update from any folder
+
+To type `Update-Trace` (and `Update-Trace -Check`) anywhere instead of
+changing folder first, add this to your PowerShell profile
+(`notepad $PROFILE`; create the file if it does not exist):
 
 ```powershell
 function Update-Trace {
@@ -120,9 +135,6 @@ function Update-Trace {
 Then run `. $PROFILE`, or open a new terminal. If PowerShell refuses to load
 the profile ("running scripts is disabled on this system"), allow local
 scripts once with `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
-
-`pnpm open-installers` opens the folder the installers are built into
-(`src-tauri\target\release\bundle\nsis`) and names the newest.
 
 ### Versions
 

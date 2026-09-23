@@ -246,20 +246,46 @@ fn collapse_repeats(text: &str) -> String {
     out.join(" ")
 }
 
-/// Prompt for merging several windows' summaries into one.
+/// Fewest key points the final pass is asked for.
+pub const KEY_POINTS_MIN: usize = 6;
+/// Most key points a note keeps. A one-hour meeting once produced 49 — every
+/// window's list stacked — which is a transcript index, not a summary.
+pub const KEY_POINTS_MAX: usize = 10;
+
+pub const CONDENSE_SYSTEM_PROMPT: &str = "\
+You condense notes from one meeting into what someone who missed it needs. \
+You are precise and conservative.
+
+Rules:
+- Use only what is in the input. Add nothing.
+- Every key point lists the numbers of the input points it came from.
+- Write in plain past tense. Do not mention that the meeting was summarised \
+in parts.";
+
+/// Prompt for the final pass over a meeting summarised in several windows.
 ///
-/// Input here is summaries, not transcript, so it is small regardless of how
-/// long the meeting was.
-pub fn consolidation_prompt(summaries: &[String]) -> String {
-    let mut out = String::from(
-        "These are summaries of consecutive parts of one meeting. Write a \
-         single summary of the whole meeting.\n\n\
-         Do not add anything that is not in the parts. Do not mention that the \
-         meeting was summarised in parts.\n\n",
-    );
+/// Input is the windows' summaries and key points, not transcript, so it
+/// stays small however long the meeting was. Key points are numbered so the
+/// answer can refer to them; see `schema::CondenseOutput` for why.
+pub fn condense_prompt(summaries: &[String], key_points: &[String]) -> String {
+    let mut out =
+        String::from("These are notes from consecutive parts of one meeting.\n\nSUMMARIES\n\n");
     for (i, s) in summaries.iter().enumerate() {
         out.push_str(&format!("PART {}\n{}\n\n", i + 1, s.trim()));
     }
+
+    out.push_str("KEY POINTS\n\n");
+    for (i, p) in key_points.iter().enumerate() {
+        out.push_str(&format!("[{i}] {}\n", p.trim()));
+    }
+
+    out.push_str(&format!(
+        "\nWrite one summary of the whole meeting in three to five sentences.\n\n\
+         Then choose the {KEY_POINTS_MIN} to {KEY_POINTS_MAX} key points that matter most. \
+         Merge points that say the same thing into one. Fewer is right if the \
+         meeting had less substance. For each, give its text and the numbers of \
+         the points above it came from.\n"
+    ));
     out
 }
 
@@ -527,11 +553,18 @@ mod tests {
     }
 
     #[test]
-    fn consolidation_takes_summaries_not_transcript() {
-        let p = consolidation_prompt(&["First half.".into(), "Second half.".into()]);
-        assert!(p.contains("PART 1"));
-        assert!(p.contains("First half."));
-        assert!(p.contains("PART 2"));
-        assert!(p.contains("Do not add anything"));
+    fn the_final_pass_numbers_key_points_and_keeps_every_part() {
+        let p = condense_prompt(
+            &["First half.".into(), "Second half.".into()],
+            &[
+                "Pricing moves to three tiers".into(),
+                "Hiring paused".into(),
+            ],
+        );
+        assert!(p.contains("PART 1\nFirst half."));
+        assert!(p.contains("PART 2\nSecond half."));
+        assert!(p.contains("[0] Pricing moves to three tiers"));
+        assert!(p.contains("[1] Hiring paused"));
+        assert!(p.contains(&format!("{KEY_POINTS_MIN} to {KEY_POINTS_MAX}")));
     }
 }

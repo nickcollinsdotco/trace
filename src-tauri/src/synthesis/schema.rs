@@ -136,6 +136,58 @@ pub fn json_schema() -> serde_json::Value {
     })
 }
 
+/// What the final pass over a long meeting returns.
+///
+/// Key points name their sources by number rather than carrying citations of
+/// their own. The model may reword and merge, but the evidence of each result
+/// is rebuilt from the points it came from, so it cannot cite anything that
+/// was not already cited — and validation still checks every id afterwards.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CondenseOutput {
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub key_points: Vec<CondensedPoint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CondensedPoint {
+    pub text: String,
+    /// Indices into the list of key points the pass was given.
+    #[serde(default)]
+    pub from: Vec<i64>,
+}
+
+/// Schema for the final pass. Structure only — none of the optional keywords
+/// some Ollama versions refuse — because a refusal here would cost the whole
+/// pass for a list that is short and bounded by the caller anyway.
+pub fn condense_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "summary": { "type": "string" },
+            "key_points": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "text": { "type": "string" },
+                        "from": {
+                            "type": "array",
+                            "items": { "type": "integer", "minimum": 0 },
+                            "minItems": 1
+                        }
+                    },
+                    "required": ["text", "from"],
+                    "additionalProperties": false
+                }
+            }
+        },
+        "required": ["summary", "key_points"],
+        "additionalProperties": false
+    })
+}
+
 /// How much of the schema's optional constraints an Ollama can take.
 ///
 /// Ollama turns the schema into a decoding grammar, and which JSON Schema
@@ -309,6 +361,19 @@ mod tests {
         assert_eq!(FormatLevel::from_index(1), FormatLevel::NoPattern);
         // A stored index past the end means the loosest, never a panic.
         assert_eq!(FormatLevel::from_index(9), FormatLevel::Relaxed);
+    }
+
+    #[test]
+    fn the_final_pass_schema_names_sources_by_number_and_nothing_optional() {
+        let s = condense_schema();
+        let from = &s["properties"]["key_points"]["items"]["properties"]["from"];
+        assert_eq!(from["items"]["type"], "integer");
+        assert_eq!(from["minItems"], 1);
+        // Nothing a stricter Ollama has been seen to refuse.
+        let text = s.to_string();
+        for key in ["pattern", "maxLength", "maxItems"] {
+            assert!(!text.contains(key), "{key}");
+        }
     }
 
     #[test]

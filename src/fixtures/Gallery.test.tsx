@@ -311,7 +311,9 @@ describe("Gallery", () => {
   it("copies a diagnostics report that says what is on the GPU", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await openScenario(user, "About");
+    // The model is only in memory while TRACE needs it, so the report is
+    // opened mid-job: that is when "why is this using memory" gets asked.
+    await openScenario(user, "About, notes being written");
     // Where someone checking their version looks next for how to update.
     expect(await screen.findByText("pnpm update-app")).toBeInTheDocument();
 
@@ -458,7 +460,19 @@ describe("Gallery", () => {
     expect(mine).toHaveAttribute("aria-pressed", "true");
   }, 10_000);
 
-  it("says what the summary model is holding in memory", async () => {
+  it("says what the summary model is holding in memory while notes are written", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Two meetings queued");
+
+    const bar = await screen.findByRole("contentinfo");
+    await user.click(await within(bar).findByRole("button", { name: /qwen3:14b/ }));
+    const panel = screen.getByRole("dialog", { name: "Summary model" });
+    expect(await within(panel).findByText(/in memory · 10\.5 GiB/)).toBeInTheDocument();
+    expect(within(panel).getByText(/until \d/)).toBeInTheDocument();
+  });
+
+  it("shows nothing in memory once no meeting or notes need the model", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
     await openScenario(user, "Meetings");
@@ -466,8 +480,10 @@ describe("Gallery", () => {
     const bar = await screen.findByRole("contentinfo");
     await user.click(await within(bar).findByRole("button", { name: /qwen3:14b/ }));
     const panel = screen.getByRole("dialog", { name: "Summary model" });
-    expect(await within(panel).findByText(/in memory · 10\.5 GiB/)).toBeInTheDocument();
-    expect(within(panel).getByText(/until \d/)).toBeInTheDocument();
+    // The installed list and what is in memory arrive in one answer, so the
+    // list being there means the absence below is real, not still loading.
+    await within(panel).findByRole("button", { name: /qwen3:14b/ });
+    expect(within(panel).queryByText(/in memory/)).not.toBeInTheDocument();
   });
 
   it("shows the first-run report with measured facts, not placeholders", async () => {

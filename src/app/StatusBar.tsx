@@ -262,10 +262,11 @@ function SummaryPicker({
 /**
  * A model Ollama is holding in memory, and until when.
  *
- * Ollama keeps the model loaded after notes are written — for hours when it
- * was warmed at the start of a meeting — which is several gigabytes a user
- * on a video call will notice and not be able to explain. This says where it
- * went and when it comes back.
+ * Several gigabytes a user on a video call will notice and not be able to
+ * explain. TRACE holds the model only through a meeting and its notes, and
+ * releases it straight after, so this is normally seen only then — or for a
+ * model something other than TRACE loaded. The time is Ollama's own; while
+ * TRACE holds a model it keeps pushing it back.
  */
 function InMemory({ model }: { model: LoadedModel }) {
   const until = model.expiresAt ? new Date(model.expiresAt) : null;

@@ -205,6 +205,7 @@ export const DEFAULT_STATE: BackendState = {
     "2026-09-23 10:41:38 meeting ended: 412 live segments, 0 characters of notes",
     "2026-09-23 10:44:02 summarising with qwen3:14b",
     "2026-09-23 10:45:10 summary written in 68s: 6 key points, 2 decisions, 4 action items, 1 discarded",
+    "2026-09-23 10:45:10 summary model qwen3:14b released from memory",
   ],
 };
 
@@ -245,19 +246,25 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
   // What the real backend derives: the active flags follow the choice.
   const activeSummary = () => (llm.state === "ready" ? llm.model : null);
 
-  // Resident after the last notes, for a while — as Ollama keeps it.
-  const loaded = () =>
-    llm.state === "ready"
+  // Resident only while TRACE needs it, as the real backend holds it: through
+  // a meeting when Settings keeps it ready, and while notes are being written.
+  // Released straight after, so an idle library shows nothing in memory. The
+  // lease is renewed while held, so "until" is always minutes away.
+  const loaded = () => {
+    const meeting = startedAt !== null && settings.summaryMemory === "during_meetings";
+    const writing = jobs.some((j) => j.outcome === null);
+    return llm.state === "ready" && (meeting || writing)
       ? [
           {
             name: llm.model,
             sizeBytes: 11_274_289_152,
             vramBytes: 11_274_289_152,
             contextLength: 8192,
-            expiresAt: new Date(Date.now() + 4 * 60_000).toISOString(),
+            expiresAt: new Date(Date.now() + 8 * 60_000).toISOString(),
           },
         ]
       : [];
+  };
   const tags: Record<string, string[]> = { ...state.tags };
 
   const bodies: Record<string, string> = { ...state.bodies };

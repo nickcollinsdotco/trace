@@ -16,7 +16,7 @@
         [ OK ] CONTEXT BUFFER
         [ -- ] AWAITING SESSION
 
-        TRACE // BUILD 0.1.0
+        TRACE // BUILD 0.2.0
 
 · · · · · · · · · · · · · · · · · · · · · · · ·
 ```
@@ -91,6 +91,58 @@ pnpm dev           # frontend only, in a browser
 pnpm verify        # lint + typecheck + tests
 cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
 ```
+
+### Update your installed copy
+
+TRACE is installed from an installer you build yourself. To update it:
+
+```powershell
+pnpm update-app          # pull main, build, close TRACE, launch the installer
+pnpm update-app -Yes     # the same, without asking before closing TRACE
+```
+
+The script stops with a clear message before touching anything if there are
+uncommitted changes, the pull fails, or the build fails, so a failed update
+leaves the TRACE you have working. It only closes TRACE once a fresh
+installer exists, and asks first, because closing it mid-meeting ends the
+recording.
+
+To run it from any folder as `Update-Trace`, add this to your PowerShell
+profile (`notepad $PROFILE`; create the file if it does not exist):
+
+```powershell
+function Update-Trace {
+    powershell.exe -NoProfile -ExecutionPolicy Bypass `
+        -File "C:\Users\nfbco\Documents\GITHUB\TRACE\trace\scripts\update.ps1" @args
+}
+```
+
+Then run `. $PROFILE`, or open a new terminal. If PowerShell refuses to load
+the profile ("running scripts is disabled on this system"), allow local
+scripts once with `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
+`pnpm open-installers` opens the folder the installers are built into
+(`src-tauri\target\release\bundle\nsis`) and names the newest.
+
+### Versions
+
+Each release gets its own version, so installers and the running app can be
+told apart. The version appears in the app's status bar and on its About
+page, and names the installer (`TRACE_0.2.0_x64-setup.exe`).
+
+```bash
+pnpm bump            # 0.2.0 -> 0.2.1, for fixes
+pnpm bump minor      # 0.2.0 -> 0.3.0, for features
+pnpm bump 1.0.0      # an exact version
+```
+
+It updates `package.json`, `src-tauri/tauri.conf.json`,
+`src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` and the banner above, and a
+test fails if any of them drift apart. Commit the bump with the change it
+ships.
+
+In-app updates, like Handy's "Update available", are a later option: see
+the updater entry in [docs/10-BACKLOG.md](docs/10-BACKLOG.md).
 
 ## Documentation
 

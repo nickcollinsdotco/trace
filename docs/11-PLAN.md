@@ -208,6 +208,7 @@ unblocks the thing that unblocks the themes.
 | **Code signing** | **Blocked on a decision only you can make.** See below |
 | Clean-machine install | Not yet done |
 | Fully-offline run | Not yet done |
+| Updating an install | **Done.** `pnpm update-app` pulls, builds and launches the installer; `pnpm bump` versions each build. In-app updates wait on signing — see `10-BACKLOG.md` |
 
 ### Code signing needs a purchase, so it is your call
 

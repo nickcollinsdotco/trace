@@ -45,6 +45,14 @@ cargo test
 Everything must be green. Report failures with their output rather than
 around them.
 
+## Shipping a change
+
+The user updates their installed copy with `pnpm update-app`, and tells
+builds apart by version. So a PR that changes what the app does runs
+`pnpm bump` (patch for fixes, `minor` for features) and commits it with the
+change. `src/lib/version.test.ts` fails if the five copies of the version
+drift apart.
+
 ## Shape
 
 ```

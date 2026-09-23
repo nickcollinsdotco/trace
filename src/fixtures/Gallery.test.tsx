@@ -16,12 +16,37 @@ import { SCENARIOS } from "./scenarios";
 
 afterEach(cleanup);
 
+/**
+ * Pick a scenario from the gallery's own list.
+ *
+ * Scoped to that list because the app's sidebar is always on screen now, and
+ * "Meetings" or "About" is both a scenario and a place in the app.
+ */
+async function openScenario(user: ReturnType<typeof userEvent.setup>, name: string) {
+  const list = screen.getByRole("navigation", { name: "Scenarios" });
+  await user.click(within(list).getByRole("button", { name }));
+}
+
+/**
+ * One model's card on the Models page, found by its name.
+ *
+ * By card rather than by "the nth Download button": the speech and summary
+ * lists load independently, so how many buttons exist at any instant is a
+ * race, and a test that counts them passes or fails on timing.
+ */
+async function modelCard(name: string): Promise<HTMLElement> {
+  const title = await screen.findByText(name, { selector: ".trace-title" });
+  const card = title.closest<HTMLElement>("[data-model-card]");
+  if (!card) throw new Error(`no card around ${name}`);
+  return card;
+}
+
 async function openEvery() {
   const user = userEvent.setup();
   render(<Gallery />);
 
   for (const scenario of SCENARIOS) {
-    await user.click(screen.getByRole("button", { name: scenario.name }));
+    await openScenario(user, scenario.name);
     // The preview is keyed by scenario id, so this is a real remount.
     await waitFor(() => expect(screen.getByText(scenario.note)).toBeInTheDocument());
   }
@@ -46,7 +71,7 @@ describe("Gallery", () => {
   it("shows the real library contents, not a placeholder", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
 
     // Rendered by the actual LibraryScreen from fixture data.
     await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
@@ -74,7 +99,7 @@ describe("Gallery", () => {
   it("lands directly in the live recording state", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Recording" }));
+    await openScenario(user, "Recording");
 
     // The live screen, not the setup panel — no Start required.
     await waitFor(() => expect(screen.getByText("Stop meeting")).toBeInTheDocument());
@@ -91,7 +116,7 @@ describe("Gallery", () => {
   it("shows the processing indicator with real numbers behind it", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Transcribing" }));
+    await openScenario(user, "Transcribing");
 
     await waitFor(() => expect(screen.getByText("transcribing")).toBeInTheDocument());
     expect(screen.getByText(/3.4s buffered/)).toBeInTheDocument();
@@ -100,7 +125,7 @@ describe("Gallery", () => {
   it("distinguishes listening from transcribing", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Listening" }));
+    await openScenario(user, "Listening");
 
     // inFlight is 0 here: speech is buffered but the model is not running.
     await waitFor(() => expect(screen.getByText("listening")).toBeInTheDocument());
@@ -110,7 +135,7 @@ describe("Gallery", () => {
   it("still offers the setup panel where that is the point", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Before recording" }));
+    await openScenario(user, "Before recording");
 
     await waitFor(() => expect(screen.getByText("Start meeting")).toBeInTheDocument());
     expect(screen.queryByText("Stop meeting")).toBeNull();
@@ -119,7 +144,7 @@ describe("Gallery", () => {
   it("opens a note with nothing typed on the summary side, not a dead end", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "No notes, no summary" }));
+    await openScenario(user, "No notes, no summary");
 
     // Ollama is closed in this scenario, so the button waits on it and the
     // notice says why — rather than a button that fails when pressed.
@@ -133,15 +158,15 @@ describe("Gallery", () => {
     const user = userEvent.setup();
     render(<Gallery />);
 
-    await user.click(screen.getByRole("button", { name: "Ollama closed" }));
+    await openScenario(user, "Ollama closed");
     expect(await screen.findByText("Ollama isn’t running")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Ollama" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Ollama has no model" }));
+    await openScenario(user, "Ollama has no model");
     expect(await screen.findByText("ollama pull qwen3:8b")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open Ollama" })).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
     await screen.findByText("Pricing page rework");
     expect(screen.queryByText(/Notes offline/i)).toBeNull();
   });
@@ -150,7 +175,7 @@ describe("Gallery", () => {
     localStorage.clear();
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
 
     const gist = /agreed it is doing too much at once/;
     expect(await screen.findByText(gist)).toBeInTheDocument();
@@ -169,7 +194,7 @@ describe("Gallery", () => {
   it("shows both models and the build in the status bar", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
 
     const bar = await screen.findByRole("contentinfo");
     await waitFor(() => expect(bar).toHaveTextContent("Parakeet TDT 0.6B v3 (int8)"));
@@ -181,35 +206,112 @@ describe("Gallery", () => {
   it("says in the status bar when summaries are offline", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Ollama closed" }));
+    await openScenario(user, "Ollama closed");
 
     const bar = await screen.findByRole("contentinfo");
     await waitFor(() => expect(bar).toHaveTextContent("Ollama closed"));
   });
 
-  it("opens the menu, marks where you are, and closes on Escape", async () => {
+  it("marks the current page in the sidebar", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
 
-    const trigger = screen.getByRole("button", { name: /Menu/ });
-    await user.click(trigger);
-    const nav = screen.getByRole("navigation", { name: "App" });
-    expect(within(nav).getByRole("button", { name: /Diagnostics/ })).toBeInTheDocument();
+    await openScenario(user, "Meetings");
+    const nav = await screen.findByRole("navigation", { name: "App" });
     expect(within(nav).getByRole("button", { name: /Meetings/ })).toHaveAttribute(
       "aria-current",
       "page",
     );
 
+    await openScenario(user, "Models");
+    const again = await screen.findByRole("navigation", { name: "App" });
+    expect(within(again).getByRole("button", { name: /Models/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(again).getByRole("button", { name: /Meetings/ })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("switches the speech model from the status bar, and closes on Escape", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Meetings");
+
+    const bar = await screen.findByRole("contentinfo");
+    const trigger = await within(bar).findByRole("button", { name: /Parakeet TDT 0.6B v3/ });
+    await user.click(trigger);
+    const panel = screen.getByRole("dialog", { name: "Transcription model" });
+    expect(within(panel).getByRole("button", { name: /Manage models/ })).toBeInTheDocument();
+
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("navigation", { name: "App" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Transcription model" })).toBeNull();
     expect(trigger).toHaveFocus();
+  });
+
+  it("switches the summary model from the status bar", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Meetings");
+
+    const bar = await screen.findByRole("contentinfo");
+    await user.click(await within(bar).findByRole("button", { name: /qwen3:14b/ }));
+    const panel = screen.getByRole("dialog", { name: "Summary model" });
+    await user.click(await within(panel).findByRole("button", { name: /qwen3:8b/ }));
+
+    await waitFor(() => expect(bar).toHaveTextContent("qwen3:8b"));
+    expect(screen.queryByRole("dialog", { name: "Summary model" })).toBeNull();
+  });
+
+  it("downloads a speech model with progress, then offers to use it", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Models");
+
+    const card = await modelCard("Parakeet TDT 0.6B v2 (int8)");
+    await user.click(within(card).getByRole("button", { name: "Download" }));
+    expect(await within(card).findByRole("status", { name: "Downloading" })).toBeInTheDocument();
+    // v3 is in use and v2 now installed, so v2 offers "Use".
+    expect(
+      await screen.findByRole("button", { name: "Use" }, { timeout: 5_000 }),
+    ).toBeInTheDocument();
+  });
+
+  it("downloads a summary model through Ollama with progress", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Models, nothing in Ollama");
+
+    const card = await modelCard("qwen3:14b");
+    // No terminal command: the downloads on the page are the fix.
+    expect(screen.queryByText(/ollama pull/)).toBeNull();
+    await user.click(within(card).getByRole("button", { name: "Download" }));
+    expect(await within(card).findByRole("status", { name: "Downloading" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("● In use")).toBeInTheDocument(), {
+      timeout: 5_000,
+    });
+  });
+
+  it("re-themes from the Appearance page", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Gallery />);
+    await openScenario(user, "Appearance");
+
+    const main = await screen.findByRole("main");
+    const card = await within(main).findByRole("button", { name: /industrial/ });
+    await user.click(card);
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-theme="industrial"]')).not.toBeNull();
+    });
+    expect(card).toHaveAttribute("aria-pressed", "true");
   });
 
   it("copies a diagnostics report that says what is on the GPU", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Diagnostics" }));
+    await openScenario(user, "About");
 
     // Each appears twice: in its section, and in the collapsed plain-text copy.
     expect((await screen.findAllByText(/100% on GPU/)).length).toBeGreaterThan(0);
@@ -226,7 +328,7 @@ describe("Gallery", () => {
   it("disables regeneration when the journal is gone", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Cannot be regenerated" }));
+    await openScenario(user, "Cannot be regenerated");
 
     const regenerate = await screen.findByRole("button", { name: "↻" });
     await waitFor(() => expect(regenerate).toBeDisabled());
@@ -236,7 +338,7 @@ describe("Gallery", () => {
   it("still offers regeneration when the journal survives", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Enhanced note" }));
+    await openScenario(user, "Enhanced note");
 
     const regenerate = await screen.findByRole("button", { name: "↻" });
     await waitFor(() => expect(regenerate).toBeEnabled());
@@ -245,7 +347,7 @@ describe("Gallery", () => {
   it("shows the first-run report with measured facts, not placeholders", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Machine report" }));
+    await openScenario(user, "Machine report");
 
     await waitFor(() => expect(screen.getByText("NICK-DESKTOP")).toBeInTheDocument());
     expect(screen.getByText(/Ryzen 7 7800X3D/)).toBeInTheDocument();
@@ -261,7 +363,7 @@ describe("Gallery", () => {
     // is telling the truth about this machine is the worst place to overclaim.
     const user = userEvent.setup();
     const { container } = render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Machine report" }));
+    await openScenario(user, "Machine report");
 
     await waitFor(() => expect(screen.getByText("NICK-DESKTOP")).toBeInTheDocument());
     const text = container.textContent ?? "";
@@ -269,13 +371,13 @@ describe("Gallery", () => {
     expect(text).toMatch(/ONNX Runtime/);
   });
 
-  it("offers keeping the audio, off by default, with the disk cost stated", async () => {
+  it("deletes audio by default, and says what keeping it costs", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Before recording" }));
+    await openScenario(user, "Before recording");
 
-    const toggle = await screen.findByRole("checkbox");
-    expect(toggle).not.toBeChecked();
+    const retention = await screen.findByRole("combobox", { name: "Keep audio" });
+    expect(retention).toHaveValue("delete");
     // "Keep audio" without the figure is a choice made blind.
     expect(screen.getByText(/690 MB per hour/)).toBeInTheDocument();
   });
@@ -283,11 +385,12 @@ describe("Gallery", () => {
   it("reflects what the backend stored, not what the click assumed", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Before recording" }));
+    await openScenario(user, "Before recording");
 
-    const toggle = await screen.findByRole("checkbox");
-    await user.click(toggle);
-    await waitFor(() => expect(toggle).toBeChecked());
+    const retention = await screen.findByRole("combobox", { name: "Keep audio" });
+    await user.selectOptions(retention, "keep_latest");
+    await waitFor(() => expect(retention).toHaveValue("keep_latest"));
+    expect(screen.getByRole("spinbutton", { name: /Number of meetings/ })).toHaveValue(5);
   });
 
   it("offers rename and delete on a meeting", async () => {
@@ -295,7 +398,7 @@ describe("Gallery", () => {
     // with no way to tidy it.
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
 
     await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
     expect(screen.getAllByRole("button", { name: "Rename" }).length).toBeGreaterThan(0);
@@ -306,7 +409,7 @@ describe("Gallery", () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
     await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
 
     // The row order matches the fixture list; the second is "Pricing page rework".
@@ -320,7 +423,7 @@ describe("Gallery", () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
     await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
 
     await user.click(screen.getAllByRole("button", { name: "Delete" })[1] as HTMLElement);
@@ -333,7 +436,7 @@ describe("Gallery", () => {
   it("offers discarding a recording in progress", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Recording" }));
+    await openScenario(user, "Recording");
 
     await waitFor(() => expect(screen.getByText("Stop meeting")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
@@ -345,7 +448,7 @@ describe("Gallery", () => {
     // between parts.
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Enhanced note" }));
+    await openScenario(user, "Enhanced note");
 
     await waitFor(() =>
       expect(screen.getByRole("heading", { level: 1, name: /Pricing page rework/ })).toBeVisible(),
@@ -359,7 +462,7 @@ describe("Gallery", () => {
     // text-overflow do not apply to non-replaced inline elements.
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
 
     // The title span is made `block` for exactly that reason, and its button
     // must be allowed to shrink or there is nothing to truncate against.
@@ -372,7 +475,7 @@ describe("Gallery", () => {
   it("searches transcripts, not just titles, and says why each matched", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
     await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
 
     // "comparison" appears only in a transcript line, never in a title.
@@ -385,7 +488,7 @@ describe("Gallery", () => {
   it("requires every term to appear", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
     await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
 
     await user.type(screen.getByRole("searchbox"), "pricing elephant");
@@ -396,7 +499,7 @@ describe("Gallery", () => {
   it("restores the grouped list when the query is cleared", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
     await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
 
     const box = screen.getByRole("searchbox");
@@ -412,7 +515,7 @@ describe("Gallery", () => {
   it("shows a note's tags and lets one be added", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Enhanced note" }));
+    await openScenario(user, "Enhanced note");
 
     await waitFor(() => expect(screen.getByRole("button", { name: "pricing" })).toBeVisible());
     await user.click(screen.getByRole("button", { name: "+ Tag" }));
@@ -427,7 +530,7 @@ describe("Gallery", () => {
   it("removes a tag", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Enhanced note" }));
+    await openScenario(user, "Enhanced note");
 
     await waitFor(() => expect(screen.getByRole("button", { name: "client" })).toBeVisible());
     await user.click(screen.getByRole("button", { name: "Remove tag client" }));
@@ -440,7 +543,7 @@ describe("Gallery", () => {
   it("narrows to tagged notes with tag:", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await openScenario(user, "Meetings");
     await waitFor(() => expect(screen.getByText("Monday standup")).toBeInTheDocument());
 
     await user.type(screen.getByRole("searchbox"), "tag:client");

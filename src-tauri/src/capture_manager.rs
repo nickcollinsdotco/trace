@@ -101,6 +101,9 @@ struct Active {
     live: Option<Arc<LiveTranscriber>>,
     pump_stop: Arc<AtomicBool>,
     pump: Option<JoinHandle<()>>,
+    /// Chosen when the meeting starts and used for its re-pass too, so
+    /// switching models mid-meeting cannot give one transcript two engines.
+    speech: &'static crate::models::ModelSpec,
 }
 
 /// The application's capture state. One meeting at a time, by design.
@@ -171,13 +174,18 @@ impl CaptureManager {
         // run until the meeting ends, but the first load after a cold boot
         // takes about a minute, and paying it during the meeting means the
         // user never waits for it afterwards.
-        if let Some(provider) = default_provider() {
-            crate::synthesis::ollama::warm(provider.model());
+        if crate::settings::load().summary_memory == crate::settings::SummaryMemory::DuringMeetings
+        {
+            if let Some(provider) = default_provider() {
+                crate::synthesis::ollama::warm(provider.model());
+            }
         }
 
         // Load the transcription engine before capture starts. It takes about
         // a second, and doing it afterwards would miss the opening.
-        let live = Transcriber::load()
+        let speech = crate::models::active_speech_model();
+        diagnostics::log(format!("transcribing with {}", speech.display_name));
+        let live = Transcriber::load_model(speech)
             .ok()
             .map(LiveTranscriber::start)
             .map(Arc::new);
@@ -220,6 +228,7 @@ impl CaptureManager {
             live,
             pump_stop,
             pump: Some(pump),
+            speech,
         });
 
         Ok(status)
@@ -415,7 +424,13 @@ impl CaptureManager {
         // The session directory is deliberately NOT discarded here — the
         // re-pass still needs the WAVs and the journal.
 
-        spawn_repass(app, active.dir.clone(), note_path.clone(), summary.clone());
+        spawn_repass(
+            app,
+            active.dir.clone(),
+            note_path.clone(),
+            summary.clone(),
+            active.speech,
+        );
 
         Ok(FinishedMeeting {
             meeting,
@@ -568,20 +583,36 @@ fn default_provider() -> Option<crate::synthesis::ollama::OllamaProvider> {
 /// on the happy path and be quietly ignored on a failing one, which is
 /// exactly the case it exists to help debug.
 fn release_session_audio(session_dir: &std::path::Path) {
-    if crate::settings::load().keep_audio {
-        return;
+    use crate::settings::AudioRetention;
+
+    match crate::settings::load().audio_retention() {
+        AudioRetention::KeepAll => {}
+        AudioRetention::Delete => {
+            let _ = store::discard_session_audio(session_dir);
+        }
+        // This meeting is the newest, so it survives; older ones make room.
+        AudioRetention::KeepLatest { count } => {
+            if let Some(root) = session_dir.parent() {
+                store::prune_session_audio(root, count as usize);
+            }
+        }
     }
-    let _ = store::discard_session_audio(session_dir);
 }
 
 /// disk stays valid, so a failed re-pass simply leaves it as it was.
-fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summary: SessionSummary) {
+fn spawn_repass(
+    app: AppHandle,
+    session_dir: PathBuf,
+    note_path: PathBuf,
+    summary: SessionSummary,
+    speech: &'static crate::models::ModelSpec,
+) {
     std::thread::Builder::new()
         .name("trace-repass".into())
         .spawn(move || {
             // Loading a second engine only after the live one has been dropped
             // keeps peak memory to one model rather than two.
-            let mut engine = match Transcriber::load() {
+            let mut engine = match Transcriber::load_model(speech) {
                 Ok(engine) => engine,
                 Err(e) => {
                     diagnostics::log(format!("re-pass skipped, engine did not load: {e}"));

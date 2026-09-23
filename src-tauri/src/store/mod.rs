@@ -145,6 +145,51 @@ pub fn discard_session_audio(session_dir: &std::path::Path) -> Result<(), StoreE
     Ok(())
 }
 
+/// Delete audio from all but the newest `keep` sessions that still have it.
+///
+/// Called after each meeting under "keep latest N". Only audio goes; journals
+/// stay, so every note can still be regenerated.
+pub fn prune_session_audio(sessions_root: &std::path::Path, keep: usize) {
+    let Ok(entries) = std::fs::read_dir(sessions_root) else {
+        return;
+    };
+    let with_audio: Vec<String> = entries
+        .flatten()
+        .filter(|e| has_audio(&e.path()))
+        .filter_map(|e| e.file_name().to_str().map(str::to_string))
+        .collect();
+
+    for id in sessions_to_strip(with_audio, keep) {
+        let _ = discard_session_audio(&sessions_root.join(id));
+    }
+}
+
+fn has_audio(dir: &std::path::Path) -> bool {
+    std::fs::read_dir(dir).is_ok_and(|entries| {
+        entries
+            .flatten()
+            .any(|e| e.path().extension().is_some_and(|x| x == "wav"))
+    })
+}
+
+/// Which sessions lose their audio, oldest first.
+///
+/// Session ids are `sess-<epoch millis>`, so the number orders them. Sorted
+/// numerically rather than as text, which would put `sess-999` after
+/// `sess-1000`; anything unparseable sorts as oldest, so an unknown directory
+/// is never what survives at the expense of a real recording.
+pub fn sessions_to_strip(mut with_audio: Vec<String>, keep: usize) -> Vec<String> {
+    let age = |id: &String| {
+        id.strip_prefix("sess-")
+            .and_then(|n| n.parse::<u64>().ok())
+            .unwrap_or(0)
+    };
+    with_audio.sort_by_key(age);
+    let strip = with_audio.len().saturating_sub(keep);
+    with_audio.truncate(strip);
+    with_audio
+}
+
 /// Locate the journal behind a saved note.
 ///
 /// The note's frontmatter carries the session id it came from, which is what
@@ -229,6 +274,37 @@ mod tests {
         let mut m = crate::meeting::Meeting::new(id, title);
         m.date = "2026-09-06".into();
         m
+    }
+
+    #[test]
+    fn only_the_newest_recordings_keep_their_audio() {
+        let ids = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let strip = sessions_to_strip(ids(&["sess-1000", "sess-999", "sess-3000", "sess-2000"]), 2);
+        // Numeric, not lexical: sess-999 is the oldest.
+        assert_eq!(strip, ids(&["sess-999", "sess-1000"]));
+        assert!(sessions_to_strip(ids(&["sess-1"]), 5).is_empty());
+        assert_eq!(
+            sessions_to_strip(ids(&["sess-1", "junk"]), 1),
+            ids(&["junk"])
+        );
+    }
+
+    #[test]
+    fn pruning_removes_audio_and_keeps_the_journal() {
+        let root = scratch("prune");
+        for id in ["sess-100", "sess-200", "sess-300"] {
+            let dir = root.join(id);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("mic.wav"), b"x").unwrap();
+            std::fs::write(dir.join("session.jsonl"), b"{}").unwrap();
+        }
+
+        prune_session_audio(&root, 1);
+
+        assert!(!root.join("sess-100/mic.wav").exists());
+        assert!(!root.join("sess-200/mic.wav").exists());
+        assert!(root.join("sess-300/mic.wav").exists());
+        assert!(root.join("sess-100/session.jsonl").exists(), "journal kept");
     }
 
     #[test]

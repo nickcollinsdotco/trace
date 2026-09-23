@@ -1,5 +1,5 @@
 import { formatBytes } from "../../lib/format";
-import type { DiagnosticsReport, LlmStatus, LoadedModel } from "../../lib/ipc";
+import type { AudioRetention, DiagnosticsReport, LlmStatus, LoadedModel } from "../../lib/ipc";
 
 /** One line for the summary model's state, as a person would say it. */
 export function describeLlm(llm: LlmStatus): string {
@@ -10,6 +10,17 @@ export function describeLlm(llm: LlmStatus): string {
       return `running, no model installed (suggested: ${llm.suggested})`;
     case "not_running":
       return "not running";
+  }
+}
+
+export function describeRetention(r: AudioRetention): string {
+  switch (r.mode) {
+    case "delete":
+      return "deleted once notes are written";
+    case "keep_latest":
+      return `kept for the latest ${r.count} meeting${r.count === 1 ? "" : "s"}`;
+    case "keep_all":
+      return "kept for every meeting";
   }
 }
 
@@ -48,7 +59,8 @@ export function formatReport(r: DiagnosticsReport): string {
     ...(r.loadedModels.length === 0
       ? ["Loaded        none"]
       : r.loadedModels.map((m, i) => `${i === 0 ? "Loaded" : ""}`.padEnd(14) + describeLoaded(m))),
-    `Keep audio    ${r.keepAudio ? "on" : "off"}`,
+    `Audio         ${describeRetention(r.audioRetention)}`,
+    `LLM memory    ${r.summaryMemory === "while_writing" ? "only while writing" : "during meetings"}`,
     `Notes         ${r.notesRoot}`,
     `Log           ${r.logDir}`,
     "",

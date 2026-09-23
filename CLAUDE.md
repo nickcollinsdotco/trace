@@ -49,8 +49,8 @@ around them.
 
 ```
 src/                    React 19 + TS strict + Tailwind v4 (CSS-first @theme)
-  app/                  shell, routing (a union, not a router), first-run gate
-  features/             capture, library, note, firstrun
+  app/                  shell (sidebar + status bar), routing (a union, not a router), first-run gate
+  features/             capture, library, note, firstrun, models, appearance, settings, about
   design/               tokens.css, themes.css, type.css, terminal.css
   fixtures/             the gallery — every screen, every state, no recording
   lib/ipc.ts            the ONLY place Tauri commands are named
@@ -74,9 +74,13 @@ docs/                   specs, plan (11), visual triage (12), backlog (10)
   checkboxes are read back. Regeneration replays the journal instead.
 - **Synthesis must cite.** Claims whose evidence ids do not resolve are
   dropped, and the count is shown to the user rather than hidden.
-- **Audio is deleted after synthesis** unless the keep-audio setting is on.
-  Turn it on before investigating anything transcription-related, or the
-  evidence is gone by the time you look.
+- **Audio is deleted after synthesis** unless Settings → Audio keeps it (for
+  the latest N meetings, or all). Turn it on before investigating anything
+  transcription-related, or the evidence is gone by the time you look.
+- **Speech models are all Parakeet exports** (v3 multilingual, v2 English),
+  so one engine serves them and the chunker and citations need no per-model
+  logic. A model on a different engine is a different project — see the
+  transcribe.cpp entry in `docs/10-BACKLOG.md` before adding one.
 
 ## Diagnostics that already exist
 
@@ -91,7 +95,7 @@ Sessions live in `~/Documents/TRACE/.sessions/`.
 
 The app keeps an event log at `%LOCALAPPDATA%\TRACE\logs\trace.log` —
 meetings started and ended, per-stream drop counts, summary timings and
-failures, panics. **Menu → Diagnostics** shows it with the machine and model
+failures, panics. **About → Diagnostics** shows it with the machine and model
 state, and copies the lot as text; ask for that report before guessing. Log
 events and counts only, never transcript text or notes (`diagnostics.rs`).
 

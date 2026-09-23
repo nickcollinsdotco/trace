@@ -138,6 +138,9 @@ pub struct ModelSpec {
     /// interrupted halfway is reported as incomplete instead of appearing
     /// installed and failing later at load time.
     pub required_files: &'static [&'static str],
+    /// One line for the model picker: what it is for, not a benchmark.
+    pub summary: &'static str,
+    pub languages: &'static str,
 }
 
 /// Parakeet TDT 0.6B v3, int8 ONNX.
@@ -154,13 +157,81 @@ pub const PARAKEET_V3_INT8: ModelSpec = ModelSpec {
     display_name: "Parakeet TDT 0.6B v3 (int8)",
     archive_url: "https://blob.handy.computer/parakeet-v3-int8.tar.gz",
     approx_download_bytes: 478_517_071,
-    required_files: &[
-        "encoder-model.int8.onnx",
-        "decoder_joint-model.int8.onnx",
-        "nemo128.onnx",
-        "vocab.txt",
-    ],
+    required_files: PARAKEET_FILES,
+    summary: "Fast and accurate, and handles 25 European languages",
+    languages: "25 European languages",
 };
+
+/// Both Parakeet exports ship the same four files; only the weights differ.
+const PARAKEET_FILES: &[&str] = &[
+    "encoder-model.int8.onnx",
+    "decoder_joint-model.int8.onnx",
+    "nemo128.onnx",
+    "vocab.txt",
+];
+
+/// Parakeet TDT 0.6B v2, int8 ONNX. English only.
+///
+/// Offered beside v3 rather than instead of it: for English-only meetings it
+/// is at least as accurate and slightly faster, and it runs through the same
+/// engine, so choosing it changes weights and nothing else — no new code path
+/// for the chunker or citations to be wrong about.
+///
+/// Parakeet Unified EN was evaluated as the English choice and turned down:
+/// it returns one unpunctuated segment, and TRACE cites segments as evidence.
+/// See `docs/10-BACKLOG.md`.
+pub const PARAKEET_V2_INT8: ModelSpec = ModelSpec {
+    id: "parakeet-tdt-0.6b-v2-int8",
+    display_name: "Parakeet TDT 0.6B v2 (int8)",
+    archive_url: "https://blob.handy.computer/parakeet-v2-int8.tar.gz",
+    approx_download_bytes: 473_000_000,
+    required_files: PARAKEET_FILES,
+    summary: "The most accurate for English-only meetings",
+    languages: "English only",
+};
+
+/// Every speech model TRACE can use, default first.
+pub const SPEECH_MODELS: &[ModelSpec] = &[PARAKEET_V3_INT8, PARAKEET_V2_INT8];
+
+/// A speech model by id.
+pub fn find(id: &str) -> Option<&'static ModelSpec> {
+    SPEECH_MODELS.iter().find(|m| m.id == id)
+}
+
+/// The speech model meetings are transcribed with.
+pub fn active_speech_model() -> &'static ModelSpec {
+    choose_speech_model(
+        crate::settings::load().speech_model.as_deref(),
+        is_installed,
+    )
+}
+
+/// The chosen model when it is installed, else the first installed, else the
+/// chosen one anyway so first run knows what to download.
+///
+/// Falling back to another installed model rather than failing means deleting
+/// the chosen model can never leave a meeting without a transcript while a
+/// working one sits on disk.
+pub fn choose_speech_model(
+    chosen: Option<&str>,
+    installed: impl Fn(&ModelSpec) -> bool,
+) -> &'static ModelSpec {
+    let chosen = chosen.and_then(find);
+    chosen
+        .filter(|m| installed(m))
+        .or_else(|| SPEECH_MODELS.iter().find(|m| installed(m)))
+        .or(chosen)
+        .unwrap_or(&SPEECH_MODELS[0])
+}
+
+/// Remove an installed speech model from disk.
+pub fn delete(spec: &ModelSpec) -> Result<(), ModelError> {
+    let dir = model_dir(spec)?;
+    if dir.exists() {
+        fs::remove_dir_all(dir)?;
+    }
+    Ok(())
+}
 
 /// Root directory for all TRACE model data.
 pub fn models_root() -> Result<PathBuf, ModelError> {
@@ -215,6 +286,43 @@ pub fn require_installed(spec: &ModelSpec) -> Result<PathBuf, ModelError> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_chosen_speech_model_wins_when_installed() {
+        let m = super::choose_speech_model(Some("parakeet-tdt-0.6b-v2-int8"), |_| true);
+        assert_eq!(m.id, "parakeet-tdt-0.6b-v2-int8");
+    }
+
+    #[test]
+    fn a_missing_choice_falls_back_to_one_that_is_installed() {
+        let only_v3 = |m: &super::ModelSpec| m.id == "parakeet-tdt-0.6b-v3-int8";
+        let m = super::choose_speech_model(Some("parakeet-tdt-0.6b-v2-int8"), only_v3);
+        assert_eq!(m.id, "parakeet-tdt-0.6b-v3-int8");
+    }
+
+    #[test]
+    fn with_nothing_installed_the_choice_is_what_first_run_downloads() {
+        let m = super::choose_speech_model(Some("parakeet-tdt-0.6b-v2-int8"), |_| false);
+        assert_eq!(m.id, "parakeet-tdt-0.6b-v2-int8");
+        // No choice, or an unknown one, means the default.
+        assert_eq!(
+            super::choose_speech_model(None, |_| false).id,
+            super::SPEECH_MODELS[0].id
+        );
+        assert_eq!(
+            super::choose_speech_model(Some("whisper"), |_| false).id,
+            super::SPEECH_MODELS[0].id
+        );
+    }
+
+    #[test]
+    fn speech_model_ids_are_unique_and_findable() {
+        let ids: std::collections::HashSet<_> = super::SPEECH_MODELS.iter().map(|m| m.id).collect();
+        assert_eq!(ids.len(), super::SPEECH_MODELS.len());
+        for m in super::SPEECH_MODELS {
+            assert_eq!(super::find(m.id).map(|f| f.id), Some(m.id));
+        }
+    }
+
     #[test]
     fn an_offline_download_says_so_instead_of_suggesting_a_retry() {
         // The exact text ureq produces varies; what matters is that a

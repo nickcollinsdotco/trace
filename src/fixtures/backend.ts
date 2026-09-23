@@ -20,8 +20,11 @@ import {
   type LlmStatus,
   type ModelStatus,
   type NoteSummary,
+  type OfferedModel,
   type RecoverableSession,
   type Settings,
+  type SpeechModel,
+  type SummaryModel,
   type SystemReport,
 } from "../lib/ipc";
 import type { AudioSource } from "../lib/types";
@@ -79,6 +82,11 @@ export interface BackendState {
   appInfo: AppInfo;
   /** Log lines the diagnostics screen shows, oldest first. */
   recentLog: string[];
+  speechModels: SpeechModel[];
+  /** Models Ollama has, when it is running. */
+  summaryInstalled: SummaryModel[];
+  /** What the Models page offers to download. */
+  summaryOffered: Omit<OfferedModel, "installed">[];
 }
 
 export const DEFAULT_STATE: BackendState = {
@@ -120,10 +128,58 @@ export const DEFAULT_STATE: BackendState = {
     diskFreeBytes: 222_290_000_000,
     installed: false,
   },
-  settings: { keepAudio: false },
+  settings: {
+    // The real default, so tests of "off by default" test the truth.
+    audioRetention: { mode: "delete" },
+    speechModel: "parakeet-tdt-0.6b-v3-int8",
+    summaryModel: null,
+    summaryMemory: "during_meetings",
+    defaultMic: null,
+  },
   failures: {},
   llm: { state: "ready", model: "qwen3:14b" },
   appInfo: { version: "0.1.0", devBuild: true },
+  speechModels: [
+    {
+      id: "parakeet-tdt-0.6b-v3-int8",
+      name: "Parakeet TDT 0.6B v3 (int8)",
+      summary: "Fast and accurate, and handles 25 European languages",
+      languages: "25 European languages",
+      downloadBytes: 478_517_071,
+      installed: true,
+      active: true,
+    },
+    {
+      id: "parakeet-tdt-0.6b-v2-int8",
+      name: "Parakeet TDT 0.6B v2 (int8)",
+      summary: "The most accurate for English-only meetings",
+      languages: "English only",
+      downloadBytes: 473_000_000,
+      installed: false,
+      active: false,
+    },
+  ],
+  summaryInstalled: [
+    { name: "qwen3:14b", sizeBytes: 9_276_198_565, parameters: "14.8B", active: true },
+    { name: "qwen3:8b", sizeBytes: 5_225_387_923, parameters: "8.2B", active: false },
+  ],
+  summaryOffered: [
+    {
+      name: "qwen3:14b",
+      summary: "Best notes. Wants about 11 GB of video memory",
+      approxBytes: 9_300_000_000,
+    },
+    {
+      name: "qwen3:8b",
+      summary: "Good notes on most machines. About 6.5 GB of video memory",
+      approxBytes: 5_200_000_000,
+    },
+    {
+      name: "gemma3:12b",
+      summary: "An alternative voice for comparison. About 10 GB of video memory",
+      approxBytes: 8_100_000_000,
+    },
+  ],
   recentLog: [
     "2026-09-23 09:58:02 TRACE 0.1.0 started",
     "2026-09-23 10:00:11 meeting started, microphone: Microphone (Yeti X)",
@@ -166,6 +222,11 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
   let model = state.model;
   let settings = state.settings;
   let llm = state.llm;
+  let speechModels = state.speechModels.map((m) => ({ ...m }));
+  let summaryInstalled = state.summaryInstalled.map((m) => ({ ...m }));
+
+  // What the real backend derives: the active flags follow the choice.
+  const activeSummary = () => (llm.state === "ready" ? llm.model : null);
   const tags: Record<string, string[]> = { ...state.tags };
 
   const emit = (event: string, payload: unknown) => {
@@ -226,16 +287,77 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return model;
         case "get_settings":
           return settings;
-        case "set_keep_audio":
-          settings = { keepAudio: Boolean(args?.keep) };
+        case "set_audio_retention":
+          settings = { ...settings, audioRetention: args?.retention as Settings["audioRetention"] };
           return settings;
-        case "system_report":
-          return state.systemReport;
-        case "install_model":
-          return simulateDownload(emit).then(() => {
-            model = { ...model, installed: true };
+        case "set_summary_memory":
+          settings = { ...settings, summaryMemory: args?.memory as Settings["summaryMemory"] };
+          return settings;
+        case "set_default_mic":
+          settings = { ...settings, defaultMic: (args?.name as string | null) ?? null };
+          return settings;
+
+        case "speech_models":
+          return speechModels;
+        case "set_speech_model": {
+          const id = args?.id as string;
+          speechModels = speechModels.map((m) => ({ ...m, active: m.id === id }));
+          settings = { ...settings, speechModel: id };
+          return settings;
+        }
+        case "delete_speech_model": {
+          const id = args?.id as string;
+          speechModels = speechModels.map((m) => (m.id === id ? { ...m, installed: false } : m));
+          return null;
+        }
+
+        case "summary_models": {
+          const running = llm.state !== "not_running";
+          const installed = running
+            ? summaryInstalled.map((m) => ({ ...m, active: m.name === activeSummary() }))
+            : [];
+          return {
+            llm,
+            installed,
+            recommended: state.summaryOffered.map((r) => ({
+              ...r,
+              installed: installed.some((m) => m.name === r.name),
+            })),
+          };
+        }
+        case "set_summary_model": {
+          const name = args?.name as string;
+          llm = { state: "ready", model: name };
+          settings = { ...settings, summaryModel: name };
+          return settings;
+        }
+        case "pull_summary_model": {
+          const name = args?.name as string;
+          return simulatePull(emit, name).then(() => {
+            const offered = state.summaryOffered.find((r) => r.name === name);
+            summaryInstalled = [
+              ...summaryInstalled,
+              { name, sizeBytes: offered?.approxBytes ?? 0, parameters: null, active: false },
+            ];
+            if (llm.state === "no_model") llm = { state: "ready", model: name };
             return null;
           });
+        }
+        case "open_folder":
+          return `C:\\Users\\you\\${String(args?.kind)}`;
+        case "system_report":
+          return state.systemReport;
+        case "install_model": {
+          const id = (args?.id as string | null) ?? undefined;
+          return simulateDownload(emit, id).then(() => {
+            if (id) {
+              speechModels = speechModels.map((m) => (m.id === id ? { ...m, installed: true } : m));
+            } else {
+              model = { ...model, installed: true };
+            }
+            return null;
+          });
+        }
 
         case "start_capture": {
           startedAt = Date.now();
@@ -339,8 +461,6 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return llm;
         case "app_info":
           return state.appInfo;
-        case "open_logs_folder":
-          return "C:\\Users\\you\\AppData\\Local\\TRACE\\logs";
         case "diagnostics_report": {
           const report: DiagnosticsReport = {
             appVersion: state.appInfo.version,
@@ -367,7 +487,8 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
                   ]
                 : [],
             contextTokens: 8192,
-            keepAudio: settings.keepAudio,
+            audioRetention: settings.audioRetention,
+            summaryMemory: settings.summaryMemory,
             notesRoot: state.root,
             logDir: "C:\\Users\\you\\AppData\\Local\\TRACE\\logs",
             recent: state.recentLog,
@@ -427,20 +548,41 @@ function status(
   };
 }
 
+/** Ollama's pull, stepped, so the Models page progress bar can be watched. */
+function simulatePull(
+  emit: (event: string, payload: unknown) => void,
+  model: string,
+): Promise<null> {
+  return new Promise((resolve) => {
+    let percent = 0;
+    const id = window.setInterval(() => {
+      percent = Math.min(100, percent + 9);
+      emit(EVENT.summaryPull, { model, percent });
+      if (percent === 100) {
+        window.clearInterval(id);
+        resolve(null);
+      }
+    }, 120);
+  });
+}
+
 /** Walks the download through its phases so the boot sequence can be watched. */
-function simulateDownload(emit: (event: string, payload: unknown) => void): Promise<null> {
+function simulateDownload(
+  emit: (event: string, payload: unknown) => void,
+  model?: string,
+): Promise<null> {
   return new Promise((resolve) => {
     let percent = 0;
     const id = window.setInterval(() => {
       percent += 7;
       if (percent < 100) {
-        emit(EVENT.modelProgress, { phase: "downloading", percent });
+        emit(EVENT.modelProgress, { model, phase: "downloading", percent });
         return;
       }
       window.clearInterval(id);
-      emit(EVENT.modelProgress, { phase: "verifying", percent: 100 });
+      emit(EVENT.modelProgress, { model, phase: "verifying", percent: 100 });
       window.setTimeout(() => {
-        emit(EVENT.modelProgress, { phase: "done", percent: 100 });
+        emit(EVENT.modelProgress, { model, phase: "done", percent: 100 });
         resolve(null);
       }, 700);
     }, 140);

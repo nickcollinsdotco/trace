@@ -22,7 +22,7 @@ use transcribe_rs::onnx::Quantization;
 use self::chunker::{chunk_by_silence, ChunkConfig};
 use crate::audio::resample::{to_16k, TARGET_SAMPLE_RATE};
 use crate::audio::StreamSource;
-use crate::models::{require_installed, ModelError, PARAKEET_V3_INT8};
+use crate::models::{require_installed, ModelError, ModelSpec};
 
 #[derive(Debug, thiserror::Error)]
 pub enum TranscribeError {
@@ -71,9 +71,15 @@ pub struct Transcriber {
 }
 
 impl Transcriber {
-    /// Load the default engine from the installed model directory.
+    /// Load the speech model the user has chosen.
     pub fn load() -> Result<Self, TranscribeError> {
-        let dir = require_installed(&PARAKEET_V3_INT8)?;
+        Self::load_model(crate::models::active_speech_model())
+    }
+
+    /// Load a specific speech model. Every one TRACE offers is a Parakeet
+    /// export, so one engine serves them all.
+    pub fn load_model(spec: &ModelSpec) -> Result<Self, TranscribeError> {
+        let dir = require_installed(spec)?;
         let model = ParakeetModel::load(&dir, &Quantization::Int8)
             .map_err(|e| TranscribeError::Engine(e.to_string()))?;
         Ok(Self { model })

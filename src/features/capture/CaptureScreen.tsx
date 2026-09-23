@@ -10,6 +10,7 @@ import {
   SystemLabel,
 } from "../../components/ui/terminal";
 import { type DeviceInfo, hasBackend, ipc, type LiveSegment } from "../../lib/ipc";
+import { AudioRetentionField } from "../settings/AudioRetentionField";
 import { useCapture } from "./useCapture";
 
 /**
@@ -29,12 +30,22 @@ export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => v
 
   useEffect(() => {
     if (!hasBackend()) return;
-    void ipc.listInputDevices().then((list) => {
-      setDevices(list);
-      // Pre-select the default so the common case needs no interaction.
-      setMicDevice(list.find((d) => d.isDefault)?.name ?? list[0]?.name ?? null);
-    });
+    void Promise.all([ipc.listInputDevices(), ipc.getSettings().catch(() => null)]).then(
+      ([list, settings]) => {
+        setDevices(list);
+        // The remembered microphone if it is plugged in, else the system's
+        // default, so the common case needs no interaction.
+        const remembered = list.find((d) => d.name === settings?.defaultMic)?.name;
+        setMicDevice(remembered ?? list.find((d) => d.isDefault)?.name ?? list[0]?.name ?? null);
+      },
+    );
   }, []);
+
+  function chooseMic(name: string) {
+    setMicDevice(name);
+    // Remembered, so the next meeting starts on the same one.
+    void ipc.setDefaultMic(name).catch(() => {});
+  }
 
   // "Just start typing" — focus the notes field the moment recording begins.
   useEffect(() => {
@@ -77,7 +88,7 @@ export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => v
         onTitleChange={setTitle}
         devices={devices}
         micDevice={micDevice}
-        onMicChange={setMicDevice}
+        onMicChange={chooseMic}
         starting={capture.starting}
         error={capture.error}
         onStart={() => capture.start(title, micDevice)}
@@ -254,7 +265,10 @@ function SetupPanel({
           )}
         </label>
 
-        <KeepAudioToggle />
+        <div className="flex flex-col gap-2">
+          <SystemLabel>Audio after notes are written</SystemLabel>
+          <AudioRetentionField />
+        </div>
 
         {error && <Banner tone="error">{error}</Banner>}
 
@@ -344,53 +358,4 @@ function Banner({ tone, children }: { tone: "warn" | "error"; children: React.Re
 function toDb(level: number): number | undefined {
   if (level <= 0) return undefined;
   return 20 * Math.log10(level);
-}
-
-/**
- * Whether to keep the raw audio after this meeting is finalised.
- *
- * On the setup panel rather than behind a settings screen, because it is a
- * decision about the meeting you are about to record and it costs real disk:
- * roughly 690 MB per hour of dual-stream capture. Stating the figure is the
- * point — "keep audio" without it is a choice made blind.
- *
- * The persisted value is what the checkbox shows, so a failed write cannot
- * leave the UI claiming something the backend did not store.
- */
-function KeepAudioToggle() {
-  const [keep, setKeep] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    if (!hasBackend()) return;
-    void ipc
-      .getSettings()
-      .then((s) => setKeep(s.keepAudio))
-      .catch(() => setKeep(false));
-  }, []);
-
-  if (keep === null) return null;
-
-  return (
-    <label className="flex cursor-pointer items-start gap-3">
-      <input
-        type="checkbox"
-        checked={keep}
-        onChange={(e) => {
-          const next = e.target.checked;
-          void ipc
-            .setKeepAudio(next)
-            .then((s) => setKeep(s.keepAudio))
-            .catch(() => {});
-        }}
-        className="mt-0.5 size-3.5 shrink-0 accent-phosphor"
-      />
-      <span className="flex flex-col gap-0.5">
-        <SystemLabel tone="muted">Keep audio</SystemLabel>
-        <span className="text-2xs text-ink-faint">
-          Recordings are deleted once notes are written. Keep them to re-check a transcript — about
-          690 MB per hour.
-        </span>
-      </span>
-    </label>
-  );
 }

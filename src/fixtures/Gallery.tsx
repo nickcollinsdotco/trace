@@ -16,8 +16,10 @@
  *      tooling.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Shell } from "../app/Shell";
+import type { Page } from "../app/Sidebar";
+import { AppearanceContext, type AppearanceControl } from "../design/appearance";
 import {
   applyTheme,
   CASE_NOTES,
@@ -40,11 +42,14 @@ import {
   type TypeRole,
   themeForKey,
 } from "../design/theme";
+import { AboutScreen } from "../features/about/AboutScreen";
+import { AppearanceScreen } from "../features/appearance/AppearanceScreen";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
-import { DiagnosticsScreen } from "../features/diagnostics/DiagnosticsScreen";
 import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
+import { ModelsScreen } from "../features/models/ModelsScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
+import { SettingsScreen } from "../features/settings/SettingsScreen";
 import { installFakeBackend } from "../lib/ipc";
 import { makeBackend } from "./backend";
 import { SCENARIOS, type Scenario, scenarioById } from "./scenarios";
@@ -80,11 +85,57 @@ export function Gallery() {
    * returns. `useMemo` is the earliest correct hook for that, and installing
    * is idempotent, so StrictMode's double render is harmless.
    */
-  useMemo(() => {
-    installFakeBackend(scenario ? makeBackend(scenario.state) : null);
+  const backend = useMemo(() => {
+    const fake = scenario ? makeBackend(scenario.state) : null;
+    installFakeBackend(fake);
+    return fake;
   }, [scenario]);
 
-  useEffect(() => () => installFakeBackend(null), []);
+  /*
+   * Reinstalled on mount, not only removed on unmount, and in a *layout*
+   * effect.
+   *
+   * StrictMode mounts, unmounts and remounts in development. With only an
+   * unmount cleanup, that removed the backend the memo had installed, the memo
+   * did not run again, and the first scenario opened on "no backend" every
+   * time the gallery loaded. A plain effect is no fix: the screens' own
+   * effects run before their parent's, so they would fetch in the gap between
+   * this cleanup and the reinstall. Layout effects all run before any plain
+   * effect, which closes the gap on both a remount and a scenario change.
+   */
+  useLayoutEffect(() => {
+    installFakeBackend(backend);
+    return () => installFakeBackend(null);
+  }, [backend]);
+
+  /*
+   * The Appearance page, driven by the gallery's own controls. Picking a card
+   * in the preview re-themes the preview, exactly as it re-themes the app.
+   */
+  const appearance: AppearanceControl = {
+    appearance: {
+      theme,
+      overrides: {
+        frame: frame ?? undefined,
+        mono: mono ?? undefined,
+        role: role ?? undefined,
+        case: letterCase ?? undefined,
+      },
+    },
+    setTheme,
+    setAxis: (axis, value) => {
+      if (axis === "frame") setFrame((value as Frame | undefined) ?? null);
+      if (axis === "mono") setMono((value as Mono | undefined) ?? null);
+      if (axis === "role") setRole((value as TypeRole | undefined) ?? null);
+      if (axis === "case") setLetterCase((value as LetterCase | undefined) ?? null);
+    },
+    reset: () => {
+      setFrame(null);
+      setMono(null);
+      setRole(null);
+      setLetterCase(null);
+    },
+  };
 
   useEffect(() => {
     if (preview.current) {
@@ -120,7 +171,10 @@ export function Gallery() {
 
   return (
     <div className="flex h-full bg-[#17171a] text-[#d8d8dc]">
-      <nav className="flex w-56 shrink-0 flex-col gap-5 overflow-y-auto border-r border-white/10 p-4">
+      <nav
+        aria-label="Scenarios"
+        className="flex w-56 shrink-0 flex-col gap-5 overflow-y-auto border-r border-white/10 p-4"
+      >
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-white/40">
             TRACE gallery
@@ -225,7 +279,11 @@ export function Gallery() {
               screen would keep the state it had built up under the previous
               fixture, and show something that has never existed.
             */}
-            {scenario && <Preview key={scenario.id} scenario={scenario} />}
+            {scenario && (
+              <AppearanceContext.Provider value={appearance}>
+                <Preview key={scenario.id} scenario={scenario} />
+              </AppearanceContext.Provider>
+            )}
           </div>
         </div>
       </div>
@@ -241,20 +299,16 @@ function Preview({ scenario }: { scenario: Scenario }) {
   }
 
   const noop = () => {};
+  const current: Page | null = scenario.screen === "note" ? null : scenario.screen;
   return (
-    <Shell
-      onHome={noop}
-      onOpenDiagnostics={noop}
-      menu={[
-        { label: "Meetings", onSelect: noop, current: scenario.screen === "library" },
-        { label: "New meeting", onSelect: noop, current: scenario.screen === "capture" },
-        { label: "Diagnostics", onSelect: noop, current: scenario.screen === "diagnostics" },
-      ]}
-    >
+    <Shell current={current} onNavigate={noop}>
       {scenario.screen === "library" && <LibraryScreen onNewMeeting={noop} onOpenNote={noop} />}
       {scenario.screen === "capture" && <CaptureScreen onFinish={noop} />}
       {scenario.screen === "note" && <NoteScreen path={scenario.notePath ?? ""} onBack={noop} />}
-      {scenario.screen === "diagnostics" && <DiagnosticsScreen />}
+      {scenario.screen === "models" && <ModelsScreen />}
+      {scenario.screen === "appearance" && <AppearanceScreen />}
+      {scenario.screen === "settings" && <SettingsScreen />}
+      {scenario.screen === "about" && <AboutScreen />}
     </Shell>
   );
 }

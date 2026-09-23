@@ -1,6 +1,6 @@
 {
   "name": "trace",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local-first meeting capture and intelligence. Conversations leave traces.",
   "license": "MIT",
   "private": true,
@@ -27,7 +27,10 @@
     "format": "biome format --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify": "pnpm lint && pnpm check && pnpm test"
+    "verify": "pnpm lint && pnpm check && pnpm test",
+    "update-app": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update.ps1",
+    "open-installers": "node scripts/open-installers.mjs",
+    "bump": "node scripts/bump.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5",

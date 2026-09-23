@@ -320,6 +320,36 @@ From Handy's settings: **remove filler words** as a toggle, and **VAD on/off**
 so raw audio can be recorded when someone is debugging. Both are small and
 neither depends on transcribe.cpp.
 
+## In-app updates — later, after code signing
+
+**Idea.** An "Update available" notice in the status bar, as Handy has, that
+downloads and installs a new version from inside the app.
+
+**Today.** `pnpm update-app` pulls, builds and launches the installer locally
+(`scripts/update.ps1`), and `pnpm bump` gives each build its own version.
+That is enough while TRACE has one user who builds it from source.
+
+**What the real thing needs**, in order:
+
+1. **The code-signing decision** (`docs/11-PLAN.md`, M8). Everything below
+   depends on it. Windows SmartScreen warns on every unsigned download, and an
+   updater that triggers that warning on each release is worse than no updater.
+2. **Signed release builds published to GitHub Releases** — a CI workflow that
+   builds on Windows, signs, and uploads the installer with a `latest.json`
+   manifest.
+3. **Tauri's updater plugin** (`tauri-plugin-updater`), configured with the
+   manifest URL and an update-signing key pair. This key is separate from the
+   Windows certificate: it proves an update came from us, and losing it means
+   no installed copy can ever update again. It must live somewhere safer than
+   a laptop.
+4. **The UI**: a status-bar notice and an About entry, following the same
+   "say it, do not hide it" rule as the Ollama notice.
+
+**Why not now.** It is the one feature that would make TRACE contact the
+network on its own. That has to be a visible, opt-out setting, not a default
+added in passing — the product promise is that nothing needs a network after
+setup.
+
 ## Library and meeting management
 
 Raised 2026-09-06 after real use. **Discard, rename and delete are built**;

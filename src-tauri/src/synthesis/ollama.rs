@@ -10,7 +10,7 @@
 
 use std::time::Duration;
 
-use super::schema::{json_schema, SynthesisOutput};
+use super::schema::{json_schema, relaxed, SynthesisOutput};
 use super::{prompt, LlmProvider, SynthesisError};
 
 /// Local-only. Not configurable, by design.
@@ -299,13 +299,42 @@ impl LlmProvider for OllamaProvider {
 
 impl OllamaProvider {
     fn attempt(&self, user_prompt: &str) -> Result<SynthesisOutput, SynthesisError> {
+        let strict = json_schema();
+        match self.request(user_prompt, &strict) {
+            // A 400 is Ollama refusing the request before generating, and the
+            // one part of the request that varies by Ollama version is what
+            // the grammar converter accepts. So try once more without the
+            // optional constraints rather than producing nothing.
+            Err(Rejected(reason)) => {
+                crate::diagnostics::log(format!(
+                    "Ollama rejected the strict format ({reason}); retrying without length and \
+                     id constraints"
+                ));
+                self.request(user_prompt, &relaxed(&strict))
+                    .map_err(|e| match e {
+                        Rejected(reason) => SynthesisError::Request(format!(
+                            "Ollama rejected the request: {reason}"
+                        )),
+                        Failed(e) => e,
+                    })
+            }
+            Err(Failed(e)) => Err(e),
+            Ok(output) => Ok(output),
+        }
+    }
+
+    fn request(
+        &self,
+        user_prompt: &str,
+        format: &serde_json::Value,
+    ) -> Result<SynthesisOutput, Attempt> {
         let request = serde_json::json!({
             "model": self.model,
             "system": prompt::SYSTEM_PROMPT,
             "prompt": user_prompt,
             "stream": false,
             // Applied as a decoding grammar, not a suggestion.
-            "format": json_schema(),
+            "format": format,
             "options": {
                 // Low but not zero. Deterministic decoding under a grammar can
                 // get stuck repeating a structure; a little entropy avoids
@@ -319,24 +348,41 @@ impl OllamaProvider {
         let response = ureq::post(&format!("{HOST}/api/generate"))
             .config()
             .timeout_global(Some(REQUEST_TIMEOUT))
+            // Error statuses are read rather than raised, because Ollama puts
+            // the reason in the body. Raised, a rejection arrived as a bare
+            // "http status: 400", which says nothing about what to fix.
+            .http_status_as_error(false)
             .build()
             .send_json(&request)
             .map_err(|e| {
                 // The most likely failure by far is that Ollama is not
                 // running, so say that rather than surfacing a socket error.
-                if !Self::service_running() {
+                Failed(if !Self::service_running() {
                     SynthesisError::Unavailable(
                         "Ollama is not running. Start it and try again.".into(),
                     )
                 } else {
                     SynthesisError::Request(e.to_string())
-                }
+                })
             })?;
 
-        let body: serde_json::Value = response
+        let status = response.status().as_u16();
+        let text = response
             .into_body()
-            .read_json()
-            .map_err(|e| SynthesisError::Malformed(e.to_string()))?;
+            .read_to_string()
+            .map_err(|e| SynthesisError::Request(e.to_string()))?;
+
+        if status != 200 {
+            let reason = ollama_error(&text, status);
+            return Err(if status == 400 {
+                Rejected(reason)
+            } else {
+                Failed(SynthesisError::Request(reason))
+            });
+        }
+
+        let body: serde_json::Value =
+            serde_json::from_str(&text).map_err(|e| SynthesisError::Malformed(e.to_string()))?;
 
         // Ollama trims an oversized prompt rather than rejecting it, and says
         // so only in its own log. How many prompt tokens it read is the one
@@ -348,7 +394,8 @@ impl OllamaProvider {
             return Err(SynthesisError::Request(format!(
                 "this part of the meeting was too long for the model to read and still answer \
                  ({read} of {NUM_CTX} tokens)"
-            )));
+            ))
+            .into());
         }
 
         // Said plainly, because the parse error it would otherwise become
@@ -359,14 +406,47 @@ impl OllamaProvider {
                 "the model ran out of room before finishing its answer, usually from repeating \
                  itself"
                     .into(),
-            ));
+            )
+            .into());
         }
 
-        let text = body["response"]
+        let output = body["response"]
             .as_str()
             .ok_or_else(|| SynthesisError::Malformed("no `response` field".into()))?;
 
-        parse_output(text)
+        Ok(parse_output(output)?)
+    }
+}
+
+/// How one request ended, when it did not succeed.
+///
+/// A rejection is kept apart from every other failure because it is the one
+/// worth retrying with a looser format; retrying anything else would fail the
+/// same way.
+enum Attempt {
+    /// Ollama refused the request outright (400), with its reason.
+    Rejected(String),
+    Failed(SynthesisError),
+}
+
+use Attempt::{Failed, Rejected};
+
+impl From<SynthesisError> for Attempt {
+    fn from(e: SynthesisError) -> Self {
+        Failed(e)
+    }
+}
+
+/// Ollama's own explanation of an error status, from `{"error": "..."}`.
+fn ollama_error(body: &str, status: u16) -> String {
+    let reason = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| v["error"].as_str().map(str::to_string))
+        .unwrap_or_else(|| body.trim().chars().take(200).collect());
+    if reason.is_empty() {
+        format!("HTTP {status}")
+    } else {
+        format!("HTTP {status}: {reason}")
     }
 }
 
@@ -594,6 +674,18 @@ mod tests {
             window_tokens + system_tokens + overhead + NUM_PREDICT <= NUM_CTX,
             "window {window_tokens} + system {system_tokens} + {overhead} + answer {NUM_PREDICT} > {NUM_CTX}"
         );
+    }
+
+    #[test]
+    fn ollama_says_why_it_refused() {
+        assert_eq!(
+            ollama_error(r#"{"error":"invalid JSON schema in format"}"#, 400),
+            "HTTP 400: invalid JSON schema in format"
+        );
+        // Not JSON: the text itself, bounded.
+        assert_eq!(ollama_error("Bad Request", 400), "HTTP 400: Bad Request");
+        assert_eq!(ollama_error("", 500), "HTTP 500");
+        assert!(ollama_error(&"x".repeat(10_000), 400).len() < 250);
     }
 
     #[test]

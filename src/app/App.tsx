@@ -66,7 +66,12 @@ export function App() {
 
   return (
     <AppearanceContext.Provider value={appearance}>
-      <Shell current={route.name === "note" ? null : route.name} onNavigate={navigate}>
+      <Shell
+        current={route.name === "note" ? null : route.name}
+        onNavigate={navigate}
+        openNote={route.name === "note" ? route.path : null}
+        onOpenNote={(path) => setRoute({ name: "note", path })}
+      >
         {route.name === "library" && (
           <LibraryScreen
             key={libraryKey}

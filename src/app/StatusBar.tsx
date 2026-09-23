@@ -1,17 +1,39 @@
 import { useCallback, useEffect, useState } from "react";
 import { Popover, PopoverDivider, PopoverHeading, PopoverItem } from "../components/ui/Popover";
+import { ActivityEntry } from "../features/activity/ActivityEntry";
 import { useLlmStatus } from "../features/llm/useLlmStatus";
-import { type AppInfo, hasBackend, ipc, type SpeechModel, type SummaryModels } from "../lib/ipc";
+import { formatBytes } from "../lib/format";
+import {
+  type AppInfo,
+  hasBackend,
+  ipc,
+  type Job,
+  type LoadedModel,
+  type SpeechModel,
+  type SummaryModels,
+} from "../lib/ipc";
 
 /**
- * The bottom bar: which models are in play, and which build this is.
+ * The bottom bar: which models are in play, what they are doing, and which
+ * build this is.
  *
  * Both models are shown because they fail independently — transcription can
  * be perfect while summaries are offline, and a note is not where anyone
  * should first learn that. Each opens a picker, so switching is one click
  * from anywhere, and "Manage models" leads to the page that downloads them.
+ *
+ * Background work sits beside them while it runs, for the same reason: it is
+ * the one place on every screen.
  */
-export function StatusBar({ onManageModels }: { onManageModels: () => void }) {
+export function StatusBar({
+  jobs,
+  onManageModels,
+  onOpenNote,
+}: {
+  jobs: Job[];
+  onManageModels: () => void;
+  onOpenNote?: ((path: string) => void) | undefined;
+}) {
   const [speech, setSpeech] = useState<SpeechModel[] | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const llm = useLlmStatus();
@@ -51,6 +73,7 @@ export function StatusBar({ onManageModels }: { onManageModels: () => void }) {
       {llm.status && (
         <SummaryPicker status={llm.status} onChanged={llm.recheck} onManage={onManageModels} />
       )}
+      <ActivityEntry jobs={jobs} onOpenNote={onOpenNote} />
 
       <span className="ml-auto flex items-center gap-2 text-ink-faint">
         {info?.devBuild && <span className="text-warn">dev</span>}
@@ -213,6 +236,14 @@ function SummaryPicker({
             ))
           )}
           {error && <p className="px-3 py-2 font-mono text-2xs text-error">&gt; {error}</p>}
+          {models && models.loaded.length > 0 && (
+            <>
+              <PopoverDivider />
+              {models.loaded.map((m) => (
+                <InMemory key={m.name} model={m} />
+              ))}
+            </>
+          )}
           <PopoverDivider />
           <PopoverItem
             onSelect={() => {
@@ -225,6 +256,29 @@ function SummaryPicker({
         </>
       )}
     </Popover>
+  );
+}
+
+/**
+ * A model Ollama is holding in memory, and until when.
+ *
+ * Ollama keeps the model loaded after notes are written — for hours when it
+ * was warmed at the start of a meeting — which is several gigabytes a user
+ * on a video call will notice and not be able to explain. This says where it
+ * went and when it comes back.
+ */
+function InMemory({ model }: { model: LoadedModel }) {
+  const until = model.expiresAt ? new Date(model.expiresAt) : null;
+  const time =
+    until && !Number.isNaN(until.getTime())
+      ? until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : null;
+
+  return (
+    <p className="px-3 py-1.5 font-mono text-2xs text-ink-muted">
+      <span className="text-ink">{model.name}</span> in memory · {formatBytes(model.sizeBytes)}
+      {time && <span className="text-ink-faint"> · until {time}</span>}
+    </p>
   );
 }
 

@@ -202,6 +202,9 @@ pub struct LoadedModel {
     pub vram_bytes: u64,
     /// Absent on Ollama versions that do not report it.
     pub context_length: Option<u64>,
+    /// When Ollama will unload it, RFC 3339. This is what tells the user the
+    /// memory is theirs again, rather than "some time after notes".
+    pub expires_at: Option<String>,
 }
 
 fn parse_loaded(body: &serde_json::Value) -> Vec<LoadedModel> {
@@ -216,6 +219,7 @@ fn parse_loaded(body: &serde_json::Value) -> Vec<LoadedModel> {
                         size_bytes: m["size"].as_u64().unwrap_or(0),
                         vram_bytes: m["size_vram"].as_u64().unwrap_or(0),
                         context_length: m["context_length"].as_u64(),
+                        expires_at: m["expires_at"].as_str().map(str::to_string),
                     })
                 })
                 .collect()
@@ -891,7 +895,7 @@ mod tests {
     fn loaded_models_report_how_much_is_on_the_gpu() {
         let body = serde_json::json!({ "models": [
             { "name": "qwen3:14b", "size": 11_000_000_000u64, "size_vram": 11_000_000_000u64,
-              "context_length": 8192 },
+              "context_length": 8192, "expires_at": "2026-09-23T10:52:00+01:00" },
             { "name": "old", "size": 5 }
         ]});
         let loaded = parse_loaded(&body);
@@ -900,6 +904,11 @@ mod tests {
         assert_eq!(loaded[0].context_length, Some(8192));
         assert_eq!(loaded[1].vram_bytes, 0);
         assert_eq!(loaded[1].context_length, None);
+        assert_eq!(
+            loaded[0].expires_at.as_deref(),
+            Some("2026-09-23T10:52:00+01:00")
+        );
+        assert_eq!(loaded[1].expires_at, None);
         assert!(parse_loaded(&serde_json::json!({})).is_empty());
     }
 

@@ -458,10 +458,20 @@ pub async fn regenerate_notes(
     // Off the async runtime: synthesis on a long meeting is seconds to
     // minutes of blocking work.
     tauri::async_runtime::spawn_blocking(move || {
-        crate::capture_manager::regenerate(&app, &session_dir, &path);
+        crate::capture_manager::regenerate(&app, &session_dir, &path)
     })
     .await
+    .map_err(err)?
     .map_err(err)
+}
+
+/// Background work running, queued, or recently finished.
+///
+/// Read on mount by every screen that shows it; `trace://activity` carries
+/// the changes after that.
+#[tauri::command]
+pub fn activity() -> Vec<crate::activity::Job> {
+    crate::activity::ACTIVITY.snapshot()
 }
 
 /// Whether this note's journal still exists, so regeneration would work.
@@ -708,6 +718,10 @@ pub struct SummaryModels {
     pub llm: crate::synthesis::ollama::Readiness,
     pub installed: Vec<SummaryModel>,
     pub recommended: Vec<Offered>,
+    /// What Ollama is holding in memory now. A summary model is several
+    /// gigabytes that stay resident after notes are written, and this is the
+    /// only place the user can see that without opening Task Manager.
+    pub loaded: Vec<crate::synthesis::ollama::LoadedModel>,
 }
 
 #[tauri::command]
@@ -736,6 +750,11 @@ pub async fn summary_models() -> SummaryModels {
                     model: m,
                 })
                 .collect(),
+            loaded: if matches!(llm, Readiness::NotRunning) {
+                Vec::new()
+            } else {
+                OllamaProvider::loaded()
+            },
             llm,
         }
     })
@@ -744,6 +763,7 @@ pub async fn summary_models() -> SummaryModels {
         llm: crate::synthesis::ollama::Readiness::NotRunning,
         installed: Vec::new(),
         recommended: Vec::new(),
+        loaded: Vec::new(),
     })
 }
 

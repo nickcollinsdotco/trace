@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { ActivityToast } from "../features/activity/ActivityToast";
+import { useActivity } from "../features/activity/useActivity";
 import { type Page, Sidebar } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
 
@@ -12,20 +14,39 @@ import { StatusBar } from "./StatusBar";
 export function Shell({
   current,
   onNavigate,
+  openNote = null,
+  onOpenNote,
   children,
 }: {
   /** The page to mark in the sidebar; null for a note, which is not a place. */
   current: Page | null;
   onNavigate: (page: Page) => void;
+  /** The note on screen, so news about it is not repeated as a toast. */
+  openNote?: string | null;
+  onOpenNote?: (path: string) => void;
   children: ReactNode;
 }) {
+  // Read once here and handed down, so the status bar and the toast cannot
+  // disagree about what is running.
+  const jobs = useActivity();
+
   return (
     <div className="flex h-full flex-col bg-surface-0">
       <div className="flex min-h-0 flex-1">
         <Sidebar current={current} onNavigate={onNavigate} />
-        <main className="min-h-0 min-w-0 flex-1">{children}</main>
+        <main className="relative min-h-0 min-w-0 flex-1">
+          {children}
+          {/* Always present, so a toast appearing inside it is announced:
+              a live region created with its content often is not. */}
+          <div
+            aria-live="polite"
+            className="pointer-events-none absolute right-4 bottom-3 z-20 flex justify-end"
+          >
+            <ActivityToast jobs={jobs} openNote={openNote} onOpenNote={onOpenNote} />
+          </div>
+        </main>
       </div>
-      <StatusBar onManageModels={() => onNavigate("models")} />
+      <StatusBar jobs={jobs} onManageModels={() => onNavigate("models")} onOpenNote={onOpenNote} />
     </div>
   );
 }

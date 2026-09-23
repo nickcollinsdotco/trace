@@ -726,9 +726,11 @@ fn parse_json<T: serde::de::DeserializeOwned>(text: &str) -> Result<T, Synthesis
 
 /// How long Ollama keeps the model loaded after each request.
 ///
-/// A minute, when the user wants it gone after writing notes: long enough to
-/// span the gap between windows of one meeting, so a long meeting is not
-/// reloaded window by window. Otherwise Ollama's own default.
+/// A fallback, not the normal path: `ModelHold` releases the model as soon as
+/// TRACE is done with it. This only bounds how long it stays if TRACE exits
+/// mid-summary. A minute, when the user wants it gone after writing notes:
+/// long enough to span the gap between windows of one meeting. Otherwise
+/// Ollama's own default.
 fn keep_alive() -> &'static str {
     match crate::settings::load().summary_memory {
         crate::settings::SummaryMemory::WhileWriting => "1m",
@@ -736,36 +738,165 @@ fn keep_alive() -> &'static str {
     }
 }
 
-/// Ask Ollama to load a model into memory without generating anything.
+/// How long one renewal keeps a held model loaded.
 ///
-/// Called when a meeting starts. The first request after a cold boot pays the
-/// full model load — measured at roughly a minute for the initial read from
-/// disk — and paying that during the meeting, rather than after it, means the
-/// user never waits for it.
+/// Short, because it is what a crash leaves behind: a single two-hour load at
+/// the start of a meeting used to keep ~5 GB resident long after any meeting
+/// that ended without a summary request to replace it.
+const LEASE: &str = "10m";
+
+/// How often a held model's lease is renewed.
 ///
-/// Entirely best-effort: a failure here costs nothing but the warmup.
-pub fn warm(model: &str) {
-    let model = model.to_string();
-    std::thread::Builder::new()
-        .name("trace-llm-warm".into())
-        .spawn(move || {
-            let _ = ureq::post(&format!("{HOST}/api/generate"))
-                .config()
-                .timeout_global(Some(Duration::from_secs(300)))
-                .build()
-                .send_json(serde_json::json!({
-                    "model": model,
-                    // Empty prompt loads the model without generating.
-                    "prompt": "",
-                    // Stay resident for a long meeting rather than the
-                    // five-minute default, which would unload mid-call.
-                    "keep_alive": "2h",
-                    // Must match synthesis, or the warm load is thrown away.
-                    "options": { "num_ctx": NUM_CTX }
-                }));
-        })
-        .ok();
+/// Well inside `LEASE`, and inside the five minutes a summary request leaves
+/// behind, so regenerating an older note mid-meeting cannot let the meeting's
+/// model lapse between renewals.
+const RENEW_EVERY: Duration = Duration::from_secs(4 * 60);
+
+/// Models TRACE is using, once per holder.
+///
+/// Counted so that the holder finishing last is the one that unloads: a
+/// meeting that ends while the next has already started, or a regeneration
+/// during a meeting, must not unload a model something else still needs.
+static HOLDERS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+fn claim(model: &str) {
+    HOLDERS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .push(model.to_string());
 }
+
+/// Give up one claim, returning whether it was the last on that model.
+fn unclaim(model: &str) -> bool {
+    let mut holders = HOLDERS.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(i) = holders.iter().position(|m| m == model) {
+        holders.remove(i);
+    }
+    !holders.iter().any(|m| m == model)
+}
+
+/// Keeps a model loaded while TRACE needs it, and unloads it after.
+///
+/// The memory is the user's, not ours: a model left resident after the notes
+/// are written looks like a leak in Task Manager, and competes with whatever
+/// they open next. So it goes when the last holder drops, on every path —
+/// notes written, meeting discarded, nothing to summarise, re-pass failed.
+///
+/// Everything here is best-effort. A failed request costs at most a reload, or
+/// a model resident until its lease runs out.
+pub struct ModelHold {
+    model: String,
+    /// Present while a renewal thread runs. Dropping it stops the thread,
+    /// which then releases the claim itself — see `keep_loaded`.
+    renewer: Option<std::sync::mpsc::Sender<()>>,
+}
+
+impl ModelHold {
+    /// Load `model` now and keep it loaded until dropped.
+    ///
+    /// Called when a meeting starts. The first request after a cold boot pays
+    /// the full model load — measured at roughly a minute for the initial read
+    /// from disk — and paying that during the meeting, rather than after it,
+    /// means the user never waits for it.
+    ///
+    /// The lease is renewed rather than set long once, so a TRACE that dies
+    /// mid-meeting strands the model for minutes rather than hours.
+    pub fn keep_loaded(model: &str) -> Self {
+        claim(model);
+        let (tx, rx) = std::sync::mpsc::channel::<()>();
+        let name = model.to_string();
+        let spawned = std::thread::Builder::new()
+            .name("trace-llm-hold".into())
+            .spawn(move || {
+                loop {
+                    renew(&name);
+                    // Never sent to; the sender dropping is the signal.
+                    if let Err(std::sync::mpsc::RecvTimeoutError::Disconnected) =
+                        rx.recv_timeout(RENEW_EVERY)
+                    {
+                        break;
+                    }
+                }
+                // Released here rather than on drop, so it cannot overtake a
+                // renewal still in flight. Ollama ignores an unload for a model
+                // it is still loading, and the load would then win.
+                if unclaim(&name) {
+                    release(&name);
+                }
+            })
+            .is_ok();
+        Self {
+            model: model.to_string(),
+            renewer: spawned.then_some(tx),
+        }
+    }
+
+    /// Mark `model` as in use without loading it, for the length of a
+    /// summary. The requests themselves load it.
+    pub fn in_use(model: &str) -> Self {
+        claim(model);
+        Self {
+            model: model.to_string(),
+            renewer: None,
+        }
+    }
+}
+
+impl Drop for ModelHold {
+    fn drop(&mut self) {
+        if self.renewer.take().is_some() {
+            return;
+        }
+        if unclaim(&self.model) {
+            // Off the caller's thread: discarding a meeting runs on the UI's
+            // command thread, which should not wait on Ollama.
+            let model = self.model.clone();
+            std::thread::Builder::new()
+                .name("trace-llm-release".into())
+                .spawn(move || release(&model))
+                .ok();
+        }
+    }
+}
+
+/// Load a model, or push back its unload time, without generating anything.
+fn renew(model: &str) {
+    let _ = ureq::post(&format!("{HOST}/api/generate"))
+        .config()
+        .timeout_global(Some(Duration::from_secs(300)))
+        .build()
+        .send_json(serde_json::json!({
+            "model": model,
+            // An empty prompt loads the model without generating.
+            "prompt": "",
+            "keep_alive": LEASE,
+            // Must match synthesis, or the loaded model is thrown away and
+            // loaded again at the other size.
+            "options": { "num_ctx": NUM_CTX }
+        }));
+}
+
+/// Unload a model now.
+///
+/// An empty prompt with a zero keep-alive is what `ollama stop` sends. Ollama
+/// handles it before scheduling, so it never loads a model to unload it, and a
+/// model mid-request is unloaded when that request finishes.
+fn release(model: &str) {
+    let released = ureq::post(&format!("{HOST}/api/generate"))
+        .config()
+        .timeout_global(Some(Duration::from_secs(10)))
+        .build()
+        .send_json(serde_json::json!({
+            "model": model,
+            "prompt": "",
+            "keep_alive": 0
+        }))
+        .is_ok();
+    if released {
+        crate::diagnostics::log(format!("summary model {model} released from memory"));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1019,6 +1150,37 @@ mod tests {
         let line = describe_stats("final pass", &serde_json::json!({}));
         assert!(line.starts_with("final pass: 0 tokens in, 0 out"));
         assert!(!line.contains("tokens/s"));
+    }
+
+    // Model names are unique per test, because the holders are process-wide
+    // and tests run in parallel.
+    #[test]
+    fn the_last_holder_is_the_one_that_releases() {
+        claim("test-hold-a");
+        claim("test-hold-a");
+        assert!(!unclaim("test-hold-a"), "one holder remains");
+        assert!(unclaim("test-hold-a"));
+    }
+
+    #[test]
+    fn holders_of_another_model_do_not_keep_this_one() {
+        claim("test-hold-b");
+        claim("test-hold-c");
+        assert!(unclaim("test-hold-b"));
+        assert!(unclaim("test-hold-c"));
+    }
+
+    #[test]
+    fn an_in_use_hold_counts_against_a_meeting_ending() {
+        // A regeneration during a meeting: the meeting's hold ending first
+        // must not unload the model the regeneration is still using.
+        claim("test-hold-d");
+        let regenerating = ModelHold::in_use("test-hold-d");
+        assert!(!unclaim("test-hold-d"));
+        // Its own drop then releases, on a thread that fails quietly here
+        // because no Ollama is listening.
+        drop(regenerating);
+        assert!(HOLDERS.lock().unwrap().iter().all(|m| m != "test-hold-d"));
     }
 
     #[test]

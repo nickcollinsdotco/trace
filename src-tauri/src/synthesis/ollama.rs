@@ -25,19 +25,22 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Context window requested for every call, in tokens.
 ///
-/// Set explicitly because Ollama's default is 4,096, and one prompt window is
-/// up to `WINDOW_CHARS` of transcript — around 5,000 tokens — before the
-/// system prompt or the answer. Over the limit, Ollama drops the *start* of
+/// Set explicitly because Ollama's default of 4,096 is smaller than one
+/// prompt window plus its answer. Over the limit, Ollama drops the *start* of
 /// the prompt without an error, so the model loses its instructions and part
-/// of the transcript and carries on regardless. `warm` requests the same
-/// size, because a different one makes Ollama reload the model.
-pub const NUM_CTX: u32 = 16_384;
+/// of the transcript and carries on regardless.
+///
+/// 8k rather than more because the KV cache is reserved for the whole context
+/// when the model loads — ~1.1 GB here for an 8B model, ~2.3 GB at 16k. The
+/// window size in `prompt` is what keeps a prompt inside it. `warm` requests
+/// the same size, because a different one makes Ollama reload the model.
+pub const NUM_CTX: u32 = 8_192;
 
 /// Most tokens one answer may use.
 ///
 /// A dense stretch of meeting can yield a long list of items, and 2,048 was
-/// tight enough to be reached.
-const NUM_PREDICT: u32 = 4_096;
+/// tight enough to be reached. Reserved out of `NUM_CTX`.
+const NUM_PREDICT: u32 = 3_072;
 
 pub struct OllamaProvider {
     model: String,
@@ -265,6 +268,19 @@ impl OllamaProvider {
             .read_json()
             .map_err(|e| SynthesisError::Malformed(e.to_string()))?;
 
+        // Ollama trims an oversized prompt rather than rejecting it, and says
+        // so only in its own log. How many prompt tokens it read is the one
+        // trace of that here: past the space left for the answer, either the
+        // start of the prompt is gone or the answer will be cut off. Prompt
+        // caching can make this count low, never high, so it cannot misfire.
+        let read = body["prompt_eval_count"].as_u64().unwrap_or(0);
+        if read > u64::from(NUM_CTX - NUM_PREDICT) {
+            return Err(SynthesisError::Request(format!(
+                "this part of the meeting was too long for the model to read and still answer \
+                 ({read} of {NUM_CTX} tokens)"
+            )));
+        }
+
         // Said plainly, because the parse error it would otherwise become
         // shows only the opening of the output — which looks fine — and not
         // the end, where it stopped.
@@ -472,8 +488,9 @@ mod tests {
         // instructions first. So the sizing is checked here instead.
         let window_tokens = prompt::WINDOW_CHARS as u32 / CHARS_PER_TOKEN;
         let system_tokens = prompt::SYSTEM_PROMPT.len() as u32 / CHARS_PER_TOKEN;
-        // Headers, the typed notes repeated in every window, and slack.
-        let overhead = 2_000;
+        // Meeting headers and slack. The typed notes are inside
+        // `WINDOW_CHARS` now, so they need no allowance of their own.
+        let overhead = 800;
         assert!(
             window_tokens + system_tokens + overhead + NUM_PREDICT <= NUM_CTX,
             "window {window_tokens} + system {system_tokens} + {overhead} + answer {NUM_PREDICT} > {NUM_CTX}"

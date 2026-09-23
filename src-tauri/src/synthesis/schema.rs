@@ -136,6 +136,26 @@ pub fn json_schema() -> serde_json::Value {
     })
 }
 
+/// The schema without the constraints some Ollama versions refuse.
+///
+/// `pattern`, `maxLength` and `maxItems` are what stop a runaway citation, but
+/// an Ollama that cannot turn them into a grammar rejects the whole request
+/// with a 400 — which is worse than the problem they solve, because then
+/// nothing is generated at all. Without them the structure is still enforced,
+/// and every citation is still checked against the transcript afterwards.
+pub fn relaxed(schema: &serde_json::Value) -> serde_json::Value {
+    match schema {
+        serde_json::Value::Object(map) => map
+            .iter()
+            .filter(|(k, _)| !matches!(k.as_str(), "pattern" | "maxLength" | "maxItems"))
+            .map(|(k, v)| (k.clone(), relaxed(v)))
+            .collect::<serde_json::Map<_, _>>()
+            .into(),
+        serde_json::Value::Array(items) => items.iter().map(relaxed).collect(),
+        other => other.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -202,6 +222,22 @@ mod tests {
             let text = &schema["properties"][section]["items"]["properties"]["text"];
             assert!(text["maxLength"].is_u64(), "{section}");
         }
+    }
+
+    #[test]
+    fn the_relaxed_schema_drops_only_the_optional_constraints() {
+        let strict = json_schema();
+        let loose = relaxed(&strict);
+        let text = loose.to_string();
+
+        assert!(!text.contains("pattern"));
+        assert!(!text.contains("maxLength"));
+        assert!(!text.contains("maxItems"));
+        // What makes the output usable at all survives.
+        let evidence = &loose["properties"]["decisions"]["items"]["properties"]["evidence"];
+        assert_eq!(evidence["minItems"], 1);
+        assert_eq!(loose["additionalProperties"], false);
+        assert_eq!(loose["required"], strict["required"]);
     }
 
     #[test]

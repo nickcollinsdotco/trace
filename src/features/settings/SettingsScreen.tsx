@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Section } from "../../components/ui/terminal";
+import { Prompt, Section } from "../../components/ui/terminal";
 import { type DeviceInfo, hasBackend, ipc, type Settings, type SummaryMemory } from "../../lib/ipc";
 import { AudioRetentionField } from "./AudioRetentionField";
 
@@ -44,9 +44,17 @@ export function SettingsScreen() {
   return (
     <div data-mode="reading" className="h-full overflow-y-auto">
       <div className="trace-measure flex flex-col gap-10 px-6 py-10">
-        {error && <p className="font-mono text-2xs text-error">&gt; {error}</p>}
+        {error && (
+          <p className="font-mono text-2xs text-error">
+            <Prompt />
+            {error}
+          </p>
+        )}
         {!hasBackend() && (
-          <p className="font-mono text-xs text-ink-faint">&gt; no backend — run the desktop app.</p>
+          <p className="font-mono text-xs text-ink-faint">
+            <Prompt />
+            no backend — run the desktop app.
+          </p>
         )}
 
         {settings && (

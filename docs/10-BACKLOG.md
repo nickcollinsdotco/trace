@@ -422,3 +422,23 @@ Three options, none obviously right, and picking wrong is expensive:
 
 Option 1 looks cheapest and is the trap: it is the only one that silently
 damages the transcript.
+
+## Appearance: families, more modern themes, the sidebar
+
+Raised 2026-09-23. **Built:** a Modern / Terminal split on the Appearance page,
+with `graphite` as the first modern theme (shadcn's neutral dark, white as the
+accent) and the five terminal themes unchanged; CRT mode as a switch over any
+theme; the type scale one step up; the library's command-line search, signal
+panel and Granola-style rows; the scroll breadcrumb.
+
+**Not built yet:**
+
+1. **The collapsible sidebar.** The user is designing it. Its width is already
+   one variable (`--sidebar-width`), so collapsing it changes a value.
+2. **More modern themes.** One exists so the family could be judged against a
+   real screen. A light theme is the obvious second — nothing in the modern
+   family assumes a dark ground, but no theme has tested that.
+3. **Syntax colour in the search line.** `tag:` and `len:` words would read
+   better coloured as they are typed. It needs an overlay behind the input,
+   which is fiddly to keep aligned; worth it only if the plain line confuses.
+

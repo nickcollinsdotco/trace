@@ -3,6 +3,7 @@ import {
   type Appearance,
   AppearanceContext,
   type AppearanceControl,
+  applyCrt,
   loadAppearance,
   saveAppearance,
   withAxis,
@@ -148,6 +149,7 @@ function useAppearance(): AppearanceControl {
 
   useEffect(() => {
     applyTheme(appearance.theme, document.documentElement, appearance.overrides);
+    applyCrt(appearance.crt, document.documentElement);
     saveAppearance(appearance);
   }, [appearance]);
 
@@ -177,6 +179,7 @@ function useAppearance(): AppearanceControl {
     appearance,
     setTheme: (theme) => setAppearance((a) => withTheme(a, theme)),
     setAxis: (axis, value) => setAppearance((a) => withAxis(a, axis, value)),
+    setCrt: (crt) => setAppearance((a) => ({ ...a, crt })),
     reset: () => setAppearance((a) => ({ ...a, overrides: {} })),
   };
 }

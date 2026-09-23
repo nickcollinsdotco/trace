@@ -1,0 +1,144 @@
+/*
+ * TRACE — CRT mode
+ *
+ * The app shown on an old monitor: a moulded bezel with four screws, status
+ * lights and a vent, and a screen with rounded glass, scanlines, a vignette
+ * and a faint phosphor glow. A switch (`data-screen="crt"`), not a theme —
+ * it is the display, and any theme can be shown on it.
+ *
+ * Everything is CSS on elements the shell always renders, so turning it on
+ * costs no remount and no JavaScript. Nothing animates: a flicker would be
+ * the most authentic touch and the least readable one.
+ */
+
+.trace-bezel {
+  display: none;
+}
+
+[data-screen="crt"] .trace-shell {
+  position: relative;
+  padding: 1.6rem 1.75rem 2.1rem;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgb(255 255 255 / 5%), transparent 60%),
+    linear-gradient(180deg, #232427 0%, #18191b 55%, #111214 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    inset 0 -2px 0 rgb(0 0 0 / 50%);
+}
+
+[data-screen="crt"] .trace-bezel {
+  display: block;
+  position: absolute;
+  pointer-events: none;
+}
+
+/* A domed screw head with a slot, lit from the top left. */
+[data-screen="crt"] .trace-screw {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6a6c70 0%, #34363a 45%, #151618 80%);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 6%),
+    inset 0 0 0 1px rgb(0 0 0 / 55%);
+}
+
+[data-screen="crt"] .trace-screw::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 1.5px;
+  background: #0c0c0d;
+  transform: translate(-50%, -50%) rotate(40deg);
+}
+
+[data-screen="crt"] .trace-screw[data-corner="tl"] {
+  top: 0.45rem;
+  left: 0.5rem;
+}
+[data-screen="crt"] .trace-screw[data-corner="tr"] {
+  top: 0.45rem;
+  right: 0.5rem;
+}
+[data-screen="crt"] .trace-screw[data-corner="bl"] {
+  bottom: 0.6rem;
+  left: 0.5rem;
+}
+[data-screen="crt"] .trace-screw[data-corner="br"] {
+  bottom: 0.6rem;
+  right: 0.5rem;
+}
+
+/* Four status lights, top centre. The first one is lit in the accent. */
+[data-screen="crt"] .trace-leds {
+  top: 0.6rem;
+  left: 50%;
+  width: 2.6rem;
+  height: 0.35rem;
+  transform: translateX(-50%);
+  background:
+    linear-gradient(var(--color-phosphor), var(--color-phosphor)) 0 0 / 0.45rem 100% no-repeat,
+    repeating-linear-gradient(90deg, #3a3c40 0 0.45rem, transparent 0.45rem 0.72rem);
+  border-radius: 1px;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-phosphor) 40%, transparent);
+}
+
+/* The speaker grille, bottom centre. */
+[data-screen="crt"] .trace-vent {
+  bottom: 0.55rem;
+  left: 50%;
+  width: 6.5rem;
+  height: 0.9rem;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, #050506 0.9px, transparent 1.2px) 0 0 / 5px 5px;
+  opacity: 0.9;
+}
+
+/* The glass. Rounded, recessed, and slightly lit from inside. */
+[data-screen="crt"] .trace-screen {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.4rem / 1.2rem;
+  box-shadow:
+    0 0 0 2px #050506,
+    0 0 0 3px rgb(255 255 255 / 5%),
+    0 8px 24px rgb(0 0 0 / 60%);
+  text-shadow: 0 0 5px color-mix(in srgb, var(--color-phosphor) 28%, transparent);
+}
+
+/*
+ * Scanlines, vignette and the inner shadow of curved glass, as one overlay
+ * above everything and invisible to the pointer. Kept faint: the lines sit
+ * over body text, which is exactly where docs/05 forbids hurting reading.
+ */
+[data-screen="crt"] .trace-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(to bottom, rgb(0 0 0 / 16%) 0 1px, transparent 1px 3px),
+    radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--color-phosphor) 5%, transparent) 0%,
+      transparent 55%,
+      rgb(0 0 0 / 45%) 100%
+    );
+  box-shadow:
+    inset 0 0 3rem rgb(0 0 0 / 55%),
+    inset 0 0 0.6rem rgb(0 0 0 / 70%);
+}
+
+/* More contrast asked for: keep the monitor, lose what sits over the text. */
+@media (prefers-contrast: more) {
+  [data-screen="crt"] .trace-screen {
+    text-shadow: none;
+  }
+  [data-screen="crt"] .trace-screen::after {
+    background: none;
+  }
+}

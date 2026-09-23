@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Section } from "../../components/ui/terminal";
+import { Prompt, Section } from "../../components/ui/terminal";
 import { type AppInfo, type Folder, hasBackend, ipc } from "../../lib/ipc";
 import { Diagnostics } from "../diagnostics/Diagnostics";
 
@@ -85,7 +85,12 @@ export function AboutScreen() {
                 </button>
               </div>
             ))}
-            {error && <p className="font-mono text-2xs text-error">&gt; {error}</p>}
+            {error && (
+              <p className="font-mono text-2xs text-error">
+                <Prompt />
+                {error}
+              </p>
+            )}
           </div>
         </Section>
 

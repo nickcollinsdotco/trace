@@ -33,6 +33,23 @@ export function SystemLabel({
 }
 
 /* ------------------------------------------------------------------ *
+ * Prompt — the `> ` in front of system messages:  > no traces yet.
+ *
+ * A component rather than a literal so a family that is not a terminal can
+ * drop it in one rule (`.trace-glyph`), instead of every message carrying a
+ * glyph its look does not speak. Hidden from screen readers, which read it
+ * as "greater than".
+ * ------------------------------------------------------------------ */
+
+export function Prompt() {
+  return (
+    <span aria-hidden className="trace-glyph">
+      &gt;{" "}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ *
  * Section — the canonical framing:
  *   ┌ 01  SUMMARY ──────────────────────────────────
  *

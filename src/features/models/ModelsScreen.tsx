@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Section } from "../../components/ui/terminal";
+import { Prompt, Section } from "../../components/ui/terminal";
 import { formatBytes } from "../../lib/format";
 import {
   hasBackend,
@@ -101,7 +101,12 @@ function SpeechModels() {
       <p className="text-sm text-ink-muted">
         Turns speech into text on this machine. The choice applies from the next meeting.
       </p>
-      {error && <p className="font-mono text-2xs text-error">&gt; {error}</p>}
+      {error && (
+        <p className="font-mono text-2xs text-error">
+          <Prompt />
+          {error}
+        </p>
+      )}
       <div className="flex flex-col gap-3">
         {models?.map((m) => (
           <ModelCard
@@ -234,7 +239,12 @@ function SummaryModelsSection() {
         onRecheck={llm.recheck}
         context="models"
       />
-      {error && <p className="font-mono text-2xs text-error">&gt; {error}</p>}
+      {error && (
+        <p className="font-mono text-2xs text-error">
+          <Prompt />
+          {error}
+        </p>
+      )}
 
       {running && models && (
         <div className="flex flex-col gap-3">

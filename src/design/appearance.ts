@@ -26,12 +26,34 @@ import {
 export interface Appearance {
   theme: Theme;
   overrides: Overrides;
+  /**
+   * CRT mode: a bezel, scanlines and phosphor glow over the whole app.
+   *
+   * A switch rather than a theme, because it is not a palette — it is the
+   * screen the palette is shown on, and it suits any theme, modern included.
+   */
+  crt: boolean;
 }
 
 const OVERRIDES_KEY = "trace.appearance.overrides";
+const CRT_KEY = "trace.appearance.crt";
 
 export function loadAppearance(): Appearance {
-  return { theme: loadTheme(), overrides: loadOverrides() };
+  return { theme: loadTheme(), overrides: loadOverrides(), crt: loadCrt() };
+}
+
+function loadCrt(): boolean {
+  try {
+    return localStorage.getItem(CRT_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
+
+/** Set or clear CRT mode on the element that carries the look. */
+export function applyCrt(on: boolean, target: HTMLElement): void {
+  if (on) target.setAttribute("data-screen", "crt");
+  else target.removeAttribute("data-screen");
 }
 
 function loadOverrides(): Overrides {
@@ -54,6 +76,7 @@ export function saveAppearance(a: Appearance): void {
   saveTheme(a.theme);
   try {
     localStorage.setItem(OVERRIDES_KEY, JSON.stringify(a.overrides));
+    localStorage.setItem(CRT_KEY, a.crt ? "on" : "off");
   } catch {
     // Not worth surfacing — the choice simply does not persist.
   }
@@ -72,6 +95,7 @@ export interface AppearanceControl {
   appearance: Appearance;
   setTheme: (theme: Theme) => void;
   setAxis: (axis: Axis, value: string | undefined) => void;
+  setCrt: (on: boolean) => void;
   reset: () => void;
 }
 

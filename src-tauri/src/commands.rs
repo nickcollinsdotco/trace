@@ -191,7 +191,35 @@ pub fn start_capture(
     } else {
         title
     };
+    // The mic check and the meeting would both hold the device; the meeting
+    // wins, and the check has done its job by now anyway.
+    crate::audio::preview::stop();
     manager.start(app, title, mic_device).map_err(err)
+}
+
+/// Start the mic check on the Record screen. See `audio::preview` for why it
+/// runs only on request and stops itself.
+#[tauri::command]
+pub fn start_mic_preview(
+    manager: State<'_, CaptureManager>,
+    mic_device: Option<String>,
+) -> CmdResult<()> {
+    if manager.status().is_some() {
+        return Err("a meeting is recording; its meters are already live".into());
+    }
+    crate::audio::preview::start(mic_device).map_err(err)
+}
+
+#[tauri::command]
+pub fn stop_mic_preview() {
+    crate::audio::preview::stop();
+}
+
+/// The mic check's level, 0..1, or null once it has stopped. Polling this is
+/// what keeps it running.
+#[tauri::command]
+pub fn mic_preview_level() -> Option<f32> {
+    crate::audio::preview::level()
 }
 
 #[tauri::command]
@@ -243,6 +271,9 @@ pub struct NoteSummary {
     /// How long it ran. Absent for a meeting that never recorded an end —
     /// one recovered after a crash — rather than guessed.
     pub duration_ms: Option<u64>,
+    /// Loudness across the meeting, as block characters. Absent on notes
+    /// written before it was kept, or whose audio had no sound.
+    pub signal: Option<String>,
 }
 
 /// List saved notes, newest first.
@@ -322,6 +353,7 @@ fn collect_notes(dir: &std::path::Path, out: &mut Vec<NoteSummary>) {
                 frontmatter_field(&text, "ended_at").as_deref(),
             ),
             started_at: frontmatter_field(&text, "started_at"),
+            signal: frontmatter_field(&text, "signal"),
             path: path.display().to_string(),
         });
     }
@@ -428,6 +460,7 @@ mod tests {
             tags: Vec::new(),
             started_at: started.map(str::to_string),
             duration_ms: None,
+            signal: None,
         }
     }
 

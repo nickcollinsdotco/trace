@@ -1,15 +1,20 @@
 import { useEffect, useRef } from "react";
-import { Section, SystemLabel } from "../../components/ui/terminal";
+import { Prompt, Section, SystemLabel } from "../../components/ui/terminal";
 import { AXES, type Axis, useAppearanceControl } from "../../design/appearance";
 import {
   applyTheme,
   CASE_NOTES,
+  FAMILIES,
+  FAMILY_NOTES,
+  type Family,
   MONO_NOTES,
   type Overrides,
+  THEME_FAMILY,
   THEME_NOTES,
   THEMES,
   type Theme,
   TYPE_NOTES,
+  themesIn,
 } from "../../design/theme";
 
 /**
@@ -23,29 +28,66 @@ import {
  * C). They were gallery-only, which made that test depend on a dev harness.
  */
 export function AppearanceScreen() {
-  const { appearance, setTheme, setAxis, reset } = useAppearanceControl();
+  const { appearance, setTheme, setAxis, setCrt, reset } = useAppearanceControl();
   const overridden = Object.values(appearance.overrides).some((v) => v !== undefined);
+  const family = THEME_FAMILY[appearance.theme];
 
   return (
     <div data-mode="reading" className="h-full overflow-y-auto">
       <div className="trace-measure flex flex-col gap-10 px-6 py-10">
-        <Section title="Theme">
+        <Section title="Style">
           <p className="text-sm text-ink-muted">
-            Pick a look, or press <Key>1</Key>–<Key>5</Key> anywhere outside a text field. A theme
-            is best judged over a few days of real meetings, not from a preview.
+            Two languages, each with its own themes. Pick one, then a theme within it — or press{" "}
+            <Key>1</Key>–<Key>{String(THEMES.length)}</Key> anywhere outside a text field. A look is
+            best judged over a few days of real meetings, not from a preview.
           </p>
+
+          <fieldset className="m-0 flex w-fit gap-1 rounded-pill border border-line p-1">
+            <legend className="sr-only">Style</legend>
+            {FAMILIES.map((f) => (
+              <FamilyChoice
+                key={f}
+                family={f}
+                selected={family === f}
+                // The family's first theme, unless the current one is already in it.
+                onSelect={() => {
+                  if (family !== f) setTheme(themesIn(f)[0] ?? "terminal");
+                }}
+              />
+            ))}
+          </fieldset>
+          <p className="text-2xs text-ink-faint">{FAMILY_NOTES[family]}</p>
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {THEMES.map((theme, i) => (
+            {themesIn(family).map((theme) => (
               <ThemeCard
                 key={theme}
                 theme={theme}
-                shortcut={i + 1}
+                shortcut={THEMES.indexOf(theme) + 1}
                 selected={appearance.theme === theme}
                 overrides={appearance.overrides}
                 onSelect={() => setTheme(theme)}
               />
             ))}
           </div>
+        </Section>
+
+        <Section title="CRT mode">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={appearance.crt}
+              onChange={(e) => setCrt(e.target.checked)}
+              className="mt-1 accent-(--color-phosphor)"
+            />
+            <span className="flex flex-col gap-1">
+              <span className="text-sm text-ink">Show TRACE on an old monitor</span>
+              <span className="text-2xs text-ink-faint">
+                A bezel, scanlines and a little phosphor glow, over whichever theme is chosen.
+                Purely for fun — it never flickers, and it is off by default.
+              </span>
+            </span>
+          </label>
         </Section>
 
         <Section
@@ -140,13 +182,36 @@ function ThemeCard({
       <div className="flex flex-col gap-1 border-t border-line bg-surface-1 px-4 py-3">
         <span className="flex items-baseline gap-2">
           <span className={`font-mono text-xs ${selected ? "text-phosphor" : "text-ink"}`}>
-            {selected ? "> " : ""}
+            {selected && <Prompt />}
             {theme}
           </span>
           <span className="ml-auto font-mono text-2xs text-ink-faint">{shortcut}</span>
         </span>
         <span className="text-2xs text-ink-muted">{THEME_NOTES[theme]}</span>
       </div>
+    </button>
+  );
+}
+
+function FamilyChoice({
+  family,
+  selected,
+  onSelect,
+}: {
+  family: Family;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={`rounded-pill px-4 py-1.5 font-mono text-2xs uppercase tracking-system trace-press ${
+        selected ? "bg-phosphor text-surface-0" : "text-ink-muted hover:text-ink"
+      }`}
+    >
+      {family}
     </button>
   );
 }

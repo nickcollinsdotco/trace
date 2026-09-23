@@ -57,13 +57,18 @@
   --font-mono:
     "Geist Mono Variable", ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
 
-  --text-2xs: 0.6875rem; /* 11px — system labels, [ OK ] chips */
-  --text-xs: 0.75rem; /* 12px — metadata, timestamps */
-  --text-sm: 0.8125rem; /* 13px — UI default */
-  --text-base: 0.9375rem; /* 15px — transcript */
-  --text-lg: 1.0625rem; /* 17px — reading-mode body */
-  --text-xl: 1.375rem; /* 22px — section titles */
-  --text-2xl: 1.75rem; /* 28px — meeting title */
+  /*
+   * One step up across the board, 2026-09-23, after real use: 11px labels
+   * were the most-read text in the app — the sidebar is set in them — and the
+   * hardest to read. Every size moved together so the hierarchy is unchanged.
+   */
+  --text-2xs: 0.75rem; /* 12px — system labels, [ OK ] chips */
+  --text-xs: 0.8125rem; /* 13px — metadata, timestamps */
+  --text-sm: 0.875rem; /* 14px — UI default */
+  --text-base: 1rem; /* 16px — transcript */
+  --text-lg: 1.125rem; /* 18px — reading-mode body */
+  --text-xl: 1.5rem; /* 24px — section titles */
+  --text-2xl: 2rem; /* 32px — meeting title */
 
   /* Terminal labels are uppercase and tracked out. */
   --tracking-system: 0.08em;
@@ -76,6 +81,9 @@
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 10px;
+  /* Chips and filter pills. Square-ish here; the modern family rounds it
+     fully, which is most of what makes a pill read as one. */
+  --radius-pill: 4px;
 
   /* ---------------------------------------------------------------------
    * Shadows — restrained. Depth, never glow.
@@ -189,6 +197,9 @@
   --field-border-focus: var(--color-line-strong);
   /* An inset top highlight is what reads as glass on a dark ground. */
   --field-focus-shadow: inset 0 1px 0 0 rgb(255 255 255 / 8%);
+
+  /* Read by the sidebar. One value, so collapsing it is one change. */
+  --sidebar-width: 13rem;
 
   /* Meters, progress bars, and the hatch behind empty states. */
   --fill-active: var(--color-phosphor);

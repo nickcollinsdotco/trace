@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import { Collapsible, SectionHead } from "../../components/ui/terminal";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { TopBar, useScrolledPast } from "../../components/ui/TopBar";
+import { Collapsible, Prompt, SectionHead } from "../../components/ui/terminal";
 import { hasBackend, ipc, type LlmStatus, type NoteContext } from "../../lib/ipc";
 import { LlmNotice } from "../llm/LlmNotice";
 import { useLlmStatus } from "../llm/useLlmStatus";
@@ -116,6 +117,9 @@ export function NoteScreen({
 
   const active = view ?? "mine";
   const head = useMemo(() => (sections === null ? null : splitTitle(sections.head)), [sections]);
+  const scroller = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const titleGone = useScrolledPast(titleRef, scroller, head?.title);
   /*
    * One name replaces "them" as soon as it is given, before any regeneration
    * rewrites the file. The file still says "them" until then; the reader
@@ -137,52 +141,46 @@ export function NoteScreen({
   }
 
   return (
-    <div data-mode="reading" className="h-full overflow-y-auto">
-      {/*
-        Sticky, title included, so a long note never leaves the reader
-        wondering which meeting they are in or reaching back up for the
-        controls. Painted with the ground colour so text scrolls under it
-        rather than through it.
-      */}
-      <header className="sticky top-0 z-10 border-b border-line bg-surface-0">
-        <div className="trace-measure flex flex-col gap-2 px-6 pt-6 pb-4">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onBack}
-              className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-phosphor"
-            >
-              &lt; Meetings
-            </button>
-            <span aria-hidden className="trace-rule" />
+    <div ref={scroller} data-mode="reading" className="h-full overflow-y-auto">
+      <TopBar
+        back={{ label: "Back to meetings", onClick: onBack }}
+        trail={["Meetings"]}
+        current={head?.title}
+        showCurrent={titleGone}
+      >
+        {sections && (
+          <ViewToggle
+            view={active}
+            hasEnhanced={sections.hasEnhanced}
+            onChange={(v) => {
+              setPicked(true);
+              setView(v);
+            }}
+            onRegenerate={regenerate}
+            regenerating={busy}
+            replayable={replayable}
+          />
+        )}
+      </TopBar>
 
-            {sections && (
-              <ViewToggle
-                view={active}
-                hasEnhanced={sections.hasEnhanced}
-                onChange={(v) => {
-                  setPicked(true);
-                  setView(v);
-                }}
-                onRegenerate={regenerate}
-                regenerating={busy}
-                replayable={replayable}
-              />
-            )}
-          </div>
+      <div className="trace-measure flex flex-col gap-6 px-6 pt-8 pb-10">
+        {head?.title && (
+          <h1 ref={titleRef} className="trace-title text-2xl text-ink">
+            {head.title}
+          </h1>
+        )}
 
-          {head?.title && (
-            <h1 className="trace-title truncate text-2xl text-ink" title={head.title}>
-              {head.title}
-            </h1>
-          )}
-        </div>
-      </header>
-
-      <div className="trace-measure flex flex-col gap-6 px-6 pt-6 pb-10">
-        {error && <p className="font-mono text-xs text-error">&gt; {error}</p>}
+        {error && (
+          <p className="font-mono text-xs text-error">
+            <Prompt />
+            {error}
+          </p>
+        )}
         {text === null && !error && (
-          <p className="font-mono text-xs text-ink-faint">&gt; reading…</p>
+          <p className="font-mono text-xs text-ink-faint">
+            <Prompt />
+            reading…
+          </p>
         )}
 
         <RefinementNotice job={job} />
@@ -227,7 +225,8 @@ export function NoteScreen({
               <Parts markdown={sections.notes} them={them} />
             ) : (
               <p className="font-mono text-xs text-ink-faint">
-                &gt; no notes were typed during this meeting.
+                <Prompt />
+                no notes were typed during this meeting.
               </p>
             )}
 
@@ -438,7 +437,12 @@ function AboutMeeting({
         </p>
       </div>
 
-      {failed && <p className="font-mono text-xs text-error">&gt; {failed}</p>}
+      {failed && (
+        <p className="font-mono text-xs text-error">
+          <Prompt />
+          {failed}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         {replayable && (
@@ -577,7 +581,10 @@ function NotEnhancedYet({
 
   return (
     <div className="flex flex-col items-start gap-3 py-8">
-      <p className="font-mono text-xs text-ink-faint">&gt; no summary for this meeting yet.</p>
+      <p className="font-mono text-xs text-ink-faint">
+        <Prompt />
+        no summary for this meeting yet.
+      </p>
       <p className="text-sm text-ink-muted">
         {replayable
           ? "A summary and action items are written automatically when a meeting ends. This one has none — Ollama was probably closed at the time. Generate them from the transcript now."
@@ -613,7 +620,8 @@ function Rewriting({ children }: { children: React.ReactNode }) {
   return (
     <div aria-busy="true" className="flex flex-col gap-3">
       <p className="font-mono text-2xs text-ink-faint">
-        &gt; rewriting — these are the previous notes until the new ones are written.
+        <Prompt />
+        rewriting — these are the previous notes until the new ones are written.
       </p>
       <div className="opacity-50">{children}</div>
     </div>

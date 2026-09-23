@@ -55,6 +55,11 @@ pub enum JournalEvent {
         meeting_type: MeetingType,
     },
     StreamFinished(Box<StreamOutcome>),
+    /// The meeting's loudness envelope, from the WAVs before they go. See
+    /// `audio::envelope`.
+    Signal {
+        levels: String,
+    },
     Generated(Box<GeneratedMeeting>),
     SessionEnded {
         ended_at: String,
@@ -190,6 +195,7 @@ fn apply(meeting: &mut Option<Meeting>, event: JournalEvent, was_finished: &mut 
         JournalEvent::TitleChanged { title } => m.title = title,
         JournalEvent::TypeChanged { meeting_type } => m.meeting_type = meeting_type,
         JournalEvent::StreamFinished(_) => {}
+        JournalEvent::Signal { levels } => m.signal = Some(levels),
         JournalEvent::Generated(generated) => {
             m.generated = Some(*generated);
             m.status = MeetingStatus::Complete;
@@ -237,6 +243,27 @@ mod tests {
             date: "2026-09-05".into(),
             started_at: "2026-09-05T10:00:00Z".into(),
         }
+    }
+
+    #[test]
+    fn a_journalled_signal_replays_onto_the_meeting() {
+        let dir = temp_dir("signal");
+        let mut journal = Journal::open(&dir).unwrap();
+        journal
+            .append(&JournalEvent::SessionStarted {
+                id: "s".into(),
+                title: "t".into(),
+                date: "2026-09-23".into(),
+                started_at: "2026-09-23T10:00:00Z".into(),
+            })
+            .unwrap();
+        journal
+            .append(&JournalEvent::Signal {
+                levels: "▁█▁".into(),
+            })
+            .unwrap();
+
+        assert_eq!(replay(&dir).unwrap().meeting.signal.as_deref(), Some("▁█▁"));
     }
 
     #[test]

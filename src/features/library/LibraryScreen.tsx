@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { SectionHead, SystemLabel } from "../../components/ui/terminal";
-import { groupByDate, type SortOrder } from "../../lib/dates";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Popover, PopoverItem } from "../../components/ui/Popover";
+import { TopBar, useScrolledPast } from "../../components/ui/TopBar";
+import { Prompt, SystemLabel } from "../../components/ui/terminal";
+import { isTypingTarget } from "../../design/theme";
+import { groupByDate } from "../../lib/dates";
 import { formatMeetingLength } from "../../lib/format";
 import {
   hasBackend,
@@ -11,44 +14,34 @@ import {
 } from "../../lib/ipc";
 import { LlmNotice } from "../llm/LlmNotice";
 import { useLlmStatus } from "../llm/useLlmStatus";
+import { applyFilters, parseQuery, searchText, setToken } from "./query";
+import { SearchBar, type View } from "./SearchBar";
+import { SignalPanel } from "./SignalPanel";
 
-const GISTS_KEY = "trace.library.gists";
-const ORDER_KEY = "trace.library.order";
+/*
+ * Still "gists" on disk: the list view is the old Summaries toggle, and a
+ * preference someone already set should survive the rename.
+ */
+const VIEW_KEY = "trace.library.gists";
 
 /*
  * A per-machine viewing preference, so browser storage rather than the
  * settings file. Wrapped because storage can be unavailable, and a missing
  * preference must never stop the library rendering.
  */
-function loadShowGists(): boolean {
+function loadView(): View {
   try {
-    return localStorage.getItem(GISTS_KEY) !== "off";
+    return localStorage.getItem(VIEW_KEY) === "off" ? "compact" : "list";
   } catch {
-    return true;
+    return "list";
   }
 }
 
-function saveShowGists(show: boolean): void {
+function saveView(view: View): void {
   try {
-    localStorage.setItem(GISTS_KEY, show ? "on" : "off");
+    localStorage.setItem(VIEW_KEY, view === "compact" ? "off" : "on");
   } catch {
-    // Not worth surfacing: the toggle still works for this session.
-  }
-}
-
-function loadOrder(): SortOrder {
-  try {
-    return localStorage.getItem(ORDER_KEY) === "oldest" ? "oldest" : "newest";
-  } catch {
-    return "newest";
-  }
-}
-
-function saveOrder(order: SortOrder): void {
-  try {
-    localStorage.setItem(ORDER_KEY, order);
-  } catch {
-    // As above.
+    // Not worth surfacing: the switch still works for this session.
   }
 }
 
@@ -68,24 +61,35 @@ export function LibraryScreen({
   const [root, setRoot] = useState<string>("");
   const [query, setQuery] = useState(initialSearch);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
-  const [showGists, setShowGists] = useState(loadShowGists);
-  const [order, setOrder] = useState(loadOrder);
-  // One tag at a time. Several would need an and/or rule to explain, and the
-  // search box already does "tag:a tag:b" for anyone who wants both.
-  const [tag, setTag] = useState<string | null>(null);
+  const [view, setView] = useState(loadView);
   const llm = useLlmStatus();
 
-  function pickOrder(next: SortOrder) {
-    setOrder(next);
-    saveOrder(next);
+  const scroller = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const titleGone = useScrolledPast(titleRef, scroller);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const parsed = useMemo(() => parseQuery(query), [query]);
+  // Only words go to the backend. Filters alone are answered from the
+  // listing already on screen, with no search at all.
+  const backendQuery = parsed.terms.length > 0 ? searchText(parsed) : "";
+
+  function pickView(next: View) {
+    setView(next);
+    saveView(next);
   }
 
-  function toggleGists() {
-    setShowGists((on) => {
-      saveShowGists(!on);
-      return !on;
-    });
-  }
+  // "/" jumps to the search line from anywhere on the page, as it does in
+  // most things with one.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   /*
    * Search runs on a debounce rather than per keystroke.
@@ -97,8 +101,7 @@ export function LibraryScreen({
   useEffect(() => {
     if (!hasBackend()) return;
 
-    const term = query.trim();
-    if (term === "") {
+    if (backendQuery === "") {
       setHits(null);
       return;
     }
@@ -106,7 +109,7 @@ export function LibraryScreen({
     let cancelled = false;
     const id = window.setTimeout(() => {
       void ipc
-        .searchNotes(term)
+        .searchNotes(backendQuery)
         .then((r) => {
           if (!cancelled) setHits(r);
         })
@@ -119,7 +122,7 @@ export function LibraryScreen({
       cancelled = true;
       window.clearTimeout(id);
     };
-  }, [query]);
+  }, [backendQuery]);
 
   const refresh = useCallback(async () => {
     if (!hasBackend()) {
@@ -141,65 +144,52 @@ export function LibraryScreen({
     void refresh();
   }, [refresh]);
 
-  const allTags = useMemo(() => [...new Set(notes.flatMap((n) => n.tags))].sort(), [notes]);
-  // A filter on a tag that no longer exists — deleted from its last note —
-  // would hide everything with no visible reason.
-  const activeTag = tag !== null && allTags.includes(tag) ? tag : null;
-  const shown = activeTag === null ? notes : notes.filter((n) => n.tags.includes(activeTag));
-  const groups = groupByDate(shown, (n) => n.date, undefined, order);
+  const filtered = useMemo(() => applyFilters(notes, parsed), [notes, parsed]);
+
+  /*
+   * Search hits, narrowed to what the filters keep. Ranked by relevance,
+   * unless a sort was asked for, in which case they follow it.
+   */
+  const shownHits = useMemo(() => {
+    if (hits === null) return null;
+    const order = new Map(filtered.map((n, i) => [n.path, i]));
+    const kept = hits.filter((h) => order.has(h.path));
+    return parsed.sort
+      ? kept.sort((a, b) => (order.get(a.path) ?? 0) - (order.get(b.path) ?? 0))
+      : kept;
+  }, [hits, filtered, parsed.sort]);
+
+  const byDate = parsed.sort === null || parsed.sort === "newest" || parsed.sort === "oldest";
+  const groups = byDate
+    ? groupByDate(
+        filtered,
+        (n) => n.date,
+        undefined,
+        parsed.sort === "oldest" ? "oldest" : "newest",
+      )
+    : null;
+
+  const onTag = (tag: string) => setQuery((q) => setToken(q, "tag", tag));
 
   return (
-    <div data-mode="reading" className="h-full overflow-y-auto">
-      <div className="trace-measure flex flex-col gap-8 px-6 py-10">
-        <div className="flex items-center justify-between">
-          <SystemLabel tone="muted">Meetings</SystemLabel>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleGists}
-              aria-pressed={showGists}
-              title="Show a one-line summary under each meeting"
-              className={`rounded-sm border px-2.5 py-1 font-mono text-2xs uppercase tracking-system trace-press ${
-                showGists
-                  ? "border-phosphor bg-phosphor-dim text-phosphor"
-                  : "border-transparent text-ink-faint hover:text-ink"
-              }`}
-            >
-              Summaries
-            </button>
-            <button
-              type="button"
-              onClick={onNewMeeting}
-              className="flex items-center gap-2 rounded-sm border border-line-strong bg-surface-2 px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor"
-            >
-              <span aria-hidden>+</span>
-              New meeting
-            </button>
-          </div>
-        </div>
+    <div ref={scroller} data-mode="reading" className="h-full overflow-y-auto">
+      <TopBar current="Meetings" showCurrent={titleGone}>
+        <button
+          type="button"
+          onClick={onNewMeeting}
+          className="flex shrink-0 items-center gap-2 rounded-pill border border-line-strong bg-surface-2 px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor"
+        >
+          <span aria-hidden>+</span>
+          New meeting
+        </button>
+      </TopBar>
 
-        {hasBackend() && (
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search meetings and transcripts…"
-            name="search"
-            autoComplete="off"
-            aria-label="Search meetings and transcripts"
-            className="trace-field text-sm"
-          />
-        )}
+      <div className="trace-measure flex flex-col gap-8 px-6 pt-6 pb-10">
+        <h1 ref={titleRef} className="trace-title text-2xl text-ink">
+          Meetings
+        </h1>
 
-        {hits === null && notes.length > 0 && (
-          <ListControls
-            order={order}
-            onOrder={pickOrder}
-            tags={allTags}
-            tag={activeTag}
-            onTag={setTag}
-          />
-        )}
+        {hasBackend() && !loading && <SignalPanel notes={notes} />}
 
         {/* Interrupted meetings come first: there is unsaved work here and it
             is the only thing on this screen that can still be lost. */}
@@ -209,117 +199,91 @@ export function LibraryScreen({
 
         <LlmNotice status={llm.status} onRecheck={llm.recheck} context="library" />
 
-        {hits !== null ? (
-          <SearchResults hits={hits} query={query} onOpen={onOpenNote} />
+        {hasBackend() && notes.length > 0 && (
+          <SearchBar
+            query={query}
+            parsed={parsed}
+            onChange={setQuery}
+            notes={notes}
+            shown={shownHits ? shownHits.length : filtered.length}
+            view={view}
+            onView={pickView}
+            inputRef={searchRef}
+            searching={shownHits !== null}
+          />
+        )}
+
+        {shownHits !== null ? (
+          <SearchResults hits={shownHits} query={parsed.terms.join(" ")} onOpen={onOpenNote} />
         ) : loading ? (
-          <p className="font-mono text-xs text-ink-faint">&gt; reading notes…</p>
+          <p className="font-mono text-xs text-ink-faint">
+            <Prompt />
+            reading notes…
+          </p>
         ) : !hasBackend() ? (
           <BrowserNotice />
         ) : notes.length === 0 ? (
           <EmptyState root={root} />
+        ) : filtered.length === 0 ? (
+          <NoMatch onClear={() => setQuery(parsed.terms.join(" "))} />
+        ) : groups ? (
+          <div className="flex flex-col gap-8">
+            {groups.map(({ group, items }) => (
+              <section key={group} aria-label={group} className="flex flex-col gap-1">
+                {/* Quiet, like Granola's dates: a label, not a heading rule. */}
+                <h2 className="px-3 pb-1">
+                  <SystemLabel>{group}</SystemLabel>
+                </h2>
+                {items.map((note) => (
+                  <NoteRow
+                    key={note.path}
+                    note={note}
+                    view={view}
+                    activeTags={parsed.tags}
+                    onOpen={onOpenNote}
+                    onTag={onTag}
+                    onChanged={refresh}
+                  />
+                ))}
+              </section>
+            ))}
+          </div>
         ) : (
-          groups.map(({ group, items }) => (
-            <section key={group} className="trace-section gap-1">
-              <SectionHead title={group} />
-              {items.map((note) => (
-                <NoteRow
-                  key={note.path}
-                  note={note}
-                  showGist={showGists}
-                  activeTag={activeTag}
-                  onOpen={onOpenNote}
-                  onTag={setTag}
-                  onChanged={refresh}
-                />
-              ))}
-            </section>
-          ))
+          <div className="flex flex-col gap-1">
+            {filtered.map((note) => (
+              <NoteRow
+                key={note.path}
+                note={note}
+                view={view}
+                activeTags={parsed.tags}
+                onOpen={onOpenNote}
+                onTag={onTag}
+                onChanged={refresh}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-/**
- * Order and tag filter for the list.
- *
- * Deliberately two controls and no more for now. Filtering by length or type
- * is worth having once type is something a meeting is actually given — every
- * meeting is "general" today, so a type filter would be a control that
- * always shows everything.
- */
-function ListControls({
-  order,
-  onOrder,
-  tags,
-  tag,
-  onTag,
-}: {
-  order: SortOrder;
-  onOrder: (o: SortOrder) => void;
-  tags: string[];
-  tag: string | null;
-  onTag: (t: string | null) => void;
-}) {
+/** Filters that leave nothing, with the way out. */
+function NoMatch({ onClear }: { onClear: () => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <fieldset className="flex items-center gap-1">
-        <legend className="sr-only">Order</legend>
-        <Toggle active={order === "newest"} onClick={() => onOrder("newest")}>
-          Newest
-        </Toggle>
-        <Toggle active={order === "oldest"} onClick={() => onOrder("oldest")}>
-          Oldest
-        </Toggle>
-      </fieldset>
-
-      {tags.length > 0 && (
-        <fieldset className="flex min-w-0 flex-wrap items-center gap-1">
-          <legend className="sr-only">Filter by tag</legend>
-          <span aria-hidden className="mr-1 font-mono text-2xs text-ink-faint">
-            #
-          </span>
-          <Toggle active={tag === null} onClick={() => onTag(null)}>
-            All
-          </Toggle>
-          {tags.map((t) => (
-            <Toggle key={t} active={tag === t} onClick={() => onTag(tag === t ? null : t)} plain>
-              {t}
-            </Toggle>
-          ))}
-        </fieldset>
-      )}
+    <div className="trace-hatch flex flex-col items-center gap-3 rounded-sm py-12 text-center">
+      <p className="font-mono text-xs text-ink-faint">
+        <Prompt />
+        no meetings match these filters.
+      </p>
+      <button
+        type="button"
+        onClick={onClear}
+        className="rounded-pill border border-line-strong px-3 py-1 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor"
+      >
+        Clear filters
+      </button>
     </div>
-  );
-}
-
-function Toggle({
-  active,
-  onClick,
-  plain,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  /** Tags keep their own case; everything else here is a system label. */
-  plain?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`rounded-sm border px-2 py-0.5 font-mono text-2xs tracking-system trace-press ${
-        plain ? "" : "uppercase"
-      } ${
-        active
-          ? "border-phosphor bg-phosphor-dim text-phosphor"
-          : "border-transparent text-ink-faint hover:text-ink"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -390,7 +354,10 @@ function EmptyState({ root }: { root: string }) {
     // Hatched rather than blank: an empty panel and a panel that failed to
     // load look identical, and this product has to tell them apart often.
     <div className="trace-hatch flex flex-col gap-3 rounded-sm py-16 text-center">
-      <p className="font-mono text-xs text-ink-faint">&gt; no traces yet.</p>
+      <p className="font-mono text-xs text-ink-faint">
+        <Prompt />
+        no traces yet.
+      </p>
       <p className="text-sm text-ink-muted">Start a meeting and TRACE will keep the rest.</p>
       {root && (
         <p className="mt-4 font-mono text-2xs text-ink-faint" data-selectable>
@@ -405,7 +372,10 @@ function EmptyState({ root }: { root: string }) {
 function BrowserNotice() {
   return (
     <div className="flex flex-col gap-3 py-16 text-center">
-      <p className="font-mono text-xs text-warn">&gt; no backend.</p>
+      <p className="font-mono text-xs text-warn">
+        <Prompt />
+        no backend.
+      </p>
       <p className="text-sm text-ink-muted">
         This is the frontend running in a browser. Audio capture, transcription and saving all live
         in the desktop app.
@@ -416,24 +386,24 @@ function BrowserNotice() {
 }
 
 /**
- * One meeting in the list, with the two things you cannot otherwise do to it.
+ * One meeting in the list.
  *
- * Rename and delete appear on hover rather than permanently. A library is
- * read most of the time and edited rarely, and a row carrying two controls at
- * rest reads as a form; the actions are still reachable by keyboard, because
- * hiding them from a mouse is not the same as removing them.
+ * Granola's shape: the title and its line of summary on the left, when it
+ * happened on the right, and everything else out of the way. Rename and
+ * delete moved into a menu — two buttons reserved in every row, invisible
+ * until hover, took width from every title for actions used once a month.
  */
 function NoteRow({
   note,
-  showGist,
-  activeTag,
+  view,
+  activeTags,
   onOpen,
   onTag,
   onChanged,
 }: {
   note: NoteSummary;
-  showGist: boolean;
-  activeTag: string | null;
+  view: View;
+  activeTags: string[];
   onOpen: (path: string) => void;
   onTag: (tag: string) => void;
   onChanged: () => void;
@@ -468,29 +438,22 @@ function NoteRow({
     onChanged();
   }
 
+  const time = startTime(note.startedAt);
+  const list = view === "list";
+
   return (
     <div
-      className={`group flex items-baseline gap-3 rounded-sm px-2 py-2 trace-press hover:bg-surface-1 ${
-        busy ? "opacity-50" : ""
-      }`}
+      data-note-row
+      className={`group flex items-start gap-4 rounded-md px-3 trace-press hover:bg-surface-2 focus-within:bg-surface-2 ${
+        list ? "py-3" : "py-2"
+      } ${busy ? "opacity-50" : ""}`}
     >
-      {/*
-        The title span is `block`: overflow and text-overflow do not apply to a
-        non-replaced inline element, so an inline span with `truncate` silently
-        did nothing and a long title overflowed its row.
-
-        The gist sits inside the same button so the whole block opens the note,
-        and the row's baseline stays the title's, keeping the type label level
-        with it rather than with the gist.
-      */}
-      <div
-        className={`flex min-w-0 flex-col gap-1.5 ${
-          // With a gist, the title block takes the row and the hover leader
-          // shrinks to its minimum. Sharing the width equally, as a lone title
-          // can, squeezed the gist into a narrow column of wrapped lines.
-          showGist ? "flex-[1_1_100%]" : "flex-1"
-        }`}
-      >
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        {/*
+          The title span is `block`: overflow and text-overflow do not apply to
+          a non-replaced inline element, so an inline span with `truncate`
+          silently did nothing and a long title overflowed its row.
+        */}
         <button
           type="button"
           onClick={() => onOpen(note.path)}
@@ -499,116 +462,95 @@ function NoteRow({
           <span className="trace-title block truncate text-base text-ink group-hover:text-phosphor">
             {note.title}
           </span>
-          {showGist &&
+          {list &&
             (note.gist ? (
               <span className="line-clamp-2 text-sm text-ink-muted">{note.gist}</span>
             ) : (
               // Said rather than left blank, so an old note reads as "not
-              // summarised" instead of the toggle appearing to do nothing.
+              // summarised" instead of the view appearing to do nothing.
               <span className="font-mono text-2xs text-ink-faint">— no summary</span>
             ))}
         </button>
 
-        {/* Under the title rather than beside it: beside, two tags were
-            enough to cut a title down to a few characters. */}
-        {note.tags.length > 0 && <RowTags tags={note.tags} active={activeTag} onTag={onTag} />}
+        {list && (note.tags.length > 0 || note.type !== "general") && (
+          <span className="flex flex-wrap items-baseline gap-1.5 font-mono text-2xs tracking-system">
+            {note.tags.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => onTag(t)}
+                title={`Show only meetings tagged ${t}`}
+                className={`rounded-pill px-2 py-0.5 trace-press hover:bg-phosphor hover:text-surface-0 ${
+                  activeTags.includes(t)
+                    ? "bg-phosphor text-surface-0"
+                    : "bg-phosphor-dim text-phosphor"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+            {/* Type only when it says something: nothing sets it yet, so
+                every meeting would otherwise read "general". */}
+            {note.type !== "general" && (
+              <span className="uppercase text-ink-faint">{note.type}</span>
+            )}
+          </span>
+        )}
       </div>
 
-      <span
-        aria-hidden
-        className="trace-rule opacity-0 transition-opacity group-hover:opacity-100"
-      />
-
-      <RowFacts note={note} />
+      <span className="flex shrink-0 flex-col items-end gap-0.5 pt-0.5 font-mono text-2xs tabular-nums text-ink-faint">
+        {time && <span className="text-ink-muted">{time}</span>}
+        {note.durationMs !== null && <span>{formatMeetingLength(note.durationMs)}</span>}
+      </span>
 
       {hasBackend() && (
-        <span className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-          <RowAction label="Rename" onClick={rename} disabled={busy}>
-            Rename
-          </RowAction>
-          <RowAction label="Delete" onClick={remove} disabled={busy} destructive>
-            Delete
-          </RowAction>
+        <span className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <Popover
+            label={`Actions for ${note.title}`}
+            align="end"
+            title="Rename or delete"
+            trigger={
+              <span className="flex size-7 items-center justify-center rounded-pill font-mono text-sm text-ink-faint hover:text-ink">
+                <span className="sr-only">Meeting actions</span>
+                <span aria-hidden>⋯</span>
+              </span>
+            }
+          >
+            {(close) => (
+              <>
+                <PopoverItem
+                  disabled={busy}
+                  onSelect={() => {
+                    close();
+                    void rename();
+                  }}
+                >
+                  Rename
+                </PopoverItem>
+                <PopoverItem
+                  disabled={busy}
+                  onSelect={() => {
+                    close();
+                    void remove();
+                  }}
+                >
+                  <span className="text-error">Delete</span>
+                </PopoverItem>
+              </>
+            )}
+          </Popover>
         </span>
       )}
     </div>
   );
 }
 
-/**
- * Length and — when it says something — type, on the right of a row.
- *
- * Type used to sit here alone, and since nothing yet sets it every meeting
- * read "general". That looked like the meeting's tags, and like tagging being
- * broken. It shows only when it is not the default now; the tags the user
- * actually gave sit under the title.
- */
-function RowFacts({ note }: { note: NoteSummary }) {
-  return (
-    <span className="flex shrink-0 items-baseline gap-3 font-mono text-2xs tracking-system text-ink-faint">
-      {note.type !== "general" && <span className="uppercase">{note.type}</span>}
-      {note.durationMs !== null && (
-        <span className="tabular-nums">{formatMeetingLength(note.durationMs)}</span>
-      )}
-    </span>
-  );
-}
-
-/** A row's tags. Pressing one filters the library to it. */
-function RowTags({
-  tags,
-  active,
-  onTag,
-}: {
-  tags: string[];
-  active: string | null;
-  onTag: (tag: string) => void;
-}) {
-  return (
-    <span className="flex flex-wrap gap-1.5 font-mono text-2xs tracking-system">
-      {tags.map((t) => (
-        <button
-          key={t}
-          type="button"
-          onClick={() => onTag(t)}
-          title={`Show only meetings tagged ${t}`}
-          className={`rounded-sm px-1.5 py-0.5 trace-press hover:bg-phosphor hover:text-surface-0 ${
-            t === active ? "bg-phosphor text-surface-0" : "bg-phosphor-dim text-phosphor"
-          }`}
-        >
-          {t}
-        </button>
-      ))}
-    </span>
-  );
-}
-
-function RowAction({
-  label,
-  onClick,
-  disabled,
-  destructive,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled: boolean;
-  destructive?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      disabled={disabled}
-      className={`rounded-sm px-2 py-1 font-mono text-2xs uppercase tracking-system text-ink-faint trace-press disabled:opacity-40 ${
-        destructive ? "hover:text-error" : "hover:text-ink"
-      }`}
-    >
-      {children}
-    </button>
-  );
+/** "14:30", in the machine's own clock. */
+function startTime(startedAt: string | null): string | null {
+  if (!startedAt) return null;
+  const d = new Date(startedAt);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 /**
@@ -630,21 +572,25 @@ function SearchResults({
   if (hits.length === 0) {
     return (
       <div className="trace-hatch flex flex-col gap-2 rounded-sm py-12 text-center">
-        <p className="font-mono text-xs text-ink-faint">&gt; nothing matches “{query}”.</p>
+        <p className="font-mono text-xs text-ink-faint">
+          <Prompt />
+          nothing matches “{query}”.
+        </p>
         <p className="text-sm text-ink-muted">Every word has to appear somewhere in the meeting.</p>
       </div>
     );
   }
 
   return (
-    <section className="trace-section gap-1">
-      <SectionHead title={`${hits.length} ${hits.length === 1 ? "result" : "results"}`} />
+    // No heading of its own: the count line above the list already says how
+    // many there are, and saying it twice read as two different numbers.
+    <section aria-label="Search results" className="flex flex-col gap-1">
       {hits.map((hit) => (
         <button
           key={hit.path}
           type="button"
           onClick={() => onOpen(hit.path)}
-          className="group flex flex-col gap-1 rounded-sm px-2 py-2 text-left trace-press hover:bg-surface-1"
+          className="group flex flex-col gap-1 rounded-sm px-2 py-2 text-left trace-press hover:bg-surface-2"
         >
           <span className="flex items-baseline gap-3">
             <span className="trace-title min-w-0 flex-1 truncate text-base text-ink group-hover:text-phosphor">

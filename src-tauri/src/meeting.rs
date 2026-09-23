@@ -174,6 +174,9 @@ pub struct Meeting {
     /// may cite it, because nobody said it in the meeting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context: Option<String>,
+    /// Loudness across the meeting as block characters, for the library.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signal: Option<String>,
     /// The user's own notes. Never overwritten by generation.
     #[serde(default)]
     pub notes: String,
@@ -200,6 +203,7 @@ impl Meeting {
             tags: Vec::new(),
             project: None,
             context: None,
+            signal: None,
             notes: String::new(),
             transcript: Vec::new(),
             generated: None,

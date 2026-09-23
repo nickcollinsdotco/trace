@@ -271,6 +271,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
   };
   const tags: Record<string, string[]> = { ...state.tags };
   const contexts: Record<string, NoteContext> = { ...state.contexts };
+  let micPreviewFrom: number | null = null;
 
   const bodies: Record<string, string> = { ...state.bodies };
   let jobs = rebase(state.activity);
@@ -586,6 +587,21 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           ].sort();
           tags[path] = clean;
           return clean;
+        }
+
+        case "start_mic_preview":
+          micPreviewFrom = Date.now();
+          return null;
+        case "stop_mic_preview":
+          micPreviewFrom = null;
+          return null;
+        case "mic_preview_level": {
+          if (micPreviewFrom === null) return null;
+          // Syllables: a fast wobble inside slower phrases with pauses, which
+          // is what a voice looks like at this resolution.
+          const t = (Date.now() - micPreviewFrom) / 1000;
+          const phrase = Math.max(0, Math.sin(t * 1.3));
+          return 0.02 + 0.12 * phrase * (0.6 + 0.4 * Math.abs(Math.sin(t * 11)));
         }
 
         case "note_context":

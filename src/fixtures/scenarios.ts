@@ -93,6 +93,7 @@ const NOTES: NoteSummary[] = [
     tags: [],
     startedAt: startedDaysAgo(0, 16),
     durationMs: 18 * MINUTE,
+    signal: "▆▆▆▇█▅▃▃▃▁▂▅▆▅▇█▆▃▄▃▁▁▁▆▅▆█▇▄▄▄▂▁▃▅▅▆█▇▅▄▄▂▁▃▁▁▁",
   },
   {
     path: PATHS.pricing,
@@ -103,6 +104,7 @@ const NOTES: NoteSummary[] = [
     tags: [],
     startedAt: startedDaysAgo(1, 14),
     durationMs: 47 * MINUTE,
+    signal: "▅▇▇▆▆██▇▅▅▅▆▄▁▂▃▄▃▂▄▆▇▆▆▇██▆▅▅▆▅▂▁▃▄▃▂▃▅▇▆▆▆██▇▅",
   },
   {
     path: PATHS.vendor,
@@ -113,6 +115,7 @@ const NOTES: NoteSummary[] = [
     tags: [],
     startedAt: startedDaysAgo(2, 11),
     durationMs: null,
+    signal: null,
   },
   {
     path: PATHS.standup,
@@ -123,6 +126,7 @@ const NOTES: NoteSummary[] = [
     tags: [],
     startedAt: startedDaysAgo(3, 9),
     durationMs: 12 * MINUTE,
+    signal: null,
   },
   {
     path: PATHS.planning,
@@ -133,6 +137,7 @@ const NOTES: NoteSummary[] = [
     tags: [],
     startedAt: startedDaysAgo(12, 10),
     durationMs: 94 * MINUTE,
+    signal: null,
   },
   {
     path: "C:\\Users\\you\\Documents\\TRACE\\2026-07-14 Acme discovery.md",
@@ -143,6 +148,7 @@ const NOTES: NoteSummary[] = [
     tags: [],
     startedAt: startedDaysAgo(53, 15),
     durationMs: 38 * MINUTE,
+    signal: null,
   },
 ];
 
@@ -456,7 +462,7 @@ export const SCENARIOS: Scenario[] = [
     id: "capture-setup",
     name: "Before recording",
     group: "Capture",
-    note: "Device pick and title. Press Start to enter the live state for real.",
+    note: "Device pick and title. Test mic hears the microphone without recording; Start enters the live state for real.",
     screen: "capture",
     state: {
       ...POPULATED,
@@ -806,7 +812,7 @@ export const SCENARIOS: Scenario[] = [
     id: "appearance",
     name: "Appearance",
     group: "Pages",
-    note: "Every theme previewed with its own tokens. Picking one here re-themes this preview.",
+    note: "Modern or Terminal, then a theme within it, and CRT mode over either. Picking here re-themes this preview.",
     screen: "appearance",
     state: POPULATED,
   },

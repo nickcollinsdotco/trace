@@ -24,6 +24,15 @@ export function RefinementNotice({ stage }: { stage: RefinementStage }) {
   }
 
   if (stage.kind === "summarising") {
+    // The final pass runs after the last part with nothing else moving, so it
+    // says what it is doing rather than leaving "part 8 of 8" on screen.
+    if (stage.combining) {
+      return (
+        <Line tone="phosphor">
+          combining {stage.total} parts into one summary and the key points that matter…
+        </Line>
+      );
+    }
     const progress = stage.total > 1 ? ` (part ${stage.window} of ${stage.total})` : "";
     return <Line tone="phosphor">writing notes{progress}…</Line>;
   }

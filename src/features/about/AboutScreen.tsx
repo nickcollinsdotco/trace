@@ -42,6 +42,19 @@ export function AboutScreen() {
               {info.devBuild && <span className="text-warn"> · development build</span>}
             </p>
           )}
+          {/* Here because this is where someone checking their version looks
+              next for how to get a newer one. */}
+          <p className="text-sm text-ink-muted">
+            To update, open PowerShell in the trace folder and run{" "}
+            <code data-selectable className="font-mono text-xs text-ink">
+              pnpm update-app
+            </code>
+            . Add{" "}
+            <code data-selectable className="font-mono text-xs text-ink">
+              -Check
+            </code>{" "}
+            to see what an update would bring without changing anything.
+          </p>
         </Section>
 
         <Section title="Folders">

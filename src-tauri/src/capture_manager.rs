@@ -514,6 +514,7 @@ fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::p
             serde_json::json!({
                 "window": progress.window,
                 "total": progress.total,
+                "combining": progress.combining,
             }),
         );
     });

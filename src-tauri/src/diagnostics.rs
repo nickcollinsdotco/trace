@@ -52,6 +52,12 @@ pub fn log(event: impl AsRef<str>) {
     let event = event.as_ref();
     eprintln!("trace: {event}");
 
+    // Tests exercise failure paths that log, and on a developer's machine the
+    // log path is their real one. A test run must not leave invented events
+    // in the file a bug report is built from.
+    if cfg!(test) {
+        return;
+    }
     let Some(path) = log_path() else {
         return;
     };

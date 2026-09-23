@@ -373,7 +373,7 @@ export const SCENARIOS: Scenario[] = [
     id: "note-synthesising",
     name: "Notes being written",
     group: "Reading",
-    note: "Re-transcribe, then synthesis across three windows, then the result.",
+    note: "Re-transcribe, then synthesis across three windows, the final pass combining them, then the result.",
     screen: "note",
     notePath: PATHS.pricing,
     state: {
@@ -388,7 +388,12 @@ export const SCENARIOS: Scenario[] = [
         { atMs: 5200, event: EVENT.synthesisProgress, payload: { window: 2, total: 3 } },
         { atMs: 7800, event: EVENT.synthesisProgress, payload: { window: 3, total: 3 } },
         {
-          atMs: 10_400,
+          atMs: 9_100,
+          event: EVENT.synthesisProgress,
+          payload: { window: 3, total: 3, combining: true },
+        },
+        {
+          atMs: 11_400,
           event: EVENT.notesGenerated,
           payload: { notePath: PATHS.pricing, dropped: 0, fabricated: 0, uncited: 0 },
         },

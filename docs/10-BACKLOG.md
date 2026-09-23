@@ -325,8 +325,9 @@ neither depends on transcribe.cpp.
 **Idea.** An "Update available" notice in the status bar, as Handy has, that
 downloads and installs a new version from inside the app.
 
-**Today.** `pnpm update-app` pulls, builds and launches the installer locally
-(`scripts/update.ps1`), and `pnpm bump` gives each build its own version.
+**Today.** `pnpm update-app -Check` shows what an update would bring, and
+`pnpm update-app` pulls, builds and launches the installer locally
+(`scripts/update.ps1`); `pnpm bump` gives each build its own version.
 That is enough while TRACE has one user who builds it from source.
 
 **What the real thing needs**, in order:

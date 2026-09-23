@@ -312,6 +312,8 @@ describe("Gallery", () => {
     const user = userEvent.setup();
     render(<Gallery />);
     await openScenario(user, "About");
+    // Where someone checking their version looks next for how to update.
+    expect(await screen.findByText("pnpm update-app")).toBeInTheDocument();
 
     // Each appears twice: in its section, and in the collapsed plain-text copy.
     expect((await screen.findAllByText(/100% on GPU/)).length).toBeGreaterThan(0);

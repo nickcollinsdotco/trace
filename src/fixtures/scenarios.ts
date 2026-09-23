@@ -782,6 +782,14 @@ export const SCENARIOS: Scenario[] = [
     state: POPULATED,
   },
   {
+    id: "about-model-held",
+    name: "About, notes being written",
+    group: "Pages",
+    note: "The report while TRACE holds the summary model: what it occupies, and how much is on the GPU. Idle, nothing is held.",
+    screen: "about",
+    state: { ...POPULATED, activity: QUEUED },
+  },
+  {
     id: "about-ollama-closed",
     name: "About, Ollama closed",
     group: "Pages",

@@ -103,6 +103,10 @@ struct Active {
     /// Chosen when the meeting starts and used for its re-pass too, so
     /// switching models mid-meeting cannot give one transcript two engines.
     speech: &'static crate::models::ModelSpec,
+    /// The summary model, kept loaded from the start of the meeting until its
+    /// notes are written. `None` when the user keeps it out of memory during
+    /// meetings, or Ollama was not ready.
+    model_hold: Option<crate::synthesis::ollama::ModelHold>,
 }
 
 /// The application's capture state. One meeting at a time, by design.
@@ -169,16 +173,18 @@ impl CaptureManager {
         })?;
         let journal = Arc::new(Mutex::new(journal));
 
-        // Warm the language model now, in the background. Synthesis does not
+        // Load the language model now, in the background. Synthesis does not
         // run until the meeting ends, but the first load after a cold boot
         // takes about a minute, and paying it during the meeting means the
         // user never waits for it afterwards.
-        if crate::settings::load().summary_memory == crate::settings::SummaryMemory::DuringMeetings
+        let model_hold = if crate::settings::load().summary_memory
+            == crate::settings::SummaryMemory::DuringMeetings
         {
-            if let Some(provider) = default_provider() {
-                crate::synthesis::ollama::warm(provider.model());
-            }
-        }
+            default_provider()
+                .map(|provider| crate::synthesis::ollama::ModelHold::keep_loaded(provider.model()))
+        } else {
+            None
+        };
 
         // Load the transcription engine before capture starts. It takes about
         // a second, and doing it afterwards would miss the opening.
@@ -228,6 +234,7 @@ impl CaptureManager {
             pump_stop,
             pump: Some(pump),
             speech,
+            model_hold,
         });
 
         Ok(status)
@@ -351,6 +358,9 @@ impl CaptureManager {
         // nowhere for it to go.
         drop(active.live);
 
+        // No notes will be written, so nothing needs the summary model.
+        drop(active.model_hold);
+
         // Best-effort. A locked WAV leaves files behind, which is untidy but
         // not a failure the user can act on — and reporting it would suggest
         // the meeting was somehow kept, which it was not.
@@ -438,6 +448,7 @@ impl CaptureManager {
             note_path.clone(),
             summary.clone(),
             active.speech,
+            active.model_hold,
         );
 
         Ok(FinishedMeeting {
@@ -579,6 +590,9 @@ fn synthesize(
             return;
         }
     };
+    // Keeps the model from being unloaded under this summary by a meeting
+    // ending elsewhere, and unloads it after if nothing else needs it.
+    let _model_hold = crate::synthesis::ollama::ModelHold::in_use(provider.model());
     diagnostics::log(format!("summarising with {}", provider.model()));
     let started = std::time::Instant::now();
 
@@ -701,10 +715,16 @@ fn spawn_repass(
     note_path: PathBuf,
     summary: SessionSummary,
     speech: &'static crate::models::ModelSpec,
+    model_hold: Option<crate::synthesis::ollama::ModelHold>,
 ) {
     std::thread::Builder::new()
         .name("trace-repass".into())
         .spawn(move || {
+            // Held until this thread ends, whichever way it ends, so the
+            // summary model stays loaded through the queue and the re-pass,
+            // and goes as soon as there is nothing left to summarise.
+            let _model_hold = model_hold;
+
             // One heavy job at a time: a meeting that ends while another's
             // notes are being written waits here, shown as queued.
             let _lane = ACTIVITY.lane();

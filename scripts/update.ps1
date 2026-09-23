@@ -90,6 +90,15 @@ function Get-InstalledVersion {
     return $null
 }
 
+# Git's own options for the script's fetch and pull. After either, git may
+# start tidying its storage - repacking objects and deleting the old pack
+# files. On Windows a file another program has open (an editor, GitHub
+# Desktop, a virus scan) cannot be deleted, and git stops to ask "Unlink of
+# file ... failed. Should I try again? (y/n)" in the middle of an update.
+# The tidy-up is only deferred: git runs it the next time it is used
+# directly, and nothing depends on it happening now.
+$quiet = @('-c', 'maintenance.auto=false', '-c', 'gc.auto=0')
+
 function Confirm-Step([string]$question) {
     if ($Yes) { return $true }
     $answer = Read-Host "$question [y/N]"
@@ -125,7 +134,9 @@ if ($dirty) {
 # --- 2. What an update would bring -------------------------------------------
 
 Write-Step 2 'Checking GitHub for changes'
-Invoke-Checked 'Fetching from GitHub (check your connection)' { git -C $repo fetch origin main }
+Invoke-Checked 'Fetching from GitHub (check your connection)' {
+    git -C $repo @quiet fetch origin main
+}
 
 $branch = git -C $repo rev-parse --abbrev-ref HEAD
 # Compared against local main, which is what the update pulls into. A clone
@@ -188,7 +199,7 @@ Invoke-Checked 'Switching to main' { git -C $repo checkout main }
 # --ff-only: if local main has commits of its own, a merge here would invent
 # a commit nobody asked for. Better to stop and say so.
 Invoke-Checked 'git pull (check your connection, or whether local main has diverged)' {
-    git -C $repo pull --ff-only origin main
+    git -C $repo @quiet pull --ff-only origin main
 }
 $version = (Get-Content (Join-Path $repo 'src-tauri/tauri.conf.json') -Raw | ConvertFrom-Json).version
 

@@ -46,11 +46,60 @@ export interface SystemReport {
   installed: boolean;
 }
 
+/** What happens to a meeting's audio once its notes are written. */
+export type AudioRetention =
+  | { mode: "delete" }
+  | { mode: "keep_latest"; count: number }
+  | { mode: "keep_all" };
+
+/** When the summary model occupies memory. */
+export type SummaryMemory = "during_meetings" | "while_writing";
+
 export interface Settings {
-  keepAudio: boolean;
+  audioRetention: AudioRetention;
+  /** Id of the speech model meetings use. */
+  speechModel: string;
+  /** Chosen Ollama model; null means the first preferred one installed. */
+  summaryModel: string | null;
+  summaryMemory: SummaryMemory;
+  defaultMic: string | null;
 }
 
+export interface SpeechModel {
+  id: string;
+  name: string;
+  summary: string;
+  languages: string;
+  downloadBytes: number;
+  installed: boolean;
+  active: boolean;
+}
+
+export interface SummaryModel {
+  name: string;
+  sizeBytes: number;
+  parameters: string | null;
+  active: boolean;
+}
+
+export interface OfferedModel {
+  name: string;
+  summary: string;
+  approxBytes: number;
+  installed: boolean;
+}
+
+export interface SummaryModels {
+  llm: LlmStatus;
+  installed: SummaryModel[];
+  recommended: OfferedModel[];
+}
+
+export type Folder = "notes" | "models" | "logs";
+
 export interface ModelProgress {
+  /** Which speech model the progress is for. */
+  model?: string;
   phase: "downloading" | "extracting" | "verifying" | "done";
   percent: number;
 }
@@ -162,7 +211,8 @@ export interface DiagnosticsReport {
   preferredModels: string[];
   loadedModels: LoadedModel[];
   contextTokens: number;
-  keepAudio: boolean;
+  audioRetention: AudioRetention;
+  summaryMemory: SummaryMemory;
   notesRoot: string;
   logDir: string;
   /** Recent log lines, oldest first. */
@@ -240,8 +290,19 @@ export const ipc = {
   systemReport: () => call<SystemReport>("system_report"),
 
   getSettings: () => call<Settings>("get_settings"),
-  setKeepAudio: (keep: boolean) => call<Settings>("set_keep_audio", { keep }),
-  installModel: () => call<void>("install_model"),
+  setAudioRetention: (retention: AudioRetention) =>
+    call<Settings>("set_audio_retention", { retention }),
+  setSummaryMemory: (memory: SummaryMemory) => call<Settings>("set_summary_memory", { memory }),
+  setDefaultMic: (name: string | null) => call<Settings>("set_default_mic", { name }),
+  /** Without an id, the speech model meetings will use — what first run wants. */
+  installModel: (id?: string) => call<void>("install_model", { id: id ?? null }),
+  speechModels: () => call<SpeechModel[]>("speech_models"),
+  setSpeechModel: (id: string) => call<Settings>("set_speech_model", { id }),
+  deleteSpeechModel: (id: string) => call<void>("delete_speech_model", { id }),
+  summaryModels: () => call<SummaryModels>("summary_models"),
+  setSummaryModel: (name: string) => call<Settings>("set_summary_model", { name }),
+  pullSummaryModel: (name: string) => call<void>("pull_summary_model", { name }),
+  openFolder: (kind: Folder) => call<string>("open_folder", { kind }),
 
   startCapture: (title: string, micDevice: string | null) =>
     call<CaptureStatus>("start_capture", { title, micDevice }),
@@ -274,7 +335,6 @@ export const ipc = {
 
   appInfo: () => call<AppInfo>("app_info"),
   diagnosticsReport: () => call<DiagnosticsReport>("diagnostics_report"),
-  openLogsFolder: () => call<string>("open_logs_folder"),
 };
 
 /* ------------------------------------------------------------------ *
@@ -289,6 +349,7 @@ export const EVENT = {
   synthesisProgress: "trace://synthesis-progress",
   notesGenerated: "trace://notes-generated",
   synthesisFailed: "trace://synthesis-failed",
+  summaryPull: "trace://summary-pull",
 } as const;
 
 /** Subscribe to live transcript segments. */
@@ -365,4 +426,11 @@ export function onSynthesisFailed(
   handler: (info: { notePath?: string; message: string }) => void,
 ): Promise<UnlistenFn> {
   return subscribe(EVENT.synthesisFailed, handler);
+}
+
+/** Progress of a summary model downloading through Ollama. */
+export function onSummaryPull(
+  handler: (p: { model: string; percent: number }) => void,
+): Promise<UnlistenFn> {
+  return subscribe(EVENT.summaryPull, handler);
 }

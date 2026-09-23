@@ -36,7 +36,16 @@ const COMMANDS = [
   "start_ollama",
   "app_info",
   "diagnostics_report",
-  "open_logs_folder",
+  "open_folder",
+  "speech_models",
+  "set_speech_model",
+  "delete_speech_model",
+  "summary_models",
+  "set_summary_model",
+  "pull_summary_model",
+  "set_audio_retention",
+  "set_summary_memory",
+  "set_default_mic",
 ];
 
 describe("scenarios", () => {

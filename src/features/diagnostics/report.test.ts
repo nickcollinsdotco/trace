@@ -30,7 +30,8 @@ const REPORT: DiagnosticsReport = {
   preferredModels: ["qwen3:14b", "qwen3:8b"],
   loadedModels: [FULLY_ON_GPU, PARTLY_ON_CPU],
   contextTokens: 8192,
-  keepAudio: false,
+  audioRetention: { mode: "keep_latest", count: 5 },
+  summaryMemory: "during_meetings",
   notesRoot: "C:\\Users\\you\\Documents\\TRACE",
   logDir: "C:\\Users\\you\\AppData\\Local\\TRACE\\logs",
   recent: ["2026-09-23 10:00:00 summary failed: Ollama is not running"],
@@ -42,6 +43,7 @@ describe("diagnostics report", () => {
     expect(text).toContain("0.1.0 (dev build)");
     expect(text).toContain("ready, using qwen3:14b");
     expect(text).toContain("Ollama        0.12.3");
+    expect(text).toContain("kept for the latest 5 meetings");
     expect(text).toContain("summary failed: Ollama is not running");
   });
 

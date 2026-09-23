@@ -17,12 +17,20 @@ import { EVENT, type NoteSummary } from "../lib/ipc";
 import type { BackendState, ScriptedEvent } from "./backend";
 import { NOTE_ENHANCED, NOTE_LONG, NOTE_NOTHING, NOTE_RAW, NOTE_TRANSCRIPT_ONLY } from "./notes";
 
-export type ScreenName = "library" | "capture" | "note" | "firstrun" | "diagnostics";
+export type ScreenName =
+  | "library"
+  | "capture"
+  | "note"
+  | "firstrun"
+  | "models"
+  | "appearance"
+  | "settings"
+  | "about";
 
 export interface Scenario {
   id: string;
   name: string;
-  group: "Library" | "Capture" | "Reading" | "First run" | "Diagnostics";
+  group: "Library" | "Capture" | "Reading" | "First run" | "Pages";
   /** What this state is for — shown next to the switcher. */
   note: string;
   screen: ScreenName;
@@ -205,7 +213,11 @@ export const SCENARIOS: Scenario[] = [
     group: "Library",
     note: "Running, but nothing pulled. A different fix, so a different message.",
     screen: "library",
-    state: { ...POPULATED, llm: { state: "no_model", suggested: "qwen3:8b" } },
+    state: {
+      ...POPULATED,
+      llm: { state: "no_model", suggested: "qwen3:8b" },
+      summaryInstalled: [],
+    },
   },
 
   /* --- Capture ----------------------------------------------------- */
@@ -507,21 +519,65 @@ export const SCENARIOS: Scenario[] = [
     },
   },
 
-  /* --- Diagnostics ------------------------------------------------- */
+  /* --- Pages ------------------------------------------------------- */
   {
-    id: "diagnostics",
-    name: "Diagnostics",
-    group: "Diagnostics",
-    note: "Everything a bug report needs, and one button to copy it.",
-    screen: "diagnostics",
+    id: "models",
+    name: "Models",
+    group: "Pages",
+    note: "Both kinds of model: speech (TRACE's own files) and summaries (Ollama's).",
+    screen: "models",
     state: POPULATED,
   },
   {
-    id: "diagnostics-ollama-closed",
-    name: "Diagnostics, Ollama closed",
-    group: "Diagnostics",
-    note: "The state most worth diagnosing: summaries offline, nothing in memory.",
-    screen: "diagnostics",
+    id: "models-ollama-closed",
+    name: "Models, Ollama closed",
+    group: "Pages",
+    note: "Speech models still manageable; summaries say how to get Ollama back.",
+    screen: "models",
+    state: { ...POPULATED, llm: { state: "not_running" } },
+  },
+  {
+    id: "models-none-pulled",
+    name: "Models, nothing in Ollama",
+    group: "Pages",
+    note: "Ollama running with no model. The downloads are the fix, so no terminal command is shown.",
+    screen: "models",
+    state: {
+      ...POPULATED,
+      llm: { state: "no_model", suggested: "qwen3:8b" },
+      summaryInstalled: [],
+    },
+  },
+  {
+    id: "appearance",
+    name: "Appearance",
+    group: "Pages",
+    note: "Every theme previewed with its own tokens. Picking one here re-themes this preview.",
+    screen: "appearance",
+    state: POPULATED,
+  },
+  {
+    id: "settings",
+    name: "Settings",
+    group: "Pages",
+    note: "Only the settings that change what happens to a meeting.",
+    screen: "settings",
+    state: POPULATED,
+  },
+  {
+    id: "about",
+    name: "About",
+    group: "Pages",
+    note: "Version, folders, and the diagnostics report with its recent events.",
+    screen: "about",
+    state: POPULATED,
+  },
+  {
+    id: "about-ollama-closed",
+    name: "About, Ollama closed",
+    group: "Pages",
+    note: "The report in the state most worth diagnosing: summaries offline, nothing in memory.",
+    screen: "about",
     state: {
       ...POPULATED,
       llm: { state: "not_running" },

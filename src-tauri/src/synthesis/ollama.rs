@@ -57,8 +57,13 @@ impl OllamaProvider {
         &self.model
     }
 
-    /// Models the local instance has pulled.
+    /// Names of the models the local instance has pulled.
     pub fn list_models() -> Result<Vec<String>, SynthesisError> {
+        Ok(Self::installed()?.into_iter().map(|m| m.name).collect())
+    }
+
+    /// Models the local instance has pulled, with their sizes.
+    pub fn installed() -> Result<Vec<InstalledModel>, SynthesisError> {
         let response = ureq::get(&format!("{HOST}/api/tags"))
             .config()
             .timeout_global(Some(PROBE_TIMEOUT))
@@ -71,15 +76,7 @@ impl OllamaProvider {
             .read_json()
             .map_err(|e| SynthesisError::Malformed(e.to_string()))?;
 
-        Ok(body["models"]
-            .as_array()
-            .map(|models| {
-                models
-                    .iter()
-                    .filter_map(|m| m["name"].as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default())
+        Ok(parse_installed(&body))
     }
 
     /// The running Ollama's version, for diagnostics.
@@ -161,9 +158,10 @@ pub enum Readiness {
 impl Readiness {
     /// Probe the local instance. Two short requests at most.
     pub fn check() -> Self {
+        let chosen = crate::settings::load().summary_model;
         match OllamaProvider::list_models() {
             Err(_) => Readiness::NotRunning,
-            Ok(installed) => match pick_model(&installed) {
+            Ok(installed) => match choose_model(chosen.as_deref(), &installed) {
                 Some(model) => Readiness::Ready { model },
                 None => Readiness::NoModel {
                     suggested: SUGGESTED_MODEL,
@@ -214,6 +212,137 @@ fn parse_loaded(body: &serde_json::Value) -> Vec<LoadedModel> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// The user's choice when it is still installed, else `pick_model`.
+///
+/// A choice that has since been removed from Ollama falls back rather than
+/// failing, for the same reason `pick_model` exists: notes from another model
+/// beat no notes.
+pub fn choose_model(chosen: Option<&str>, installed: &[String]) -> Option<String> {
+    chosen
+        .filter(|c| installed.iter().any(|m| m == c))
+        .map(str::to_string)
+        .or_else(|| pick_model(installed))
+}
+
+/// A model Ollama has on disk.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct InstalledModel {
+    pub name: String,
+    pub size_bytes: u64,
+    /// "14.8B" and the like, when Ollama reports it.
+    pub parameters: Option<String>,
+}
+
+fn parse_installed(body: &serde_json::Value) -> Vec<InstalledModel> {
+    body["models"]
+        .as_array()
+        .map(|models| {
+            models
+                .iter()
+                .filter_map(|m| {
+                    Some(InstalledModel {
+                        name: m["name"].as_str()?.to_string(),
+                        size_bytes: m["size"].as_u64().unwrap_or(0),
+                        parameters: m["details"]["parameter_size"].as_str().map(str::to_string),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A model worth offering to download, with what it costs.
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+pub struct Recommended {
+    pub name: &'static str,
+    pub summary: &'static str,
+    pub approx_bytes: u64,
+}
+
+/// What the Models page offers to pull, best notes first.
+///
+/// Sizes are the download, roughly. On the GPU each also needs about 1–1.5 GB
+/// of context at `NUM_CTX`, which is what the summaries say.
+pub const RECOMMENDED: &[Recommended] = &[
+    Recommended {
+        name: "qwen3:14b",
+        summary: "Best notes. Wants about 11 GB of video memory",
+        approx_bytes: 9_300_000_000,
+    },
+    Recommended {
+        name: "qwen3:8b",
+        summary: "Good notes on most machines. About 6.5 GB of video memory",
+        approx_bytes: 5_200_000_000,
+    },
+    Recommended {
+        name: "gemma3:12b",
+        summary: "An alternative voice for comparison. About 10 GB of video memory",
+        approx_bytes: 8_100_000_000,
+    },
+];
+
+/// Download a model through Ollama, reporting progress as a fraction.
+///
+/// Only names in `RECOMMENDED` are accepted: this is TRACE starting a
+/// multi-gigabyte download on the user's behalf, and the list is what they
+/// were shown. Anything else they can pull with Ollama directly.
+///
+/// Ollama reports progress per layer. The fraction is bytes across every
+/// layer seen so far, so it can step back briefly when a new layer appears;
+/// the weights dominate, so in practice it reads as one bar.
+pub fn pull(name: &str, mut on_progress: impl FnMut(f64)) -> Result<(), SynthesisError> {
+    use std::io::BufRead;
+
+    if !RECOMMENDED.iter().any(|r| r.name == name) {
+        return Err(SynthesisError::Request(format!(
+            "{name} is not a model TRACE offers"
+        )));
+    }
+
+    let response = ureq::post(&format!("{HOST}/api/pull"))
+        .config()
+        .http_status_as_error(false)
+        .build()
+        .send_json(serde_json::json!({ "model": name, "stream": true }))
+        .map_err(|e| SynthesisError::Unavailable(e.to_string()))?;
+
+    let status = response.status().as_u16();
+    let reader = std::io::BufReader::new(response.into_body().into_reader());
+    let mut layers: std::collections::HashMap<String, (u64, u64)> = Default::default();
+
+    for line in reader.lines() {
+        let line = line.map_err(|e| SynthesisError::Request(e.to_string()))?;
+        let Ok(event) = serde_json::from_str::<serde_json::Value>(&line) else {
+            continue;
+        };
+        if let Some(error) = event["error"].as_str() {
+            return Err(SynthesisError::Request(format!(
+                "Ollama could not pull {name}: {error}"
+            )));
+        }
+        if let (Some(digest), Some(total)) = (event["digest"].as_str(), event["total"].as_u64()) {
+            let done = event["completed"].as_u64().unwrap_or(0);
+            layers.insert(digest.to_string(), (done, total));
+            let (done, total) = layers
+                .values()
+                .fold((0, 0), |(d, t), (ld, lt)| (d + ld, t + lt));
+            if total > 0 {
+                on_progress(done as f64 / total as f64);
+            }
+        }
+        if event["status"].as_str() == Some("success") {
+            on_progress(1.0);
+            return Ok(());
+        }
+    }
+
+    Err(SynthesisError::Request(if status == 200 {
+        format!("the download of {name} stopped before it finished")
+    } else {
+        format!("Ollama refused to pull {name} (HTTP {status})")
+    }))
 }
 
 /// Prefer a known-good default, falling back to whatever is installed, so a
@@ -342,7 +471,8 @@ impl OllamaProvider {
                 "temperature": 0.2,
                 "num_predict": NUM_PREDICT,
                 "num_ctx": NUM_CTX
-            }
+            },
+            "keep_alive": keep_alive()
         });
 
         let response = ureq::post(&format!("{HOST}/api/generate"))
@@ -487,6 +617,18 @@ fn parse_output(text: &str) -> Result<SynthesisOutput, SynthesisError> {
     )))
 }
 
+/// How long Ollama keeps the model loaded after each request.
+///
+/// A minute, when the user wants it gone after writing notes: long enough to
+/// span the gap between windows of one meeting, so a long meeting is not
+/// reloaded window by window. Otherwise Ollama's own default.
+fn keep_alive() -> &'static str {
+    match crate::settings::load().summary_memory {
+        crate::settings::SummaryMemory::WhileWriting => "1m",
+        crate::settings::SummaryMemory::DuringMeetings => "5m",
+    }
+}
+
 /// Ask Ollama to load a model into memory without generating anything.
 ///
 /// Called when a meeting starts. The first request after a cold boot pays the
@@ -580,6 +722,49 @@ mod tests {
     fn a_preferred_model_wins_over_install_order() {
         let installed = names(&["llama3:8b", "gemma3:12b", "qwen3:8b"]);
         assert_eq!(pick_model(&installed).as_deref(), Some("qwen3:8b"));
+    }
+
+    #[test]
+    fn a_chosen_model_wins_only_while_it_is_installed() {
+        let installed = names(&["qwen3:8b", "qwen3:14b", "llama3:8b"]);
+        assert_eq!(
+            choose_model(Some("llama3:8b"), &installed).as_deref(),
+            Some("llama3:8b")
+        );
+        // Removed from Ollama since it was chosen: the preference order.
+        assert_eq!(
+            choose_model(Some("gone:1b"), &installed).as_deref(),
+            Some("qwen3:14b")
+        );
+        assert_eq!(choose_model(None, &installed).as_deref(), Some("qwen3:14b"));
+    }
+
+    #[test]
+    fn installed_models_carry_their_size() {
+        let body = serde_json::json!({ "models": [
+            { "name": "qwen3:14b", "size": 9_300_000_000u64,
+              "details": { "parameter_size": "14.8B" } },
+            { "name": "bare" }
+        ]});
+        let m = parse_installed(&body);
+        assert_eq!(m[0].size_bytes, 9_300_000_000);
+        assert_eq!(m[0].parameters.as_deref(), Some("14.8B"));
+        assert_eq!(m[1].size_bytes, 0);
+        assert_eq!(m[1].parameters, None);
+    }
+
+    #[test]
+    fn only_offered_models_can_be_pulled() {
+        // Refused before any request is made, so this needs no Ollama.
+        let err = pull("some/arbitrary-model", |_| {}).unwrap_err();
+        assert!(err.to_string().contains("not a model TRACE offers"));
+    }
+
+    #[test]
+    fn every_recommended_model_is_one_trace_prefers() {
+        for r in RECOMMENDED {
+            assert!(PREFERRED.contains(&r.name), "{}", r.name);
+        }
     }
 
     #[test]

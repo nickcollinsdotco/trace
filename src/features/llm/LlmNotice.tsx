@@ -23,7 +23,7 @@ export function LlmNotice({
    * with Ollama closed; on a note the meeting is over and the question is
    * only how to generate its summary now.
    */
-  context: "library" | "note";
+  context: "library" | "note" | "models";
 }) {
   const [starting, setStarting] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
@@ -61,7 +61,9 @@ export function LlmNotice({
           <p className="text-xs text-ink-muted">
             {context === "library"
               ? "Meetings are still recorded and transcribed. The summary and action items are written when a meeting ends, and need Ollama open at that moment."
-              : "The transcript is safe. Open Ollama to generate the summary and action items."}
+              : context === "models"
+                ? "TRACE writes summaries with models run by Ollama. Open it to see the models you have and download others."
+                : "The transcript is safe. Open Ollama to generate the summary and action items."}
           </p>
         </>
       ) : (
@@ -70,7 +72,9 @@ export function LlmNotice({
           <p className="text-xs text-ink-muted">
             {context === "library"
               ? "Meetings are still recorded and transcribed. "
-              : "The transcript is safe. "}
+              : context === "note"
+                ? "The transcript is safe. "
+                : ""}
             To write summaries and action items, run this in a terminal, then check again:
           </p>
           <code

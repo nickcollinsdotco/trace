@@ -128,7 +128,8 @@ pub struct Report {
     pub loaded_models: Vec<LoadedModel>,
     pub context_tokens: u32,
 
-    pub keep_audio: bool,
+    pub audio_retention: crate::settings::AudioRetention,
+    pub summary_memory: crate::settings::SummaryMemory,
     pub notes_root: String,
     pub log_dir: String,
     pub recent: Vec<String>,
@@ -152,7 +153,8 @@ pub fn report(app_version: String, spec: &ModelSpec, notes_root: String) -> Repo
         preferred_models: ollama::PREFERRED.to_vec(),
         loaded_models: OllamaProvider::loaded(),
         context_tokens: ollama::NUM_CTX,
-        keep_audio: crate::settings::load().keep_audio,
+        audio_retention: crate::settings::load().audio_retention(),
+        summary_memory: crate::settings::load().summary_memory,
         notes_root,
         log_dir: log_dir()
             .map(|d| d.display().to_string())

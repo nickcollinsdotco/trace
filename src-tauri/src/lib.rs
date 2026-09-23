@@ -70,7 +70,16 @@ pub fn run() {
             commands::can_regenerate,
             commands::system_report,
             commands::get_settings,
-            commands::set_keep_audio,
+            commands::set_audio_retention,
+            commands::set_summary_memory,
+            commands::set_default_mic,
+            commands::speech_models,
+            commands::set_speech_model,
+            commands::delete_speech_model,
+            commands::summary_models,
+            commands::set_summary_model,
+            commands::pull_summary_model,
+            commands::open_folder,
             commands::abort_capture,
             commands::delete_note,
             commands::rename_note,
@@ -81,7 +90,6 @@ pub fn run() {
             commands::start_ollama,
             commands::app_info,
             commands::diagnostics_report,
-            commands::open_logs_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TRACE");

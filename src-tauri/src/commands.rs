@@ -14,7 +14,8 @@ use tauri::{AppHandle, Emitter, State};
 use crate::audio::{self, DeviceInfo};
 use crate::capture_manager::{CaptureManager, CaptureStatus, FinishedMeeting};
 use crate::meeting::MeetingType;
-use crate::models::{self, install, PARAKEET_V3_INT8};
+use crate::models::{self, install};
+use crate::settings::{AudioRetention, SettingsView, SummaryMemory};
 use crate::store;
 
 pub const EVENT_MODEL_PROGRESS: &str = "trace://model-progress";
@@ -51,28 +52,94 @@ pub struct ModelStatus {
     pub directory: String,
 }
 
+/// The speech model meetings will be transcribed with.
 #[tauri::command]
 pub fn model_status() -> ModelStatus {
+    let spec = models::active_speech_model();
     ModelStatus {
-        installed: models::is_installed(&PARAKEET_V3_INT8),
-        name: PARAKEET_V3_INT8.display_name,
-        download_bytes: PARAKEET_V3_INT8.approx_download_bytes,
-        directory: models::model_dir(&PARAKEET_V3_INT8)
+        installed: models::is_installed(spec),
+        name: spec.display_name,
+        download_bytes: spec.approx_download_bytes,
+        directory: models::model_dir(spec)
             .map(|p| p.display().to_string())
             .unwrap_or_default(),
     }
 }
 
-/// Download the speech model, reporting progress as events.
-///
-/// Runs on a blocking thread: it is a ~478 MB download and must not occupy an
-/// async worker for minutes.
+/// A speech model as the Models page and the status bar show it.
+#[derive(Debug, serde::Serialize)]
+pub struct SpeechModel {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub summary: &'static str,
+    pub languages: &'static str,
+    pub download_bytes: u64,
+    pub installed: bool,
+    pub active: bool,
+}
+
 #[tauri::command]
-pub async fn install_model(app: AppHandle) -> CmdResult<()> {
+pub fn speech_models() -> Vec<SpeechModel> {
+    let active = models::active_speech_model().id;
+    models::SPEECH_MODELS
+        .iter()
+        .map(|m| SpeechModel {
+            id: m.id,
+            name: m.display_name,
+            summary: m.summary,
+            languages: m.languages,
+            download_bytes: m.approx_download_bytes,
+            installed: models::is_installed(m),
+            active: m.id == active,
+        })
+        .collect()
+}
+
+/// Use this speech model from the next meeting on.
+///
+/// Must be installed: choosing one that is not would quietly fall back to
+/// another at the next meeting, which is not what anyone who chose it meant.
+#[tauri::command]
+pub fn set_speech_model(id: String) -> CmdResult<SettingsView> {
+    let spec = models::find(&id).ok_or_else(|| format!("unknown speech model {id}"))?;
+    if !models::is_installed(spec) {
+        return Err(format!("{} is not downloaded yet", spec.display_name));
+    }
+    let settings = crate::settings::update(|s| s.speech_model = Some(id))?;
+    crate::diagnostics::log(format!("speech model set to {}", spec.display_name));
+    Ok(SettingsView::from(&settings))
+}
+
+/// Delete a downloaded speech model.
+///
+/// Refused mid-meeting: the live transcriber and the re-pass both read these
+/// files, and pulling them away would lose the rest of the meeting's text.
+#[tauri::command]
+pub fn delete_speech_model(manager: State<'_, CaptureManager>, id: String) -> CmdResult<()> {
+    if manager.is_active() {
+        return Err("a meeting is recording — delete the model after it ends".into());
+    }
+    let spec = models::find(&id).ok_or_else(|| format!("unknown speech model {id}"))?;
+    models::delete(spec).map_err(err)?;
+    crate::diagnostics::log(format!("speech model deleted: {}", spec.display_name));
+    Ok(())
+}
+
+/// Download a speech model, reporting progress as events.
+///
+/// `id` absent means the one meetings will use, which is what first run asks
+/// for. Runs on a blocking thread: it is a ~470 MB download and must not
+/// occupy an async worker for minutes.
+#[tauri::command]
+pub async fn install_model(app: AppHandle, id: Option<String>) -> CmdResult<()> {
+    let spec = match id {
+        Some(id) => models::find(&id).ok_or_else(|| format!("unknown speech model {id}"))?,
+        None => models::active_speech_model(),
+    };
     tauri::async_runtime::spawn_blocking(move || {
         let mut last_percent = u8::MAX;
 
-        install::install(&PARAKEET_V3_INT8, |progress| {
+        install::install(spec, |progress| {
             // Emit only on whole-percent changes. A byte-level callback would
             // flood the IPC channel with tens of thousands of events.
             let (phase, percent) = match progress {
@@ -93,7 +160,7 @@ pub async fn install_model(app: AppHandle) -> CmdResult<()> {
 
             let _ = app.emit(
                 EVENT_MODEL_PROGRESS,
-                serde_json::json!({ "phase": phase, "percent": percent }),
+                serde_json::json!({ "model": spec.id, "phase": phase, "percent": percent }),
             );
         })
         // Guidance rather than the raw error: this lands on the first-run
@@ -433,7 +500,7 @@ fn replayable_session(root: &std::path::Path, note: &std::path::Path) -> Result<
 /// Facts about this machine, for the first-run report.
 #[tauri::command]
 pub fn system_report() -> crate::system::SystemReport {
-    crate::system::report(&PARAKEET_V3_INT8)
+    crate::system::report(models::active_speech_model())
 }
 
 /* ------------------------------------------------------------------ *
@@ -441,20 +508,36 @@ pub fn system_report() -> crate::system::SystemReport {
  * ------------------------------------------------------------------ */
 
 #[tauri::command]
-pub fn get_settings() -> crate::settings::Settings {
-    crate::settings::load()
+pub fn get_settings() -> SettingsView {
+    SettingsView::from(&crate::settings::load())
 }
 
-/// Keep or discard the raw audio after a meeting is finalised.
-///
-/// Returns the stored settings so the UI reflects what was actually written
-/// rather than what it assumed.
+// Each setter returns the stored settings, so the UI shows what was actually
+// written rather than what it assumed.
+
+/// What happens to a meeting's audio once its notes are written.
 #[tauri::command]
-pub fn set_keep_audio(keep: bool) -> CmdResult<crate::settings::Settings> {
-    let mut settings = crate::settings::load();
-    settings.keep_audio = keep;
-    crate::settings::save(&settings)?;
-    Ok(settings)
+pub fn set_audio_retention(retention: AudioRetention) -> CmdResult<SettingsView> {
+    let retention = match retention {
+        // Keeping the latest zero is deleting, said less clearly.
+        AudioRetention::KeepLatest { count: 0 } => AudioRetention::Delete,
+        other => other,
+    };
+    let s = crate::settings::update(|s| s.set_audio_retention(retention))?;
+    Ok(SettingsView::from(&s))
+}
+
+#[tauri::command]
+pub fn set_summary_memory(memory: SummaryMemory) -> CmdResult<SettingsView> {
+    let s = crate::settings::update(|s| s.summary_memory = memory)?;
+    Ok(SettingsView::from(&s))
+}
+
+/// The microphone the setup panel selects first. `None` means the system's.
+#[tauri::command]
+pub fn set_default_mic(name: Option<String>) -> CmdResult<SettingsView> {
+    let s = crate::settings::update(|s| s.default_mic = name)?;
+    Ok(SettingsView::from(&s))
 }
 
 /// Abandon the meeting in progress, writing nothing.
@@ -569,20 +652,140 @@ pub async fn diagnostics_report(
         .unwrap_or_default();
     // Off the async runtime: it probes Ollama and reads the machine.
     tauri::async_runtime::spawn_blocking(move || {
-        crate::diagnostics::report(version, &PARAKEET_V3_INT8, notes_root)
+        crate::diagnostics::report(version, models::active_speech_model(), notes_root)
     })
     .await
     .map_err(err)
 }
 
-/// Open the folder holding the log, for attaching the whole file.
+/// Open one of TRACE's folders in the file manager.
+///
+/// Named by kind rather than by path, so the frontend can only ever open the
+/// folders TRACE owns.
 #[tauri::command]
-pub fn open_logs_folder(app: AppHandle) -> CmdResult<String> {
+pub fn open_folder(
+    app: AppHandle,
+    manager: State<'_, CaptureManager>,
+    kind: String,
+) -> CmdResult<String> {
     use tauri_plugin_opener::OpenerExt;
 
-    let dir = crate::diagnostics::log_dir().ok_or("no local data folder")?;
+    let dir = match kind.as_str() {
+        "notes" => manager.notes_root().map_err(err)?,
+        "models" => models::models_root().map_err(err)?,
+        "logs" => crate::diagnostics::log_dir().ok_or("no local data folder")?,
+        other => return Err(format!("unknown folder {other}")),
+    };
     std::fs::create_dir_all(&dir).map_err(err)?;
     let path = dir.display().to_string();
     app.opener().open_path(&path, None::<&str>).map_err(err)?;
     Ok(path)
+}
+
+/* ------------------------------------------------------------------ *
+ * Summary models
+ * ------------------------------------------------------------------ */
+
+pub const EVENT_SUMMARY_PULL: &str = "trace://summary-pull";
+
+#[derive(Debug, serde::Serialize)]
+pub struct SummaryModel {
+    #[serde(flatten)]
+    pub model: crate::synthesis::ollama::InstalledModel,
+    pub active: bool,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct Offered {
+    #[serde(flatten)]
+    pub model: crate::synthesis::ollama::Recommended,
+    pub installed: bool,
+}
+
+/// What the Models page shows for summaries.
+#[derive(Debug, serde::Serialize)]
+pub struct SummaryModels {
+    pub llm: crate::synthesis::ollama::Readiness,
+    pub installed: Vec<SummaryModel>,
+    pub recommended: Vec<Offered>,
+}
+
+#[tauri::command]
+pub async fn summary_models() -> SummaryModels {
+    use crate::synthesis::ollama::{OllamaProvider, Readiness, RECOMMENDED};
+
+    tauri::async_runtime::spawn_blocking(|| {
+        let llm = Readiness::check();
+        let active = match &llm {
+            Readiness::Ready { model } => Some(model.clone()),
+            _ => None,
+        };
+        let installed = OllamaProvider::installed().unwrap_or_default();
+        SummaryModels {
+            recommended: RECOMMENDED
+                .iter()
+                .map(|r| Offered {
+                    model: *r,
+                    installed: installed.iter().any(|m| m.name == r.name),
+                })
+                .collect(),
+            installed: installed
+                .into_iter()
+                .map(|m| SummaryModel {
+                    active: active.as_deref() == Some(m.name.as_str()),
+                    model: m,
+                })
+                .collect(),
+            llm,
+        }
+    })
+    .await
+    .unwrap_or_else(|_| SummaryModels {
+        llm: crate::synthesis::ollama::Readiness::NotRunning,
+        installed: Vec::new(),
+        recommended: Vec::new(),
+    })
+}
+
+/// Write notes with this Ollama model from now on.
+#[tauri::command]
+pub async fn set_summary_model(name: String) -> CmdResult<SettingsView> {
+    let installed =
+        tauri::async_runtime::spawn_blocking(crate::synthesis::ollama::OllamaProvider::list_models)
+            .await
+            .map_err(err)?
+            .map_err(err)?;
+    if !installed.contains(&name) {
+        return Err(format!("{name} is not installed in Ollama"));
+    }
+    crate::diagnostics::log(format!("summary model set to {name}"));
+    let s = crate::settings::update(|s| s.summary_model = Some(name))?;
+    Ok(SettingsView::from(&s))
+}
+
+/// Download a recommended model through Ollama, reporting progress as events.
+#[tauri::command]
+pub async fn pull_summary_model(app: AppHandle, name: String) -> CmdResult<()> {
+    crate::diagnostics::log(format!("downloading summary model {name}"));
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut last = u8::MAX;
+        crate::synthesis::ollama::pull(&name, |fraction| {
+            // Whole percents only, as for the speech model: a byte-level
+            // stream of events would flood the IPC channel.
+            let percent = (fraction * 100.0) as u8;
+            if percent != last {
+                last = percent;
+                let _ = app.emit(
+                    EVENT_SUMMARY_PULL,
+                    serde_json::json!({ "model": name, "percent": percent }),
+                );
+            }
+        })
+        .map_err(|e| {
+            crate::diagnostics::log(format!("summary model download failed: {e}"));
+            e.to_string()
+        })
+    })
+    .await
+    .map_err(err)?
 }

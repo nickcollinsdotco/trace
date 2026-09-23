@@ -1,34 +1,50 @@
 import { useEffect, useState } from "react";
-import { applyTheme, loadTheme, saveTheme, THEMES, type Theme, themeForKey } from "../design/theme";
+import {
+  type Appearance,
+  AppearanceContext,
+  type AppearanceControl,
+  loadAppearance,
+  saveAppearance,
+  withAxis,
+  withTheme,
+} from "../design/appearance";
+import { applyTheme, THEMES, themeForKey } from "../design/theme";
+import { AboutScreen } from "../features/about/AboutScreen";
+import { AppearanceScreen } from "../features/appearance/AppearanceScreen";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
-import { DiagnosticsScreen } from "../features/diagnostics/DiagnosticsScreen";
 import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
+import { ModelsScreen } from "../features/models/ModelsScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
+import { SettingsScreen } from "../features/settings/SettingsScreen";
 import { hasBackend, ipc } from "../lib/ipc";
 import { Shell } from "./Shell";
+import type { Page } from "./Sidebar";
 
 /**
  * Route state. Deliberately a union rather than a router library — TRACE has
- * four screens, and adding react-router here would be exactly the premature
- * infrastructure docs/08-CLAUDE-AUDIT-PROMPT.md warns against.
+ * a handful of screens, and adding react-router here would be exactly the
+ * premature infrastructure docs/08-CLAUDE-AUDIT-PROMPT.md warns against.
  */
 type Route =
   | { name: "library"; search?: string }
   | { name: "capture" }
   | { name: "note"; path: string }
-  | { name: "diagnostics" };
+  | { name: "models" }
+  | { name: "appearance" }
+  | { name: "settings" }
+  | { name: "about" };
 
 export function App() {
   const [route, setRoute] = useState<Route>({ name: "library" });
   // Bumped to force the library to re-read from disk after a meeting is saved.
   const [libraryKey, setLibraryKey] = useState(0);
 
-  useTheme();
+  const appearance = useAppearance();
   const [ready, setReady] = useModelReady();
 
   /*
-   * First run owns the whole window rather than a corner of the header.
+   * First run owns the whole window rather than a corner of the shell.
    * There is nothing else to do until the model is present — capture works
    * without it, but produces no transcript, which is not what anyone wants
    * from their first meeting.
@@ -37,61 +53,53 @@ export function App() {
     return <FirstRunScreen onReady={() => setReady(true)} />;
   }
 
-  const toLibrary = () => {
+  const toLibrary = (search?: string) => {
     setLibraryKey((k) => k + 1);
-    setRoute({ name: "library" });
+    setRoute(search === undefined ? { name: "library" } : { name: "library", search });
   };
-  const toDiagnostics = () => setRoute({ name: "diagnostics" });
+
+  const navigate = (page: Page) => {
+    if (page === "library") toLibrary();
+    // Every other page is a route of the same name with no parameters.
+    else setRoute({ name: page } as Route);
+  };
 
   return (
-    <Shell
-      onHome={toLibrary}
-      onOpenDiagnostics={toDiagnostics}
-      menu={[
-        { label: "Meetings", onSelect: toLibrary, current: route.name === "library" },
-        {
-          label: "New meeting",
-          onSelect: () => setRoute({ name: "capture" }),
-          current: route.name === "capture",
-        },
-        { label: "Diagnostics", onSelect: toDiagnostics, current: route.name === "diagnostics" },
-      ]}
-    >
-      {route.name === "library" && (
-        <LibraryScreen
-          key={libraryKey}
-          initialSearch={route.search ?? ""}
-          onNewMeeting={() => setRoute({ name: "capture" })}
-          onOpenNote={(path) => setRoute({ name: "note", path })}
-        />
-      )}
+    <AppearanceContext.Provider value={appearance}>
+      <Shell current={route.name === "note" ? null : route.name} onNavigate={navigate}>
+        {route.name === "library" && (
+          <LibraryScreen
+            key={libraryKey}
+            initialSearch={route.search ?? ""}
+            onNewMeeting={() => setRoute({ name: "capture" })}
+            onOpenNote={(path) => setRoute({ name: "note", path })}
+          />
+        )}
 
-      {route.name === "capture" && (
-        <CaptureScreen
-          onFinish={(notePath) => {
-            setLibraryKey((k) => k + 1);
-            setRoute(notePath ? { name: "note", path: notePath } : { name: "library" });
-          }}
-        />
-      )}
+        {route.name === "capture" && (
+          <CaptureScreen
+            onFinish={(notePath) => {
+              setLibraryKey((k) => k + 1);
+              setRoute(notePath ? { name: "note", path: notePath } : { name: "library" });
+            }}
+          />
+        )}
 
-      {route.name === "note" && (
-        <NoteScreen
-          path={route.path}
-          onBack={() => {
-            setLibraryKey((k) => k + 1);
-            setRoute({ name: "library" });
-          }}
-          // Clicking a tag goes back to the library with it already searched.
-          onSearchTag={(tag) => {
-            setLibraryKey((k) => k + 1);
-            setRoute({ name: "library", search: `tag:${tag}` });
-          }}
-        />
-      )}
+        {route.name === "note" && (
+          <NoteScreen
+            path={route.path}
+            onBack={() => toLibrary()}
+            // Clicking a tag goes back to the library with it already searched.
+            onSearchTag={(tag) => toLibrary(`tag:${tag}`)}
+          />
+        )}
 
-      {route.name === "diagnostics" && <DiagnosticsScreen />}
-    </Shell>
+        {route.name === "models" && <ModelsScreen />}
+        {route.name === "appearance" && <AppearanceScreen />}
+        {route.name === "settings" && <SettingsScreen />}
+        {route.name === "about" && <AboutScreen />}
+      </Shell>
+    </AppearanceContext.Provider>
   );
 }
 
@@ -122,20 +130,21 @@ function useModelReady(): [boolean | null, (v: boolean) => void] {
 }
 
 /**
- * Applies the chosen theme, and lets it be cycled with Ctrl+Shift+T.
+ * Applies the chosen look, and lets the theme be changed from the keyboard.
  *
- * The keybind is the point, not a convenience. Themes cannot be chosen from a
- * screenshot — the failure modes only show up around minute forty of a real
+ * The keybinds are the point, not a convenience. Themes cannot be chosen from
+ * a screenshot — the failure modes only show up around minute forty of a real
  * meeting — so switching has to be possible *during* one, in the app, without
- * a restart. See docs/11-PLAN.md, Phase C.
+ * a restart. See docs/11-PLAN.md, Phase C. The Appearance page is the same
+ * control with the options visible.
  */
-function useTheme() {
-  const [theme, setTheme] = useState<Theme>(loadTheme);
+function useAppearance(): AppearanceControl {
+  const [appearance, setAppearance] = useState<Appearance>(loadAppearance);
 
   useEffect(() => {
-    applyTheme(theme, document.documentElement);
-    saveTheme(theme);
-  }, [theme]);
+    applyTheme(appearance.theme, document.documentElement, appearance.overrides);
+    saveAppearance(appearance);
+  }, [appearance]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -144,15 +153,25 @@ function useTheme() {
       const picked = themeForKey(e.key, e.target, e.ctrlKey || e.metaKey || e.altKey);
       if (picked) {
         e.preventDefault();
-        setTheme(picked);
+        setAppearance((a) => ({ ...a, theme: picked }));
         return;
       }
 
       if (!e.ctrlKey || !e.shiftKey || e.key.toLowerCase() !== "t") return;
       e.preventDefault();
-      setTheme((t) => THEMES[(THEMES.indexOf(t) + 1) % THEMES.length] ?? "terminal");
+      setAppearance((a) => ({
+        ...a,
+        theme: THEMES[(THEMES.indexOf(a.theme) + 1) % THEMES.length] ?? "terminal",
+      }));
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  return {
+    appearance,
+    setTheme: (theme) => setAppearance((a) => withTheme(a, theme)),
+    setAxis: (axis, value) => setAppearance((a) => withAxis(a, axis, value)),
+    reset: () => setAppearance((a) => ({ ...a, overrides: {} })),
+  };
 }

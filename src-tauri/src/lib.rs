@@ -31,6 +31,20 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         // One meeting at a time, owned by the app rather than any window.
         .manage(CaptureManager::default())
+        // Mark development builds in the title bar and taskbar, so a
+        // `pnpm tauri dev` window is never mistaken for the installed app —
+        // they share the notes folder, so recording into the wrong one is
+        // easy and confusing. Set here rather than in `tauri.conf.json`,
+        // which has no per-profile title.
+        .setup(|app| {
+            if cfg!(debug_assertions) {
+                use tauri::Manager;
+                for window in app.webview_windows().values() {
+                    window.set_title("TRACE (dev)")?;
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::list_input_devices,
             commands::list_output_devices,

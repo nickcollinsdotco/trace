@@ -74,7 +74,9 @@ describe("scenarios", () => {
 });
 
 describe("fake backend", () => {
-  it("answers every command the app can send", async () => {
+  // Slow by design: downloads and regenerating are simulated in real time,
+  // and each is awaited to the end, as the app awaits them.
+  it("answers every command the app can send", { timeout: 20_000 }, async () => {
     const backend = makeBackend();
     for (const command of COMMANDS) {
       await expect(backend.invoke(command), `unhandled: ${command}`).resolves.not.toThrow();

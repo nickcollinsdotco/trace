@@ -17,6 +17,7 @@ import {
   EVENT,
   type FakeBackend,
   type FinishedMeeting,
+  type Job,
   type LlmStatus,
   type ModelStatus,
   type NoteSummary,
@@ -70,6 +71,20 @@ export interface BackendState {
   immediate: ScriptedEvent[];
   /** Whether the open note's journal still exists. */
   canRegenerate: boolean;
+  /**
+   * Background jobs when the scenario opens.
+   *
+   * Times here — and in scripted `EVENT.activity` payloads — are milliseconds
+   * relative to the moment they are handed over, negative for the past. A
+   * scenario is defined once at import but opened whenever, and absolute
+   * times would show a job that has apparently been running since page load.
+   */
+  activity: Job[];
+  /**
+   * Note path → the body it has once notes are generated, so a scenario can
+   * show a note gaining its summary rather than reloading the same text.
+   */
+  afterGenerate: Record<string, string>;
   /** Note path → tags. */
   tags: Record<string, string[]>;
   /** Facts shown on the first-run report. */
@@ -112,6 +127,8 @@ export const DEFAULT_STATE: BackendState = {
   script: [],
   immediate: [],
   canRegenerate: true,
+  activity: [],
+  afterGenerate: {},
   tags: {},
   systemReport: {
     host: "NICK-DESKTOP",
@@ -227,10 +244,39 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
   // What the real backend derives: the active flags follow the choice.
   const activeSummary = () => (llm.state === "ready" ? llm.model : null);
+
+  // Resident after the last notes, for a while — as Ollama keeps it.
+  const loaded = () =>
+    llm.state === "ready"
+      ? [
+          {
+            name: llm.model,
+            sizeBytes: 11_274_289_152,
+            vramBytes: 11_274_289_152,
+            contextLength: 8192,
+            expiresAt: new Date(Date.now() + 4 * 60_000).toISOString(),
+          },
+        ]
+      : [];
   const tags: Record<string, string[]> = { ...state.tags };
 
+  const bodies: Record<string, string> = { ...state.bodies };
+  let jobs = rebase(state.activity);
+
+  // Mirrors the real backend: the job list is state, and the event carries
+  // all of it, so a screen mounting mid-scenario reads the same thing.
   const emit = (event: string, payload: unknown) => {
-    for (const h of handlers.get(event) ?? []) h(payload);
+    let sent = payload;
+    if (event === EVENT.activity) {
+      jobs = rebase(payload as Job[]);
+      sent = jobs;
+    }
+    if (event === EVENT.notesGenerated) {
+      const path = (payload as { notePath: string }).notePath;
+      const next = state.afterGenerate[path];
+      if (next !== undefined) bodies[path] = next;
+    }
+    for (const h of handlers.get(event) ?? []) h(sent);
   };
 
   const runScript = () => {
@@ -269,7 +315,16 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
       return () => {
         set?.delete(handler);
-        for (const id of timers) window.clearTimeout(id);
+        // Stop the script only once nothing at all is listening. Clearing it
+        // on any unsubscribe let one component unmounting — or StrictMode's
+        // dev-only mount, unmount, mount — silently kill every scripted
+        // scenario, which then sat on its first frame.
+        const listening = [...handlers.values()].some((s) => s.size > 0);
+        if (!listening) {
+          for (const id of timers) window.clearTimeout(id);
+          timers.length = 0;
+          scriptStarted = false;
+        }
       };
     },
 
@@ -323,6 +378,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
               ...r,
               installed: installed.some((m) => m.name === r.name),
             })),
+            loaded: loaded(),
           };
         }
         case "set_summary_model": {
@@ -383,7 +439,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return state.notes;
         case "read_note": {
           const path = args?.path as string;
-          const body = state.bodies[path];
+          const body = bodies[path];
           if (body === undefined) throw new Error(`no such note: ${path}`);
           return body;
         }
@@ -407,12 +463,12 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
             .filter((n) => {
               const noteTags = tags[n.path] ?? [];
               if (!wantedTags.every((w) => noteTags.includes(w))) return false;
-              const body = (state.bodies[n.path] ?? "").toLowerCase();
+              const body = (bodies[n.path] ?? "").toLowerCase();
               const hay = `${n.title.toLowerCase()} ${body}`;
               return terms.every((t) => hay.includes(t));
             })
             .map((n) => {
-              const body = state.bodies[n.path] ?? "";
+              const body = bodies[n.path] ?? "";
               const line =
                 body
                   .split("\n")
@@ -452,10 +508,18 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
         case "reveal_notes_folder":
           return state.root;
-        case "regenerate_notes":
-          return null;
+        case "regenerate_notes": {
+          const path = args?.notePath as string;
+          if (jobs.some((j) => j.notePath === path && j.outcome === null)) {
+            throw new Error("notes for this meeting are already being written");
+          }
+          const title = state.notes.find((n) => n.path === path)?.title ?? "";
+          return simulateRegenerate(emit, () => jobs, path, title);
+        }
         case "can_regenerate":
           return state.canRegenerate;
+        case "activity":
+          return jobs;
 
         case "llm_status":
           return llm;
@@ -475,17 +539,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
             llm,
             ollamaVersion: llm.state === "not_running" ? null : "0.12.3",
             preferredModels: ["qwen3:14b", "qwen3:8b", "gemma3:12b"],
-            loadedModels:
-              llm.state === "ready"
-                ? [
-                    {
-                      name: llm.model,
-                      sizeBytes: 11_274_289_152,
-                      vramBytes: 11_274_289_152,
-                      contextLength: 8192,
-                    },
-                  ]
-                : [],
+            loadedModels: loaded(),
             contextTokens: 8192,
             audioRetention: settings.audioRetention,
             summaryMemory: settings.summaryMemory,
@@ -546,6 +600,82 @@ function status(
     transcribing: state.model.installed,
     ...state.statusOverrides,
   };
+}
+
+/** Relative job times made absolute. See `BackendState.activity`. */
+function rebase(jobs: Job[]): Job[] {
+  const now = Date.now();
+  const at = (t: number | null) => (t === null ? null : now + t);
+  return jobs.map((j) => ({
+    ...j,
+    queuedAt: now + j.queuedAt,
+    steps: j.steps.map((s) => ({ ...s, startedAt: at(s.startedAt), finishedAt: at(s.finishedAt) })),
+  }));
+}
+
+/**
+ * A regenerate, compressed into a few seconds: three parts and the combining
+ * pass, published the way the real backend publishes them. Pressing ↻ in the
+ * gallery shows the whole sequence rather than nothing.
+ */
+function simulateRegenerate(
+  emit: (event: string, payload: unknown) => void,
+  current: () => Job[],
+  notePath: string,
+  title: string,
+): Promise<null> {
+  // Times are relative, as every activity payload here is; each step is
+  // stamped with how long ago it started as of the moment it is sent.
+  const t0 = Date.now();
+  const rel = (at: number) => at - (Date.now() - t0);
+  const id = Math.max(0, ...current().map((j) => j.id)) + 1;
+  const part = (index: number) => ({ kind: "part" as const, index, total: 3 });
+  const marks = [0, 1_400, 2_800, 4_000, 4_900];
+
+  const snapshot = (reached: number, outcome: Job["outcome"] = null): Job[] => {
+    const kinds = [part(1), part(2), part(3), { kind: "combine" as const }];
+    const job: Job = {
+      id,
+      notePath,
+      title,
+      queuedAt: rel(0),
+      steps: kinds.map((k, i) => ({
+        ...k,
+        startedAt: i < reached ? rel(marks[i] ?? 0) : null,
+        finishedAt: i < reached - 1 || outcome ? rel(marks[i + 1] ?? 0) : null,
+        failed: false,
+        error: null,
+      })),
+      outcome,
+    };
+    // Relative times for everyone else too, since the payload is rebased.
+    const others = current()
+      .filter((j) => j.notePath !== notePath)
+      .map((j) => ({
+        ...j,
+        queuedAt: j.queuedAt - Date.now(),
+        steps: j.steps.map((s) => ({
+          ...s,
+          startedAt: s.startedAt === null ? null : s.startedAt - Date.now(),
+          finishedAt: s.finishedAt === null ? null : s.finishedAt - Date.now(),
+        })),
+      }));
+    return [...others, job];
+  };
+
+  return new Promise((resolve) => {
+    [1, 2, 3, 4].forEach((reached, i) => {
+      window.setTimeout(() => emit(EVENT.activity, snapshot(reached)), marks[i]);
+    });
+    window.setTimeout(() => {
+      emit(EVENT.notesGenerated, { notePath });
+      emit(
+        EVENT.activity,
+        snapshot(4, { state: "generated", dropped: 0, fabricated: 0, uncited: 0 }),
+      );
+      resolve(null);
+    }, marks[4]);
+  });
 }
 
 /** Ollama's pull, stepped, so the Models page progress bar can be watched. */

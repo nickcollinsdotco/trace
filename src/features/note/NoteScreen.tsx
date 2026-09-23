@@ -40,7 +40,11 @@ export function NoteScreen({
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View | null>(null);
-  const [regenerating, setRegenerating] = useState(false);
+  // Set once the user picks a half, after which nothing switches it for them.
+  const [picked, setPicked] = useState(false);
+  // Only bridges the moment between the press and the backend listing the
+  // job; after that the job itself says the note is busy.
+  const [requesting, setRequesting] = useState(false);
   /*
    * Whether the journal behind this note still exists.
    *
@@ -65,7 +69,8 @@ export function NoteScreen({
 
   // Stable, so the subscription is not torn down and rebuilt on every render.
   const reload = useCallback((t: string) => setText(t), []);
-  const stage = useNoteRefinement(path, reload);
+  const job = useNoteRefinement(path, reload);
+  const busy = requesting || (job !== null && job.outcome === null);
   const llm = useLlmStatus();
 
   const sections = useMemo(() => (text === null ? null : splitSections(text)), [text]);
@@ -75,21 +80,31 @@ export function NoteScreen({
    * been generated. A meeting with neither used to open on "no notes were
    * typed" — a dead end for the common case of taking no notes at all, when
    * the thing wanted is the summary and the way to generate it.
+   *
+   * Or while notes are being written: that half is where the progress is,
+   * and where the summary lands, so the reader is already looking at it.
    */
   useEffect(() => {
     if (view !== null || sections === null) return;
-    setView(sections.hasEnhanced || !sections.hasNotes ? "enhanced" : "mine");
-  }, [sections, view]);
+    setView(sections.hasEnhanced || !sections.hasNotes || busy ? "enhanced" : "mine");
+  }, [sections, view, busy]);
+
+  // The note and the job list load separately, so the job can arrive after
+  // the half was chosen above. Only ever towards the generated half, and
+  // never over the user's own choice.
+  useEffect(() => {
+    if (busy && !picked) setView("enhanced");
+  }, [busy, picked]);
 
   async function regenerate() {
-    setRegenerating(true);
+    setRequesting(true);
     setError(null);
     try {
       await ipc.regenerateNotes(path);
     } catch (e) {
       setError(String(e));
     } finally {
-      setRegenerating(false);
+      setRequesting(false);
     }
   }
 
@@ -112,9 +127,12 @@ export function NoteScreen({
             <ViewToggle
               view={active}
               hasEnhanced={sections.hasEnhanced}
-              onChange={setView}
+              onChange={(v) => {
+                setPicked(true);
+                setView(v);
+              }}
               onRegenerate={regenerate}
-              regenerating={regenerating}
+              regenerating={busy}
               replayable={replayable}
             />
           )}
@@ -125,7 +143,7 @@ export function NoteScreen({
           <p className="font-mono text-xs text-ink-faint">&gt; reading…</p>
         )}
 
-        <RefinementNotice stage={stage} />
+        <RefinementNotice job={job} />
 
         <Tags path={path} onSearchTag={onSearchTag} />
 
@@ -135,13 +153,21 @@ export function NoteScreen({
 
             {active === "enhanced" ? (
               sections.hasEnhanced ? (
-                <NoteBody markdown={sections.enhanced} />
+                busy ? (
+                  <Rewriting>
+                    <NoteBody markdown={sections.enhanced} />
+                  </Rewriting>
+                ) : (
+                  <NoteBody markdown={sections.enhanced} />
+                )
+              ) : busy ? (
+                <NotesPending />
               ) : (
                 <NotEnhancedYet
                   llm={llm.status}
                   onRecheck={llm.recheck}
                   onRegenerate={regenerate}
-                  regenerating={regenerating}
+                  regenerating={busy}
                   replayable={replayable}
                 />
               )
@@ -218,13 +244,15 @@ function ViewToggle({
           onClick={onRegenerate}
           disabled={regenerating || !replayable}
           title={
-            replayable
-              ? "Generate the notes again from the transcript"
-              : "The original transcript record for this meeting is no longer on disk, so it cannot be regenerated."
+            !replayable
+              ? "The original transcript record for this meeting is no longer on disk, so it cannot be regenerated."
+              : regenerating
+                ? "Notes for this meeting are being written"
+                : "Generate the notes again from the transcript"
           }
           className="ml-1 rounded-sm px-2 py-1 font-mono text-2xs text-ink-faint trace-press hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-ink-faint"
         >
-          {regenerating ? "…" : "↻"}
+          ↻
         </button>
       )}
     </div>
@@ -296,6 +324,66 @@ function NotEnhancedYet({
           {regenerating ? "Generating…" : "Generate summary"}
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * The previous notes, dimmed, while new ones are written.
+ *
+ * Kept rather than replaced with a placeholder. Someone may be reading them,
+ * and if the run fails they are what stays — blanking them and bringing them
+ * back would look like the notes had been lost and found.
+ */
+function Rewriting({ children }: { children: React.ReactNode }) {
+  return (
+    <div aria-busy="true" className="flex flex-col gap-3">
+      <p className="font-mono text-2xs text-ink-faint">
+        &gt; rewriting — these are the previous notes until the new ones are written.
+      </p>
+      <div className="opacity-50">{children}</div>
+    </div>
+  );
+}
+
+/** Rough shape of what synthesis writes: widths per line, as fractions. */
+const PENDING_SHAPE: Array<[string, number[]]> = [
+  ["Summary", [1, 0.96, 0.9, 0.55]],
+  ["Key points", [0.7, 0.82, 0.6]],
+  ["Action items", [0.64, 0.5]],
+];
+
+/**
+ * Where the generated half will be, while it is written for the first time.
+ *
+ * Rows of shade characters in the shape of the sections to come, breathing
+ * rather than shimmering. It says what is coming and roughly how much, which
+ * a blank space or "no summary yet" — the old state here, and wrong while
+ * one was being written — does not.
+ */
+function NotesPending() {
+  return (
+    <div aria-busy="true" className="flex flex-col gap-6">
+      <p className="sr-only">The summary and action items are being written.</p>
+      <div aria-hidden className="flex flex-col gap-6">
+        {PENDING_SHAPE.map(([title, widths]) => (
+          <div key={title} className="flex flex-col gap-3">
+            <SectionHead title={title} />
+            <div className="trace-breathe flex flex-col gap-1.5">
+              {widths.map((w, i) => (
+                <span
+                  // biome-ignore lint/suspicious/noArrayIndexKey: fixed decorative shape
+                  key={i}
+                  className="block overflow-hidden whitespace-nowrap font-mono text-sm leading-tight text-ink-faint"
+                  style={{ width: `${w * 100}%` }}
+                >
+                  {"░".repeat(160)}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

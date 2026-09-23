@@ -402,3 +402,22 @@ select.trace-field option {
   background-color: var(--color-surface-2);
   color: var(--color-ink);
 }
+
+/* ---------------------------------------------------------------------
+ * Breathing. For placeholders standing in for text being written: a slow
+ * fade, never a sweep. A shimmer travels, and travelling is what reduced
+ * motion rules out; under that setting the global rule ends this on its
+ * dim frame, which still reads as "not here yet".
+ * ------------------------------------------------------------------ */
+@keyframes trace-breathe {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+.trace-breathe {
+  animation: trace-breathe 1.6s var(--ease-out) infinite alternate;
+}

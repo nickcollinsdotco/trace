@@ -346,6 +346,130 @@ describe("Gallery", () => {
     await waitFor(() => expect(regenerate).toBeEnabled());
   });
 
+  it("keeps a note busy while its notes are being written, from a fresh mount", async () => {
+    // The screen mounts with the job already running, which is exactly the
+    // case that used to re-enable ↻: leaving the note and coming back.
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Regenerating");
+
+    const regenerate = await screen.findByRole("button", { name: "↻" });
+    await waitFor(() => expect(regenerate).toBeDisabled());
+    expect(regenerate).toHaveAttribute("title", "Notes for this meeting are being written");
+    expect(screen.getByText(/these are the previous notes/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("part 2 of 3");
+
+    const bar = await screen.findByRole("contentinfo");
+    expect(bar).toHaveTextContent("writing notes, part 2 of 3");
+    expect(within(bar).getByRole("img", { name: "1 of 3 parts written" })).toBeInTheDocument();
+  });
+
+  it("opens the status bar entry into each job's steps", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Two meetings queued");
+
+    const bar = await screen.findByRole("contentinfo");
+    const trigger = await within(bar).findByRole("button", { name: /writing notes/ });
+    expect(trigger).toHaveTextContent("+1 queued");
+
+    await user.click(trigger);
+    const panel = screen.getByRole("dialog", { name: "Background work" });
+    expect(within(panel).getByText("Pricing page rework")).toBeInTheDocument();
+    expect(within(panel).getByText("Vendor call — Northwind")).toBeInTheDocument();
+    expect(
+      within(panel).getByText(/queued — one meeting's notes are written at a time/),
+    ).toBeInTheDocument();
+    expect(within(panel).getAllByRole("button", { name: "Open note" })).toHaveLength(2);
+  });
+
+  it("shows where the summary will be while a new note's is written", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Waiting its turn");
+
+    expect(
+      await screen.findByText("The summary and action items are being written."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/no summary for this meeting yet/)).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("waiting for another meeting's notes");
+  });
+
+  it("runs a regenerate through to the end", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Enhanced note");
+
+    const regenerate = await screen.findByRole("button", { name: "↻" });
+    await waitFor(() => expect(regenerate).toBeEnabled());
+    await user.click(regenerate);
+
+    expect(regenerate).toBeDisabled();
+    const bar = await screen.findByRole("contentinfo");
+    await waitFor(() => expect(bar).toHaveTextContent("writing notes, part 1 of 3"));
+    await waitFor(() => expect(screen.getByText(/notes generated/)).toBeInTheDocument(), {
+      timeout: 8_000,
+    });
+    expect(regenerate).toBeEnabled();
+    expect(bar).not.toHaveTextContent("writing notes");
+  }, 15_000);
+
+  it("writes notes from the live transcript when the full-quality pass fails", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Full-quality pass failed");
+
+    const bar = await screen.findByRole("contentinfo");
+    await waitFor(() => expect(bar).toHaveTextContent("writing notes from the live transcript"), {
+      timeout: 4_000,
+    });
+
+    // It carries on to the end rather than stopping at the failure.
+    const done = await screen.findByRole(
+      "button",
+      { name: /notes generated from the live transcript/ },
+      { timeout: 8_000 },
+    );
+    expect(
+      await screen.findByText("Drop-off concentrates at the comparison table, not the prices"),
+    ).toBeInTheDocument();
+
+    // Already on this note, so no toast repeating it.
+    expect(screen.queryByText(/notes ready/)).toBeNull();
+
+    await user.click(done);
+    expect(screen.getByText(/└ the transcription model did not load/)).toBeInTheDocument();
+    expect(screen.getByText("FAIL")).toBeInTheDocument();
+  }, 15_000);
+
+  it("opens on the generated half while notes are written, but never overrides a choice", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Notes being written");
+
+    const enhanced = await screen.findByRole("button", { name: "Enhanced" });
+    await waitFor(() => expect(enhanced).toHaveAttribute("aria-pressed", "true"));
+
+    const mine = screen.getByRole("button", { name: "My notes" });
+    await user.click(mine);
+    // Later updates to the job must not pull the reader back.
+    const bar = await screen.findByRole("contentinfo");
+    await waitFor(() => expect(bar).toHaveTextContent("part 1 of 3"), { timeout: 4_000 });
+    expect(mine).toHaveAttribute("aria-pressed", "true");
+  }, 10_000);
+
+  it("says what the summary model is holding in memory", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Meetings");
+
+    const bar = await screen.findByRole("contentinfo");
+    await user.click(await within(bar).findByRole("button", { name: /qwen3:14b/ }));
+    const panel = screen.getByRole("dialog", { name: "Summary model" });
+    expect(await within(panel).findByText(/in memory · 10\.5 GiB/)).toBeInTheDocument();
+    expect(within(panel).getByText(/until \d/)).toBeInTheDocument();
+  });
+
   it("shows the first-run report with measured facts, not placeholders", async () => {
     const user = userEvent.setup();
     render(<Gallery />);

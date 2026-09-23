@@ -15,6 +15,7 @@ export function Popover({
   trigger,
   title,
   placement = "below",
+  wide = false,
   onOpen,
   children,
 }: {
@@ -24,6 +25,8 @@ export function Popover({
   title?: string;
   /** Status-bar popovers open upwards; there is no room below them. */
   placement?: "below" | "above";
+  /** For panels showing listings with a column of figures, not a list of choices. */
+  wide?: boolean;
   onOpen?: () => void;
   children: (close: () => void) => ReactNode;
 }) {
@@ -74,7 +77,7 @@ export function Popover({
           id={panelId}
           role="dialog"
           aria-label={label}
-          className={`trace-panel absolute left-0 z-30 flex w-72 flex-col rounded-md border border-line-strong bg-surface-1 py-1 ${
+          className={`trace-panel absolute left-0 z-30 flex ${wide ? "w-80" : "w-72"} flex-col rounded-md border border-line-strong bg-surface-1 py-1 ${
             placement === "above" ? "bottom-full mb-2" : "top-full mt-2"
           }`}
         >

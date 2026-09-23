@@ -14,7 +14,6 @@ export function ModelGate() {
   const [status, setStatus] = useState<ModelStatus | null>(null);
   const [progress, setProgress] = useState<ModelProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (!hasBackend()) return;
@@ -48,34 +47,9 @@ export function ModelGate() {
 
   if (!hasBackend() || !status) return null;
 
-  if (status.installed && !expanded) {
-    return (
-      <button
-        type="button"
-        onClick={() => setExpanded(true)}
-        className="flex items-center gap-2"
-        title={status.directory}
-      >
-        <span aria-hidden className="size-1.5 rounded-full bg-phosphor" />
-        <SystemLabel>Ready</SystemLabel>
-      </button>
-    );
-  }
-
-  if (status.installed && expanded) {
-    return (
-      <div className="flex items-center gap-3">
-        <BootLine label="transcription engine" state="ok" />
-        <button
-          type="button"
-          onClick={() => setExpanded(false)}
-          className="font-mono text-2xs text-ink-faint hover:text-ink"
-        >
-          ×
-        </button>
-      </div>
-    );
-  }
+  // Once installed, the status bar says so; the header only needs this while
+  // there is something to do.
+  if (status.installed) return null;
 
   if (progress) {
     return (

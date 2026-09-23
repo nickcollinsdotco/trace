@@ -82,6 +82,39 @@ impl OllamaProvider {
             .unwrap_or_default())
     }
 
+    /// The running Ollama's version, for diagnostics.
+    pub fn version() -> Option<String> {
+        let body: serde_json::Value = ureq::get(&format!("{HOST}/api/version"))
+            .config()
+            .timeout_global(Some(PROBE_TIMEOUT))
+            .build()
+            .call()
+            .ok()?
+            .into_body()
+            .read_json()
+            .ok()?;
+        body["version"].as_str().map(str::to_string)
+    }
+
+    /// Models currently in memory, and how much of each is on the GPU.
+    ///
+    /// The one place that shows whether a model actually fits in video memory.
+    /// Partly on the CPU is the usual cause of slow notes, and nothing else on
+    /// screen would reveal it.
+    pub fn loaded() -> Vec<LoadedModel> {
+        let Some(body) = ureq::get(&format!("{HOST}/api/ps"))
+            .config()
+            .timeout_global(Some(PROBE_TIMEOUT))
+            .build()
+            .call()
+            .ok()
+            .and_then(|r| r.into_body().read_json::<serde_json::Value>().ok())
+        else {
+            return Vec::new();
+        };
+        parse_loaded(&body)
+    }
+
     /// Whether Ollama is running at all.
     pub fn service_running() -> bool {
         ureq::get(&format!("{HOST}/api/version"))
@@ -94,10 +127,18 @@ impl OllamaProvider {
 }
 
 /// Models tried first, in order, when more than one is installed.
-const PREFERRED: &[&str] = &["qwen3:8b", "gemma3:12b"];
+///
+/// Larger first: a machine that has pulled the 14B has chosen to run it, and
+/// it writes noticeably better notes. About 10.6 GB with an 8k context, so it
+/// sits entirely on a 16 GB card.
+pub const PREFERRED: &[&str] = &["qwen3:14b", "qwen3:8b", "gemma3:12b"];
 
 /// The model to suggest pulling when none is installed.
-pub const SUGGESTED_MODEL: &str = PREFERRED[0];
+///
+/// The 8B rather than the first preference: it is what fits on the hardware
+/// TRACE knows nothing about, and a suggestion that will not run is worse
+/// than a smaller one that will.
+pub const SUGGESTED_MODEL: &str = "qwen3:8b";
 
 /// Whether notes can be generated right now, and if not, why.
 ///
@@ -144,6 +185,35 @@ impl Readiness {
             Readiness::Ready { .. } => None,
         }
     }
+}
+
+/// A model Ollama has in memory.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct LoadedModel {
+    pub name: String,
+    pub size_bytes: u64,
+    pub vram_bytes: u64,
+    /// Absent on Ollama versions that do not report it.
+    pub context_length: Option<u64>,
+}
+
+fn parse_loaded(body: &serde_json::Value) -> Vec<LoadedModel> {
+    body["models"]
+        .as_array()
+        .map(|models| {
+            models
+                .iter()
+                .filter_map(|m| {
+                    Some(LoadedModel {
+                        name: m["name"].as_str()?.to_string(),
+                        size_bytes: m["size"].as_u64().unwrap_or(0),
+                        vram_bytes: m["size_vram"].as_u64().unwrap_or(0),
+                        context_length: m["context_length"].as_u64(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Prefer a known-good default, falling back to whatever is installed, so a
@@ -430,6 +500,35 @@ mod tests {
     fn a_preferred_model_wins_over_install_order() {
         let installed = names(&["llama3:8b", "gemma3:12b", "qwen3:8b"]);
         assert_eq!(pick_model(&installed).as_deref(), Some("qwen3:8b"));
+    }
+
+    #[test]
+    fn the_14b_is_preferred_when_both_are_installed() {
+        let installed = names(&["qwen3:8b", "qwen3:14b"]);
+        assert_eq!(pick_model(&installed).as_deref(), Some("qwen3:14b"));
+    }
+
+    #[test]
+    fn the_suggested_model_is_the_small_one() {
+        // Suggested to people whose hardware is unknown.
+        assert_eq!(SUGGESTED_MODEL, "qwen3:8b");
+        assert!(PREFERRED.contains(&SUGGESTED_MODEL));
+    }
+
+    #[test]
+    fn loaded_models_report_how_much_is_on_the_gpu() {
+        let body = serde_json::json!({ "models": [
+            { "name": "qwen3:14b", "size": 11_000_000_000u64, "size_vram": 11_000_000_000u64,
+              "context_length": 8192 },
+            { "name": "old", "size": 5 }
+        ]});
+        let loaded = parse_loaded(&body);
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0].vram_bytes, 11_000_000_000);
+        assert_eq!(loaded[0].context_length, Some(8192));
+        assert_eq!(loaded[1].vram_bytes, 0);
+        assert_eq!(loaded[1].context_length, None);
+        assert!(parse_loaded(&serde_json::json!({})).is_empty());
     }
 
     #[test]

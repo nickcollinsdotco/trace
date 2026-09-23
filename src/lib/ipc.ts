@@ -132,6 +132,43 @@ export interface FinishedMeeting {
   notePath: string;
 }
 
+/** What the status bar shows about the app itself. */
+export interface AppInfo {
+  version: string;
+  devBuild: boolean;
+}
+
+/** A model Ollama has in memory, and how much of it is on the GPU. */
+export interface LoadedModel {
+  name: string;
+  sizeBytes: number;
+  vramBytes: number;
+  contextLength: number | null;
+}
+
+/** Everything worth knowing when something has gone wrong. */
+export interface DiagnosticsReport {
+  appVersion: string;
+  devBuild: boolean;
+  os: string;
+  cpu: string;
+  threads: number;
+  memoryBytes: number;
+  accelerator: string;
+  speechModel: string;
+  speechInstalled: boolean;
+  llm: LlmStatus;
+  ollamaVersion: string | null;
+  preferredModels: string[];
+  loadedModels: LoadedModel[];
+  contextTokens: number;
+  keepAudio: boolean;
+  notesRoot: string;
+  logDir: string;
+  /** Recent log lines, oldest first. */
+  recent: string[];
+}
+
 /* ------------------------------------------------------------------ *
  * Fake backend, for the fixture gallery
  *
@@ -234,6 +271,10 @@ export const ipc = {
 
   llmStatus: () => call<LlmStatus>("llm_status"),
   startOllama: () => call<void>("start_ollama"),
+
+  appInfo: () => call<AppInfo>("app_info"),
+  diagnosticsReport: () => call<DiagnosticsReport>("diagnostics_report"),
+  openLogsFolder: () => call<string>("open_logs_folder"),
 };
 
 /* ------------------------------------------------------------------ *

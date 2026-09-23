@@ -25,6 +25,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::audio::session::{CaptureSession, SessionSummary};
 use crate::audio::{CapturedAudio, StreamSource};
+use crate::diagnostics;
 use crate::meeting::Meeting;
 use crate::store::journal::{Journal, JournalEvent};
 use crate::store::{self, paths};
@@ -146,6 +147,11 @@ impl CaptureManager {
         if guard.is_some() {
             return Err(ManagerError::AlreadyActive);
         }
+        // The title is the user's words, so it stays out of the log.
+        diagnostics::log(format!(
+            "meeting started, microphone: {}",
+            mic_device.as_deref().unwrap_or("default")
+        ));
 
         let notes_root = self.notes_root()?;
         let now = chrono::Local::now();
@@ -320,6 +326,7 @@ impl CaptureManager {
     /// belongs in the UI, where the user can see what they are discarding.
     pub fn abort(&self) -> Result<(), ManagerError> {
         let active = self.take_active()?;
+        diagnostics::log("meeting discarded by the user");
 
         // Same teardown order as `stop`: capture first so the tap closes and
         // the pump can drain, otherwise the join below waits on a thread that
@@ -349,6 +356,7 @@ impl CaptureManager {
         // Stop capture first so the WAVs are finalised and the tap closes,
         // which lets the pump drain and exit on its own.
         let summary = active.capture.stop();
+        log_streams(&summary);
 
         active.pump_stop.store(true, Ordering::Relaxed);
         if let Some(pump) = active.pump {
@@ -388,6 +396,11 @@ impl CaptureManager {
         // normal path and the recovery path produce identical results.
         let replay = crate::store::journal::replay(&active.dir)?;
         let meeting = replay.meeting;
+        diagnostics::log(format!(
+            "meeting ended: {} live segments, {} characters of notes",
+            meeting.transcript.len(),
+            meeting.notes.chars().count()
+        ));
 
         let notes_root = self.notes_root()?;
         let note_path = store::write_note(&notes_root, &meeting)?;
@@ -412,6 +425,26 @@ impl CaptureManager {
     }
 }
 
+/// One line per stream, so a meeting with a dead or glitching device can be
+/// told apart from one where nobody spoke.
+fn log_streams(summary: &SessionSummary) {
+    for s in &summary.streams {
+        diagnostics::log(format!(
+            "stream {:?} on \"{}\": {:.0}s at {} Hz, {} chunks dropped, {} stream errors{}",
+            s.source,
+            s.device_name,
+            s.duration_secs(),
+            s.sample_rate,
+            s.chunks_dropped,
+            s.stream_errors,
+            s.error
+                .as_deref()
+                .map(|e| format!(", failed: {e}"))
+                .unwrap_or_default()
+        ));
+    }
+}
+
 /// Generate structured notes from the finished transcript.
 ///
 /// Best-effort and non-fatal. If no model is installed, or Ollama is not
@@ -429,6 +462,7 @@ fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::p
     // Ollama indistinguishable from a feature that did not exist: the note
     // simply never gained a summary, and nothing on screen said so.
     let fail = |message: String| {
+        diagnostics::log(format!("summary failed: {message}"));
         let _ = app.emit(
             EVENT_SYNTHESIS_FAILED,
             serde_json::json!({
@@ -448,6 +482,8 @@ fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::p
             return;
         }
     };
+    diagnostics::log(format!("summarising with {}", provider.model()));
+    let started = std::time::Instant::now();
 
     let replay = match crate::store::journal::replay(session_dir) {
         Ok(r) => r,
@@ -474,6 +510,15 @@ fn synthesize(app: &AppHandle, session_dir: &std::path::Path, note_path: &std::p
             return;
         }
     };
+
+    diagnostics::log(format!(
+        "summary written in {:.0}s: {} key points, {} decisions, {} action items, {} discarded",
+        started.elapsed().as_secs_f64(),
+        generated.key_points.len(),
+        generated.decisions.len(),
+        generated.action_items.len(),
+        report.total_dropped()
+    ));
 
     // Journal before rewriting, so a crash between the two replays to the
     // generated version rather than losing it.
@@ -536,9 +581,13 @@ fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summar
         .spawn(move || {
             // Loading a second engine only after the live one has been dropped
             // keeps peak memory to one model rather than two.
-            let Ok(mut engine) = Transcriber::load() else {
-                release_session_audio(&session_dir);
-                return;
+            let mut engine = match Transcriber::load() {
+                Ok(engine) => engine,
+                Err(e) => {
+                    diagnostics::log(format!("re-pass skipped, engine did not load: {e}"));
+                    release_session_audio(&session_dir);
+                    return;
+                }
             };
 
             let mut segments = Vec::new();
@@ -553,7 +602,10 @@ fn spawn_repass(app: AppHandle, session_dir: PathBuf, note_path: PathBuf, summar
                 ) {
                     Ok(mut produced) => segments.append(&mut produced),
                     Err(e) => {
-                        eprintln!("trace: re-pass failed for {:?}: {e}", outcome.source);
+                        diagnostics::log(format!(
+                            "re-pass failed for {:?}, keeping the live transcript: {e}",
+                            outcome.source
+                        ));
                         // Abandon rather than half-replace: a transcript
                         // missing one whole stream would be worse than the
                         // live one it would overwrite.
@@ -648,6 +700,9 @@ fn spawn_pump(
                                 let _ = app.emit(EVENT_SEGMENT, &segment);
                             }
                             LiveEvent::Error { source, message } => {
+                                diagnostics::log(format!(
+                                    "live transcription error on {source:?}: {message}"
+                                ));
                                 let _ = app.emit(
                                     EVENT_CAPTURE_ERROR,
                                     serde_json::json!({

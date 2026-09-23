@@ -41,6 +41,8 @@ conservative.
 Rules:
 - Every claim you make must cite the line ids it came from.
 - Only cite ids that appear in the input. Never invent an id.
+- Evidence is a list of bare ids such as sys_0012 or note_0003 — never the \
+text of the line, its timestamp, or its brackets.
 - Prefer omitting an item to guessing at one. An empty list is a valid and \
 often correct answer.
 - A decision is a question the participants closed: an option chosen, a \
@@ -183,10 +185,50 @@ fn transcript_lines(segments: &[Segment]) -> Vec<String> {
                 s.id,
                 timestamp(s.start_ms),
                 s.speaker_label(),
-                s.text.trim()
+                collapse_repeats(s.text.trim())
             )
         })
         .collect()
+}
+
+/// Longest run of one repeated word kept in the prompt.
+const MAX_REPEATS: usize = 3;
+
+/// Shorten runs of a repeated word: "a uh uh uh uh uh head" → "a uh uh uh… head".
+///
+/// Prompt-only; the saved transcript is untouched. Speech recognition
+/// sometimes emits a filler dozens of times over, and a model reading that is
+/// primed to continue it — which is how one ran out of tokens mid-answer,
+/// writing "uh" into a citation. Three is kept rather than one so a genuine
+/// stammer still reads as one.
+fn collapse_repeats(text: &str) -> String {
+    let normalise = |w: &str| {
+        w.trim_matches(|c: char| !c.is_alphanumeric())
+            .to_lowercase()
+    };
+
+    let mut out: Vec<String> = Vec::new();
+    let mut run = 0;
+    let mut previous = String::new();
+
+    for word in text.split_whitespace() {
+        let key = normalise(word);
+        if !key.is_empty() && key == previous {
+            run += 1;
+        } else {
+            run = 1;
+            previous = key;
+        }
+
+        if run <= MAX_REPEATS {
+            out.push(word.to_string());
+        } else if run == MAX_REPEATS + 1 {
+            if let Some(last) = out.last_mut() {
+                last.push('…');
+            }
+        }
+    }
+    out.join(" ")
 }
 
 /// Prompt for merging several windows' summaries into one.
@@ -231,6 +273,29 @@ mod tests {
         m.date = "2026-09-05".into();
         m.transcript = segments;
         m
+    }
+
+    #[test]
+    fn runaway_repeats_are_shortened_in_the_prompt() {
+        assert_eq!(
+            collapse_repeats("there is a uh uh uh uh uh uh uh head of backend"),
+            "there is a uh uh uh… head of backend"
+        );
+    }
+
+    #[test]
+    fn short_repeats_and_ordinary_speech_are_left_alone() {
+        assert_eq!(collapse_repeats("no no no, not that"), "no no no, not that");
+        assert_eq!(collapse_repeats("that that is fine"), "that that is fine");
+        assert_eq!(collapse_repeats(""), "");
+    }
+
+    #[test]
+    fn repeats_differing_only_in_case_or_punctuation_count_as_one_run() {
+        assert_eq!(
+            collapse_repeats("Uh, uh uh. uh uh okay"),
+            "Uh, uh uh.… okay"
+        );
     }
 
     #[test]

@@ -61,22 +61,49 @@ pub struct RawAction {
     pub confidence: f32,
 }
 
+/// The shape of a citable id: `mic_0004`, `sys_0011`, `note_0000`.
+///
+/// Four or more digits because the counters are zero-padded to four but do
+/// not stop at 9,999.
+pub const EVIDENCE_PATTERN: &str = "^(mic|sys|note)_[0-9]{4,}$";
+
+/// Longest a single generated item may be, in characters.
+///
+/// A bound on runaway output rather than a style rule. A model that starts
+/// copying a transcript line — "uh uh uh uh…" included — into a field would
+/// otherwise keep going until the token limit cut the JSON off mid-string,
+/// losing every item from that part of the meeting.
+const ITEM_MAX_CHARS: u32 = 400;
+const SUMMARY_MAX_CHARS: u32 = 2_000;
+/// More citations than this for one item is copying, not evidence.
+const EVIDENCE_MAX_ITEMS: u32 = 8;
+
 /// JSON Schema handed to Ollama's `format` field.
 ///
 /// `additionalProperties: false` throughout, so the model cannot invent fields
 /// alongside the ones it was asked for. `minItems: 1` on every `evidence`
 /// array makes an uncited claim ungeneratable rather than merely discouraged —
 /// the constraint is enforced during decoding, not checked afterwards.
+///
+/// Each evidence item is held to the id pattern for the same reason. With
+/// only `"type": "string"`, a model once wrote a whole transcript line as its
+/// citation, followed the speaker's repeated "uh" into a loop, and ran out of
+/// tokens before closing the JSON.
 pub fn json_schema() -> serde_json::Value {
+    let evidence = serde_json::json!({
+        "type": "array",
+        "items": { "type": "string", "pattern": EVIDENCE_PATTERN },
+        "minItems": 1,
+        "maxItems": EVIDENCE_MAX_ITEMS
+    });
+
+    let text = serde_json::json!({ "type": "string", "maxLength": ITEM_MAX_CHARS });
+
     let claim = serde_json::json!({
         "type": "object",
         "properties": {
-            "text": { "type": "string" },
-            "evidence": {
-                "type": "array",
-                "items": { "type": "string" },
-                "minItems": 1
-            },
+            "text": text,
+            "evidence": evidence,
             "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
         },
         "required": ["text", "evidence", "confidence"],
@@ -86,13 +113,9 @@ pub fn json_schema() -> serde_json::Value {
     let action = serde_json::json!({
         "type": "object",
         "properties": {
-            "text": { "type": "string" },
-            "owner": { "type": ["string", "null"] },
-            "evidence": {
-                "type": "array",
-                "items": { "type": "string" },
-                "minItems": 1
-            },
+            "text": text,
+            "owner": { "type": ["string", "null"], "maxLength": 60 },
+            "evidence": evidence,
             "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
         },
         "required": ["text", "evidence", "confidence"],
@@ -102,7 +125,7 @@ pub fn json_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
         "properties": {
-            "summary": { "type": "string" },
+            "summary": { "type": "string", "maxLength": SUMMARY_MAX_CHARS },
             "key_points": { "type": "array", "items": claim },
             "decisions": { "type": "array", "items": claim },
             "action_items": { "type": "array", "items": action },
@@ -129,6 +152,56 @@ mod tests {
             .as_array()
             .unwrap()
             .contains(&serde_json::json!("evidence")));
+    }
+
+    /// The pattern, checked by hand: no regex crate for one test.
+    fn matches_evidence_pattern(id: &str) -> bool {
+        let Some((prefix, digits)) = id.split_once('_') else {
+            return false;
+        };
+        ["mic", "sys", "note"].contains(&prefix)
+            && digits.len() >= 4
+            && digits.chars().all(|c| c.is_ascii_digit())
+    }
+
+    #[test]
+    fn every_id_the_app_writes_fits_the_evidence_pattern() {
+        // If a new id format is added and the pattern is not widened, the
+        // grammar would make that source uncitable and every claim from it
+        // would vanish.
+        assert_eq!(EVIDENCE_PATTERN, "^(mic|sys|note)_[0-9]{4,}$");
+
+        let notes = super::super::citable::note_lines("first\nsecond");
+        for n in &notes {
+            assert!(matches_evidence_pattern(&n.id), "{}", n.id);
+        }
+        for id in ["mic_0000", "sys_0109", "sys_12345"] {
+            assert!(matches_evidence_pattern(id), "{id}");
+        }
+        // What the model actually produced before the pattern existed.
+        assert!(!matches_evidence_pattern(
+            "sys_0109] (08:42) them: Oh yes, and then there is a uh uh uh"
+        ));
+    }
+
+    #[test]
+    fn every_evidence_item_is_held_to_the_id_pattern() {
+        let schema = json_schema();
+        for section in ["key_points", "decisions", "action_items", "open_questions"] {
+            let evidence = &schema["properties"][section]["items"]["properties"]["evidence"];
+            assert_eq!(evidence["items"]["pattern"], EVIDENCE_PATTERN, "{section}");
+            assert!(evidence["maxItems"].is_u64(), "{section}");
+        }
+    }
+
+    #[test]
+    fn every_generated_string_is_bounded() {
+        let schema = json_schema();
+        assert!(schema["properties"]["summary"]["maxLength"].is_u64());
+        for section in ["key_points", "decisions", "action_items", "open_questions"] {
+            let text = &schema["properties"][section]["items"]["properties"]["text"];
+            assert!(text["maxLength"].is_u64(), "{section}");
+        }
     }
 
     #[test]

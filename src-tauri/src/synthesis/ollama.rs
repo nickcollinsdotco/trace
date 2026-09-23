@@ -23,6 +23,22 @@ const HOST: &str = "http://127.0.0.1:11434";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(600);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// Context window requested for every call, in tokens.
+///
+/// Set explicitly because Ollama's default is 4,096, and one prompt window is
+/// up to `WINDOW_CHARS` of transcript — around 5,000 tokens — before the
+/// system prompt or the answer. Over the limit, Ollama drops the *start* of
+/// the prompt without an error, so the model loses its instructions and part
+/// of the transcript and carries on regardless. `warm` requests the same
+/// size, because a different one makes Ollama reload the model.
+pub const NUM_CTX: u32 = 16_384;
+
+/// Most tokens one answer may use.
+///
+/// A dense stretch of meeting can yield a long list of items, and 2,048 was
+/// tight enough to be reached.
+const NUM_PREDICT: u32 = 4_096;
+
 pub struct OllamaProvider {
     model: String,
 }
@@ -197,6 +213,19 @@ impl LlmProvider for OllamaProvider {
     }
 
     fn synthesize(&self, user_prompt: &str) -> Result<SynthesisOutput, SynthesisError> {
+        // One retry, for output that could not be read. Sampling is not
+        // deterministic, so a second attempt at a window that ran away often
+        // does not; anything else — Ollama down, a bad request — would fail
+        // the same way twice.
+        match self.attempt(user_prompt) {
+            Err(SynthesisError::Malformed(_)) => self.attempt(user_prompt),
+            other => other,
+        }
+    }
+}
+
+impl OllamaProvider {
+    fn attempt(&self, user_prompt: &str) -> Result<SynthesisOutput, SynthesisError> {
         let request = serde_json::json!({
             "model": self.model,
             "system": prompt::SYSTEM_PROMPT,
@@ -209,7 +238,8 @@ impl LlmProvider for OllamaProvider {
                 // get stuck repeating a structure; a little entropy avoids
                 // that without inviting invention.
                 "temperature": 0.2,
-                "num_predict": 2048
+                "num_predict": NUM_PREDICT,
+                "num_ctx": NUM_CTX
             }
         });
 
@@ -234,6 +264,17 @@ impl LlmProvider for OllamaProvider {
             .into_body()
             .read_json()
             .map_err(|e| SynthesisError::Malformed(e.to_string()))?;
+
+        // Said plainly, because the parse error it would otherwise become
+        // shows only the opening of the output — which looks fine — and not
+        // the end, where it stopped.
+        if body["done_reason"].as_str() == Some("length") {
+            return Err(SynthesisError::Malformed(
+                "the model ran out of room before finishing its answer, usually from repeating \
+                 itself"
+                    .into(),
+            ));
+        }
 
         let text = body["response"]
             .as_str()
@@ -303,7 +344,9 @@ pub fn warm(model: &str) {
                     "prompt": "",
                     // Stay resident for a long meeting rather than the
                     // five-minute default, which would unload mid-call.
-                    "keep_alive": "2h"
+                    "keep_alive": "2h",
+                    // Must match synthesis, or the warm load is thrown away.
+                    "options": { "num_ctx": NUM_CTX }
                 }));
         })
         .ok();
@@ -415,6 +458,25 @@ mod tests {
         assert_eq!(
             serde_json::to_value(Readiness::NotRunning).unwrap(),
             serde_json::json!({ "state": "not_running" })
+        );
+    }
+
+    /// Rough characters per token for transcript lines, with their ids and
+    /// timestamps. Deliberately pessimistic: overestimating tokens costs a little
+    /// memory, underestimating silently truncates.
+    const CHARS_PER_TOKEN: u32 = 3;
+
+    #[test]
+    fn a_full_window_fits_in_the_context_with_room_to_answer() {
+        // Overflow is silent in Ollama: it trims the start of the prompt,
+        // instructions first. So the sizing is checked here instead.
+        let window_tokens = prompt::WINDOW_CHARS as u32 / CHARS_PER_TOKEN;
+        let system_tokens = prompt::SYSTEM_PROMPT.len() as u32 / CHARS_PER_TOKEN;
+        // Headers, the typed notes repeated in every window, and slack.
+        let overhead = 2_000;
+        assert!(
+            window_tokens + system_tokens + overhead + NUM_PREDICT <= NUM_CTX,
+            "window {window_tokens} + system {system_tokens} + {overhead} + answer {NUM_PREDICT} > {NUM_CTX}"
         );
     }
 

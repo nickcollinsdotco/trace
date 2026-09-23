@@ -11,6 +11,7 @@
 pub mod audio;
 pub mod capture_manager;
 pub mod commands;
+pub mod diagnostics;
 /// Meeting domain types. Distinct from `models`, which manages ASR model files.
 pub mod meeting;
 pub mod models;
@@ -24,6 +25,9 @@ use capture_manager::CaptureManager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    diagnostics::install_panic_hook();
+    diagnostics::log(format!("TRACE {} started", env!("CARGO_PKG_VERSION")));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -75,6 +79,9 @@ pub fn run() {
             commands::set_note_tags,
             commands::llm_status,
             commands::start_ollama,
+            commands::app_info,
+            commands::diagnostics_report,
+            commands::open_logs_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TRACE");

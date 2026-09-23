@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Gallery } from "./Gallery";
@@ -164,6 +164,63 @@ describe("Gallery", () => {
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByText(gist)).toBeNull();
     expect(localStorage.getItem("trace.library.gists")).toBe("off");
+  });
+
+  it("shows both models and the build in the status bar", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+
+    const bar = await screen.findByRole("contentinfo");
+    await waitFor(() => expect(bar).toHaveTextContent("Parakeet TDT 0.6B v3 (int8)"));
+    expect(bar).toHaveTextContent("qwen3:14b");
+    expect(bar).toHaveTextContent("v0.1.0");
+    expect(bar).toHaveTextContent("dev");
+  });
+
+  it("says in the status bar when summaries are offline", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Ollama closed" }));
+
+    const bar = await screen.findByRole("contentinfo");
+    await waitFor(() => expect(bar).toHaveTextContent("Ollama closed"));
+  });
+
+  it("opens the menu, marks where you are, and closes on Escape", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+
+    const trigger = screen.getByRole("button", { name: /Menu/ });
+    await user.click(trigger);
+    const nav = screen.getByRole("navigation", { name: "App" });
+    expect(within(nav).getByRole("button", { name: /Diagnostics/ })).toBeInTheDocument();
+    expect(within(nav).getByRole("button", { name: /Meetings/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("navigation", { name: "App" })).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("copies a diagnostics report that says what is on the GPU", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Diagnostics" }));
+
+    // Each appears twice: in its section, and in the collapsed plain-text copy.
+    expect((await screen.findAllByText(/100% on GPU/)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/summary written in 68s/).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Copy report" }));
+    const copied = await navigator.clipboard.readText();
+    expect(copied).toContain("TRACE diagnostics");
+    expect(copied).toContain("ready, using qwen3:14b");
+    expect(copied).toContain("summarising with qwen3:14b");
+    expect(screen.getByText(/copied/)).toBeInTheDocument();
   });
 
   it("disables regeneration when the journal is gone", async () => {

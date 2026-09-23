@@ -97,8 +97,12 @@ pub async fn install_model(app: AppHandle) -> CmdResult<()> {
             );
         })
         // Guidance rather than the raw error: this lands on the first-run
-        // screen, where "Dns Failed" helps nobody.
-        .map_err(|e| e.guidance())
+        // screen, where "Dns Failed" helps nobody. The raw error goes to the
+        // log, where it is exactly what helps.
+        .map_err(|e| {
+            crate::diagnostics::log(format!("speech model install failed: {e}"));
+            e.guidance()
+        })
     })
     .await
     .map_err(err)?
@@ -529,4 +533,56 @@ pub async fn llm_status() -> crate::synthesis::ollama::Readiness {
 #[tauri::command]
 pub fn start_ollama() -> CmdResult<()> {
     crate::synthesis::ollama::launch()
+}
+
+/* ------------------------------------------------------------------ *
+ * Diagnostics
+ * ------------------------------------------------------------------ */
+
+/// What the status bar shows about the app itself.
+#[derive(Debug, serde::Serialize)]
+pub struct AppInfo {
+    pub version: String,
+    pub dev_build: bool,
+}
+
+#[tauri::command]
+pub fn app_info(app: AppHandle) -> AppInfo {
+    AppInfo {
+        // The product version from `tauri.conf.json`, which is what the
+        // installer is named after, rather than the crate's.
+        version: app.package_info().version.to_string(),
+        dev_build: cfg!(debug_assertions),
+    }
+}
+
+/// Everything worth knowing when something has gone wrong.
+#[tauri::command]
+pub async fn diagnostics_report(
+    app: AppHandle,
+    manager: State<'_, CaptureManager>,
+) -> CmdResult<crate::diagnostics::Report> {
+    let version = app.package_info().version.to_string();
+    let notes_root = manager
+        .notes_root()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+    // Off the async runtime: it probes Ollama and reads the machine.
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::diagnostics::report(version, &PARAKEET_V3_INT8, notes_root)
+    })
+    .await
+    .map_err(err)
+}
+
+/// Open the folder holding the log, for attaching the whole file.
+#[tauri::command]
+pub fn open_logs_folder(app: AppHandle) -> CmdResult<String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let dir = crate::diagnostics::log_dir().ok_or("no local data folder")?;
+    std::fs::create_dir_all(&dir).map_err(err)?;
+    let path = dir.display().to_string();
+    app.opener().open_path(&path, None::<&str>).map_err(err)?;
+    Ok(path)
 }

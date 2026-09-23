@@ -89,6 +89,12 @@ cargo run --release --example transcribe_spike -- <session dir>
 
 Sessions live in `~/Documents/TRACE/.sessions/`.
 
+The app keeps an event log at `%LOCALAPPDATA%\TRACE\logs\trace.log` —
+meetings started and ended, per-stream drop counts, summary timings and
+failures, panics. **Menu → Diagnostics** shows it with the machine and model
+state, and copies the lot as text; ask for that report before guessing. Log
+events and counts only, never transcript text or notes (`diagnostics.rs`).
+
 ## The gallery
 
 `#gallery` in dev, or **Ctrl+Shift+G**. Renders the real screens against

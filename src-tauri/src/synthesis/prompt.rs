@@ -27,12 +27,23 @@ use crate::transcribe::Segment;
 
 use super::citable::note_lines;
 
-/// Transcript characters per window.
+/// Characters of notes plus transcript per window.
 ///
 /// A rough proxy for tokens, chosen conservatively: local models advertise
-/// large context windows but degrade well before filling them, and quality
-/// falls off long before the hard limit.
-pub const WINDOW_CHARS: usize = 16_000;
+/// large context windows but degrade well before filling them. It also sets
+/// memory: Ollama reserves its KV cache for the whole context up front, about
+/// 144 KB per token for an 8B model, so this size is what lets
+/// `ollama::NUM_CTX` stay at 8k (~1.1 GB) rather than 16k (~2.3 GB) — the
+/// difference between fitting beside the model on an 8 GB card and spilling
+/// onto the CPU. A long meeting becomes more windows instead.
+pub const WINDOW_CHARS: usize = 10_000;
+
+/// Least transcript per window, however long the notes are.
+///
+/// Without a floor, pages of typed notes would shrink every window to a line
+/// or two. Past this the prompt may overflow the context, which the provider
+/// detects and reports rather than truncating silently.
+const MIN_TRANSCRIPT_CHARS: usize = 4_000;
 
 pub const SYSTEM_PROMPT: &str = "\
 You extract structure from meeting transcripts. You are precise and \
@@ -75,10 +86,14 @@ pub fn windows(meeting: &Meeting) -> Vec<Window> {
     let notes = render_notes(meeting);
     let lines = transcript_lines(&meeting.transcript);
 
-    // The notes are repeated in every window. They are small and they are the
-    // user's own signal about what mattered; a window that could not see them
-    // would extract worse than one that could.
-    let groups = group_lines(&lines, WINDOW_CHARS);
+    // The notes are repeated in every window: they are the user's own signal
+    // about what mattered, and a window that could not see them would extract
+    // worse than one that could. So they come out of each window's budget,
+    // rather than being assumed small.
+    let budget = WINDOW_CHARS
+        .saturating_sub(notes.len())
+        .max(MIN_TRANSCRIPT_CHARS);
+    let groups = group_lines(&lines, budget);
     let total = groups.len().max(1);
 
     if groups.is_empty() {
@@ -439,6 +454,32 @@ mod tests {
             assert!(window
                 .prompt
                 .contains("[note_0000] the thing that mattered"));
+        }
+    }
+
+    #[test]
+    fn typed_notes_come_out_of_each_window_budget() {
+        let segments: Vec<Segment> = (0..300)
+            .map(|i| {
+                segment(
+                    &format!("mic_{i:04}"),
+                    i * 1000,
+                    "a line of transcript with some realistic length to it",
+                    StreamSource::Microphone,
+                )
+            })
+            .collect();
+        let without = windows(&meeting_with(segments.clone())).len();
+
+        let mut m = meeting_with(segments);
+        m.notes = "a note that is long enough to matter\n".repeat(120);
+        let with = windows(&m);
+
+        assert!(with.len() > without, "{} windows vs {without}", with.len());
+        let notes_len = render_notes(&m).len();
+        for w in &with {
+            // Headers aside, nothing exceeds the budget the notes left.
+            assert!(w.prompt.len() <= WINDOW_CHARS.max(notes_len + MIN_TRANSCRIPT_CHARS) + 600);
         }
     }
 

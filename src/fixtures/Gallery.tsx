@@ -17,8 +17,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ModelGate } from "../app/ModelGate";
-import { Wordmark } from "../app/Wordmark";
+import { Shell } from "../app/Shell";
 import {
   applyTheme,
   CASE_NOTES,
@@ -42,6 +41,7 @@ import {
   themeForKey,
 } from "../design/theme";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
+import { DiagnosticsScreen } from "../features/diagnostics/DiagnosticsScreen";
 import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
@@ -233,31 +233,29 @@ export function Gallery() {
   );
 }
 
-/** The app shell, reproduced exactly as `App.tsx` builds it. */
+/** The real app shell around the scenario's screen. */
 function Preview({ scenario }: { scenario: Scenario }) {
   // First run owns the whole window, with no shell around it.
   if (scenario.screen === "firstrun") {
     return <FirstRunScreen onReady={() => {}} />;
   }
 
+  const noop = () => {};
   return (
-    <div className="flex h-full flex-col bg-surface-0">
-      <header className="flex shrink-0 items-center gap-4 border-b border-line px-5 py-3">
-        <Wordmark />
-        <span aria-hidden className="trace-rule" />
-        <ModelGate />
-      </header>
-
-      <main className="min-h-0 flex-1">
-        {scenario.screen === "library" && (
-          <LibraryScreen onNewMeeting={() => {}} onOpenNote={() => {}} />
-        )}
-        {scenario.screen === "capture" && <CaptureScreen onFinish={() => {}} />}
-        {scenario.screen === "note" && (
-          <NoteScreen path={scenario.notePath ?? ""} onBack={() => {}} />
-        )}
-      </main>
-    </div>
+    <Shell
+      onHome={noop}
+      onOpenDiagnostics={noop}
+      menu={[
+        { label: "Meetings", onSelect: noop, current: scenario.screen === "library" },
+        { label: "New meeting", onSelect: noop, current: scenario.screen === "capture" },
+        { label: "Diagnostics", onSelect: noop, current: scenario.screen === "diagnostics" },
+      ]}
+    >
+      {scenario.screen === "library" && <LibraryScreen onNewMeeting={noop} onOpenNote={noop} />}
+      {scenario.screen === "capture" && <CaptureScreen onFinish={noop} />}
+      {scenario.screen === "note" && <NoteScreen path={scenario.notePath ?? ""} onBack={noop} />}
+      {scenario.screen === "diagnostics" && <DiagnosticsScreen />}
+    </Shell>
   );
 }
 

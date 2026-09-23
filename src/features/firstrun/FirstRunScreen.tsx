@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatBytes } from "../../lib/format";
 import {
   hasBackend,
   ipc,
@@ -107,16 +108,16 @@ export function FirstRunScreen({ onReady }: { onReady: () => void }) {
                     : `${report.threads} thread`
                 }
               />
-              <Row label="Memory" value={bytes(report.memoryBytes)} />
+              <Row label="Memory" value={formatBytes(report.memoryBytes)} />
               <Row label="Inference" value={report.accelerator} />
             </Group>
 
             <Group>
               <Row label="Model" value={report.modelName} />
-              <Row label="Download" value={bytes(report.modelBytes)} />
+              <Row label="Download" value={formatBytes(report.modelBytes)} />
               <Row label="Target" value={report.modelDir} wrap />
               {report.diskFreeBytes !== null && (
-                <Row label="Free" value={`${bytes(report.diskFreeBytes)} available`} />
+                <Row label="Free" value={`${formatBytes(report.diskFreeBytes)} available`} />
               )}
             </Group>
 
@@ -215,16 +216,4 @@ function Gauge({ percent }: { percent: number }) {
       <span className="w-10 shrink-0 text-right tabular-nums">{clamped}%</span>
     </span>
   );
-}
-
-/** Binary units, because that is what a disk and a download are measured in. */
-function bytes(n: number): string {
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
-  let v = n;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
 }

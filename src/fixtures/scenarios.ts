@@ -17,12 +17,12 @@ import { EVENT, type NoteSummary } from "../lib/ipc";
 import type { BackendState, ScriptedEvent } from "./backend";
 import { NOTE_ENHANCED, NOTE_LONG, NOTE_NOTHING, NOTE_RAW, NOTE_TRANSCRIPT_ONLY } from "./notes";
 
-export type ScreenName = "library" | "capture" | "note" | "firstrun";
+export type ScreenName = "library" | "capture" | "note" | "firstrun" | "diagnostics";
 
 export interface Scenario {
   id: string;
   name: string;
-  group: "Library" | "Capture" | "Reading" | "First run";
+  group: "Library" | "Capture" | "Reading" | "First run" | "Diagnostics";
   /** What this state is for — shown next to the switcher. */
   note: string;
   screen: ScreenName;
@@ -504,6 +504,31 @@ export const SCENARIOS: Scenario[] = [
         downloadBytes: 680 * 1_048_576,
         directory: "C:\\Users\\you\\AppData\\Local\\TRACE\\models",
       },
+    },
+  },
+
+  /* --- Diagnostics ------------------------------------------------- */
+  {
+    id: "diagnostics",
+    name: "Diagnostics",
+    group: "Diagnostics",
+    note: "Everything a bug report needs, and one button to copy it.",
+    screen: "diagnostics",
+    state: POPULATED,
+  },
+  {
+    id: "diagnostics-ollama-closed",
+    name: "Diagnostics, Ollama closed",
+    group: "Diagnostics",
+    note: "The state most worth diagnosing: summaries offline, nothing in memory.",
+    screen: "diagnostics",
+    state: {
+      ...POPULATED,
+      llm: { state: "not_running" },
+      recentLog: [
+        "2026-09-23 10:41:38 meeting ended: 412 live segments, 0 characters of notes",
+        "2026-09-23 10:44:02 summary failed: Ollama is not running, so notes could not be written. Open Ollama and try again",
+      ],
     },
   },
 ];

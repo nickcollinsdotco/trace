@@ -10,8 +10,10 @@
  */
 
 import {
+  type AppInfo,
   type CaptureStatus,
   type DeviceInfo,
+  type DiagnosticsReport,
   EVENT,
   type FakeBackend,
   type FinishedMeeting,
@@ -74,6 +76,9 @@ export interface BackendState {
   failures: Record<string, string>;
   /** Whether Ollama is usable. Opening it from the notice makes it ready. */
   llm: LlmStatus;
+  appInfo: AppInfo;
+  /** Log lines the diagnostics screen shows, oldest first. */
+  recentLog: string[];
 }
 
 export const DEFAULT_STATE: BackendState = {
@@ -82,7 +87,8 @@ export const DEFAULT_STATE: BackendState = {
   recoverable: [],
   model: {
     installed: true,
-    name: "parakeet-tdt-0.6b-v3-int8",
+    // The display name, as `model_status` returns it.
+    name: "Parakeet TDT 0.6B v3 (int8)",
     downloadBytes: 680 * 1_048_576,
     directory: "C:\\Users\\you\\AppData\\Local\\TRACE\\models",
   },
@@ -116,7 +122,17 @@ export const DEFAULT_STATE: BackendState = {
   },
   settings: { keepAudio: false },
   failures: {},
-  llm: { state: "ready", model: "qwen3:8b" },
+  llm: { state: "ready", model: "qwen3:14b" },
+  appInfo: { version: "0.1.0", devBuild: true },
+  recentLog: [
+    "2026-09-23 09:58:02 TRACE 0.1.0 started",
+    "2026-09-23 10:00:11 meeting started, microphone: Microphone (Yeti X)",
+    '2026-09-23 10:41:37 stream Microphone on "Microphone (Yeti X)": 2486s at 48000 Hz, 0 chunks dropped, 1 stream errors',
+    '2026-09-23 10:41:37 stream System on "Speakers (Realtek)": 2486s at 48000 Hz, 0 chunks dropped, 0 stream errors',
+    "2026-09-23 10:41:38 meeting ended: 412 live segments, 0 characters of notes",
+    "2026-09-23 10:44:02 summarising with qwen3:14b",
+    "2026-09-23 10:45:10 summary written in 68s: 6 key points, 2 decisions, 4 action items, 1 discarded",
+  ],
 };
 
 type Handler = (payload: unknown) => void;
@@ -321,6 +337,43 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
         case "llm_status":
           return llm;
+        case "app_info":
+          return state.appInfo;
+        case "open_logs_folder":
+          return "C:\\Users\\you\\AppData\\Local\\TRACE\\logs";
+        case "diagnostics_report": {
+          const report: DiagnosticsReport = {
+            appVersion: state.appInfo.version,
+            devBuild: state.appInfo.devBuild,
+            os: `${state.systemReport.os} (${state.systemReport.kernel})`,
+            cpu: state.systemReport.cpu,
+            threads: state.systemReport.threads,
+            memoryBytes: state.systemReport.memoryBytes,
+            accelerator: state.systemReport.accelerator,
+            speechModel: state.systemReport.modelName,
+            speechInstalled: model.installed,
+            llm,
+            ollamaVersion: llm.state === "not_running" ? null : "0.12.3",
+            preferredModels: ["qwen3:14b", "qwen3:8b", "gemma3:12b"],
+            loadedModels:
+              llm.state === "ready"
+                ? [
+                    {
+                      name: llm.model,
+                      sizeBytes: 11_274_289_152,
+                      vramBytes: 11_274_289_152,
+                      contextLength: 8192,
+                    },
+                  ]
+                : [],
+            contextTokens: 8192,
+            keepAudio: settings.keepAudio,
+            notesRoot: state.root,
+            logDir: "C:\\Users\\you\\AppData\\Local\\TRACE\\logs",
+            recent: state.recentLog,
+          };
+          return report;
+        }
         case "start_ollama":
           // Ready a moment later, as the real one is: the notice should be
           // seen clearing itself, not vanishing on click.

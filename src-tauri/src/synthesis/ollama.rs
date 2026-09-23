@@ -25,19 +25,22 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Context window requested for every call, in tokens.
 ///
-/// Set explicitly because Ollama's default is 4,096, and one prompt window is
-/// up to `WINDOW_CHARS` of transcript — around 5,000 tokens — before the
-/// system prompt or the answer. Over the limit, Ollama drops the *start* of
+/// Set explicitly because Ollama's default of 4,096 is smaller than one
+/// prompt window plus its answer. Over the limit, Ollama drops the *start* of
 /// the prompt without an error, so the model loses its instructions and part
-/// of the transcript and carries on regardless. `warm` requests the same
-/// size, because a different one makes Ollama reload the model.
-pub const NUM_CTX: u32 = 16_384;
+/// of the transcript and carries on regardless.
+///
+/// 8k rather than more because the KV cache is reserved for the whole context
+/// when the model loads — ~1.1 GB here for an 8B model, ~2.3 GB at 16k. The
+/// window size in `prompt` is what keeps a prompt inside it. `warm` requests
+/// the same size, because a different one makes Ollama reload the model.
+pub const NUM_CTX: u32 = 8_192;
 
 /// Most tokens one answer may use.
 ///
 /// A dense stretch of meeting can yield a long list of items, and 2,048 was
-/// tight enough to be reached.
-const NUM_PREDICT: u32 = 4_096;
+/// tight enough to be reached. Reserved out of `NUM_CTX`.
+const NUM_PREDICT: u32 = 3_072;
 
 pub struct OllamaProvider {
     model: String,
@@ -79,6 +82,39 @@ impl OllamaProvider {
             .unwrap_or_default())
     }
 
+    /// The running Ollama's version, for diagnostics.
+    pub fn version() -> Option<String> {
+        let body: serde_json::Value = ureq::get(&format!("{HOST}/api/version"))
+            .config()
+            .timeout_global(Some(PROBE_TIMEOUT))
+            .build()
+            .call()
+            .ok()?
+            .into_body()
+            .read_json()
+            .ok()?;
+        body["version"].as_str().map(str::to_string)
+    }
+
+    /// Models currently in memory, and how much of each is on the GPU.
+    ///
+    /// The one place that shows whether a model actually fits in video memory.
+    /// Partly on the CPU is the usual cause of slow notes, and nothing else on
+    /// screen would reveal it.
+    pub fn loaded() -> Vec<LoadedModel> {
+        let Some(body) = ureq::get(&format!("{HOST}/api/ps"))
+            .config()
+            .timeout_global(Some(PROBE_TIMEOUT))
+            .build()
+            .call()
+            .ok()
+            .and_then(|r| r.into_body().read_json::<serde_json::Value>().ok())
+        else {
+            return Vec::new();
+        };
+        parse_loaded(&body)
+    }
+
     /// Whether Ollama is running at all.
     pub fn service_running() -> bool {
         ureq::get(&format!("{HOST}/api/version"))
@@ -91,10 +127,18 @@ impl OllamaProvider {
 }
 
 /// Models tried first, in order, when more than one is installed.
-const PREFERRED: &[&str] = &["qwen3:8b", "gemma3:12b"];
+///
+/// Larger first: a machine that has pulled the 14B has chosen to run it, and
+/// it writes noticeably better notes. About 10.6 GB with an 8k context, so it
+/// sits entirely on a 16 GB card.
+pub const PREFERRED: &[&str] = &["qwen3:14b", "qwen3:8b", "gemma3:12b"];
 
 /// The model to suggest pulling when none is installed.
-pub const SUGGESTED_MODEL: &str = PREFERRED[0];
+///
+/// The 8B rather than the first preference: it is what fits on the hardware
+/// TRACE knows nothing about, and a suggestion that will not run is worse
+/// than a smaller one that will.
+pub const SUGGESTED_MODEL: &str = "qwen3:8b";
 
 /// Whether notes can be generated right now, and if not, why.
 ///
@@ -141,6 +185,35 @@ impl Readiness {
             Readiness::Ready { .. } => None,
         }
     }
+}
+
+/// A model Ollama has in memory.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct LoadedModel {
+    pub name: String,
+    pub size_bytes: u64,
+    pub vram_bytes: u64,
+    /// Absent on Ollama versions that do not report it.
+    pub context_length: Option<u64>,
+}
+
+fn parse_loaded(body: &serde_json::Value) -> Vec<LoadedModel> {
+    body["models"]
+        .as_array()
+        .map(|models| {
+            models
+                .iter()
+                .filter_map(|m| {
+                    Some(LoadedModel {
+                        name: m["name"].as_str()?.to_string(),
+                        size_bytes: m["size"].as_u64().unwrap_or(0),
+                        vram_bytes: m["size_vram"].as_u64().unwrap_or(0),
+                        context_length: m["context_length"].as_u64(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Prefer a known-good default, falling back to whatever is installed, so a
@@ -264,6 +337,19 @@ impl OllamaProvider {
             .into_body()
             .read_json()
             .map_err(|e| SynthesisError::Malformed(e.to_string()))?;
+
+        // Ollama trims an oversized prompt rather than rejecting it, and says
+        // so only in its own log. How many prompt tokens it read is the one
+        // trace of that here: past the space left for the answer, either the
+        // start of the prompt is gone or the answer will be cut off. Prompt
+        // caching can make this count low, never high, so it cannot misfire.
+        let read = body["prompt_eval_count"].as_u64().unwrap_or(0);
+        if read > u64::from(NUM_CTX - NUM_PREDICT) {
+            return Err(SynthesisError::Request(format!(
+                "this part of the meeting was too long for the model to read and still answer \
+                 ({read} of {NUM_CTX} tokens)"
+            )));
+        }
 
         // Said plainly, because the parse error it would otherwise become
         // shows only the opening of the output — which looks fine — and not
@@ -417,6 +503,35 @@ mod tests {
     }
 
     #[test]
+    fn the_14b_is_preferred_when_both_are_installed() {
+        let installed = names(&["qwen3:8b", "qwen3:14b"]);
+        assert_eq!(pick_model(&installed).as_deref(), Some("qwen3:14b"));
+    }
+
+    #[test]
+    fn the_suggested_model_is_the_small_one() {
+        // Suggested to people whose hardware is unknown.
+        assert_eq!(SUGGESTED_MODEL, "qwen3:8b");
+        assert!(PREFERRED.contains(&SUGGESTED_MODEL));
+    }
+
+    #[test]
+    fn loaded_models_report_how_much_is_on_the_gpu() {
+        let body = serde_json::json!({ "models": [
+            { "name": "qwen3:14b", "size": 11_000_000_000u64, "size_vram": 11_000_000_000u64,
+              "context_length": 8192 },
+            { "name": "old", "size": 5 }
+        ]});
+        let loaded = parse_loaded(&body);
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0].vram_bytes, 11_000_000_000);
+        assert_eq!(loaded[0].context_length, Some(8192));
+        assert_eq!(loaded[1].vram_bytes, 0);
+        assert_eq!(loaded[1].context_length, None);
+        assert!(parse_loaded(&serde_json::json!({})).is_empty());
+    }
+
+    #[test]
     fn any_installed_model_beats_none() {
         let installed = names(&["mistral:7b"]);
         assert_eq!(pick_model(&installed).as_deref(), Some("mistral:7b"));
@@ -472,8 +587,9 @@ mod tests {
         // instructions first. So the sizing is checked here instead.
         let window_tokens = prompt::WINDOW_CHARS as u32 / CHARS_PER_TOKEN;
         let system_tokens = prompt::SYSTEM_PROMPT.len() as u32 / CHARS_PER_TOKEN;
-        // Headers, the typed notes repeated in every window, and slack.
-        let overhead = 2_000;
+        // Meeting headers and slack. The typed notes are inside
+        // `WINDOW_CHARS` now, so they need no allowance of their own.
+        let overhead = 800;
         assert!(
             window_tokens + system_tokens + overhead + NUM_PREDICT <= NUM_CTX,
             "window {window_tokens} + system {system_tokens} + {overhead} + answer {NUM_PREDICT} > {NUM_CTX}"

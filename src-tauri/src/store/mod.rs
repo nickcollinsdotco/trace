@@ -78,13 +78,25 @@ pub fn scan_recoverable(notes_root: &std::path::Path) -> Vec<Recoverable> {
 
 /// Rewrite an existing note in place.
 ///
-/// Used by the accurate re-pass, which must replace the note it already wrote
-/// rather than creating a second file beside it.
+/// Used by the accurate re-pass and by synthesis, which must replace the note
+/// already written rather than creating a second file beside it.
+///
+/// The title and tags on disk win over the journal's. Both are edited in the
+/// file directly — rename and tagging deliberately never rebuild the meeting —
+/// so the journal still holds the originals, and replaying it verbatim quietly
+/// undid a rename and dropped every tag the moment notes were regenerated.
 pub fn rewrite_note(
     path: &std::path::Path,
     meeting: &crate::meeting::Meeting,
 ) -> Result<(), StoreError> {
-    paths::write_atomic(path, &markdown::serialize(meeting))
+    let mut meeting = meeting.clone();
+    if let Ok(existing) = std::fs::read_to_string(path) {
+        if let Some(title) = markdown::frontmatter_value(&existing, "title") {
+            meeting.title = title;
+        }
+        meeting.tags = tags::read(&existing);
+    }
+    paths::write_atomic(path, &markdown::serialize(&meeting))
 }
 
 /// Write a meeting to its canonical Markdown file.
@@ -217,6 +229,27 @@ mod tests {
         let mut m = crate::meeting::Meeting::new(id, title);
         m.date = "2026-09-06".into();
         m
+    }
+
+    #[test]
+    fn rewriting_keeps_a_rename_and_tags_made_since_the_note_was_written() {
+        // Regeneration replays the journal, which never hears about either.
+        let root = scratch("rewrite-keeps");
+        let meeting = a_meeting("sess-1", "Standup");
+        let written = write_note(&root, &meeting).unwrap();
+
+        let renamed = rename_note(&root, &written, "Pricing review").unwrap();
+        tags::write(&renamed, &["client".into(), "pricing".into()]).unwrap();
+
+        rewrite_note(&renamed, &meeting).unwrap();
+
+        let text = std::fs::read_to_string(&renamed).unwrap();
+        assert_eq!(
+            markdown::frontmatter_value(&text, "title").as_deref(),
+            Some("Pricing review")
+        );
+        assert!(text.contains("# Pricing review"));
+        assert_eq!(tags::read(&text), vec!["client", "pricing"]);
     }
 
     #[test]

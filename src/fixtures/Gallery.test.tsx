@@ -116,6 +116,56 @@ describe("Gallery", () => {
     expect(screen.queryByText("Stop meeting")).toBeNull();
   });
 
+  it("opens a note with nothing typed on the summary side, not a dead end", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "No notes, no summary" }));
+
+    // Ollama is closed in this scenario, so the button waits on it and the
+    // notice says why — rather than a button that fails when pressed.
+    const generate = await screen.findByRole("button", { name: "Generate summary" });
+    await waitFor(() => expect(generate).toBeDisabled());
+    expect(screen.getByText("Ollama isn’t running")).toBeInTheDocument();
+    expect(screen.queryByText(/no notes were typed/)).toBeNull();
+  });
+
+  it("warns in the library when Ollama is closed, and only then", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+
+    await user.click(screen.getByRole("button", { name: "Ollama closed" }));
+    expect(await screen.findByText("Ollama isn’t running")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Ollama" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Ollama has no model" }));
+    expect(await screen.findByText("ollama pull qwen3:8b")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Ollama" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+    await screen.findByText("Pricing page rework");
+    expect(screen.queryByText(/Notes offline/i)).toBeNull();
+  });
+
+  it("shows and hides meeting summaries in the library", async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await user.click(screen.getByRole("button", { name: "Meetings" }));
+
+    const gist = /agreed it is doing too much at once/;
+    expect(await screen.findByText(gist)).toBeInTheDocument();
+    // A note without one says so, so the toggle never looks like it did nothing.
+    expect(screen.getAllByText("— no summary").length).toBeGreaterThan(0);
+
+    const toggle = screen.getByRole("button", { name: "Summaries" });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByText(gist)).toBeNull();
+    expect(localStorage.getItem("trace.library.gists")).toBe("off");
+  });
+
   it("disables regeneration when the journal is gone", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
@@ -254,9 +304,12 @@ describe("Gallery", () => {
     render(<Gallery />);
     await user.click(screen.getByRole("button", { name: "Meetings" }));
 
-    const row = await screen.findByRole("button", { name: "Pricing page rework" });
-    expect(row.classList.contains("truncate")).toBe(true);
-    expect(row.classList.contains("min-w-0")).toBe(true);
+    // The title span is made `block` for exactly that reason, and its button
+    // must be allowed to shrink or there is nothing to truncate against.
+    const title = await screen.findByText("Pricing page rework");
+    expect(title.classList.contains("truncate")).toBe(true);
+    expect(title.classList.contains("block")).toBe(true);
+    expect(title.closest("button")?.classList.contains("min-w-0")).toBe(true);
   });
 
   it("searches transcripts, not just titles, and says why each matched", async () => {

@@ -95,6 +95,29 @@ ask about the offsite dates
 **you** \`00:12\` — the auth migration, I am waiting on ops for the staging credentials
 `;
 
+/**
+ * A call where nothing was typed and no summary was written — the usual
+ * result of Ollama being closed when the meeting ended.
+ */
+export const NOTE_TRANSCRIPT_ONLY = `---
+id: 20260904-1600-vendor
+title: Vendor call — Northwind
+date: 2026-09-04T16:00:00Z
+type: client
+participants: [you, Priya]
+---
+
+# Vendor call — Northwind
+
+## Transcript
+
+**them** \`00:03\` — thanks for making time. We wanted to walk through the renewal terms
+**you** \`00:09\` — sure. The main thing on our side is the per-seat price going up
+**them** \`00:15\` — understood. We can hold the current rate if you commit to two years
+**you** \`00:24\` — I would need to take that to finance. Can you send it in writing?
+**them** \`00:29\` — I will have the revised quote over by Thursday
+`;
+
 /** A meeting where the model correctly found nothing to extract. */
 export const NOTE_NOTHING = `---
 id: 20260903-0900-catchup

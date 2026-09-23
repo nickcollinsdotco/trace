@@ -15,7 +15,7 @@
 
 import { EVENT, type NoteSummary } from "../lib/ipc";
 import type { BackendState, ScriptedEvent } from "./backend";
-import { NOTE_ENHANCED, NOTE_LONG, NOTE_NOTHING, NOTE_RAW } from "./notes";
+import { NOTE_ENHANCED, NOTE_LONG, NOTE_NOTHING, NOTE_RAW, NOTE_TRANSCRIPT_ONLY } from "./notes";
 
 export type ScreenName = "library" | "capture" | "note" | "firstrun";
 
@@ -36,6 +36,7 @@ const PATHS = {
   standup: "C:\\Users\\you\\Documents\\TRACE\\2026-09-01 Monday standup.md",
   catchup: "C:\\Users\\you\\Documents\\TRACE\\2026-09-03 Catch-up with Dev.md",
   planning: "C:\\Users\\you\\Documents\\TRACE\\2026-08-28 Quarterly planning.md",
+  vendor: "C:\\Users\\you\\Documents\\TRACE\\2026-09-04 Vendor call — Northwind.md",
 } as const;
 
 const BODIES: Record<string, string> = {
@@ -43,6 +44,7 @@ const BODIES: Record<string, string> = {
   [PATHS.standup]: NOTE_RAW,
   [PATHS.catchup]: NOTE_NOTHING,
   [PATHS.planning]: NOTE_LONG,
+  [PATHS.vendor]: NOTE_TRANSCRIPT_ONLY,
 };
 
 /** Dates are relative to today so the library's grouping is exercised. */
@@ -52,16 +54,52 @@ function isoDaysAgo(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/*
+ * Gists on some notes and not others, as a real library has: anything
+ * recorded before gists existed, or while Ollama was closed, has none.
+ */
 const NOTES: NoteSummary[] = [
-  { path: PATHS.catchup, title: "Catch-up with Dev", date: isoDaysAgo(0), type: "general" },
-  { path: PATHS.pricing, title: "Pricing page rework", date: isoDaysAgo(1), type: "design-review" },
-  { path: PATHS.standup, title: "Monday standup", date: isoDaysAgo(3), type: "general" },
-  { path: PATHS.planning, title: "Quarterly planning", date: isoDaysAgo(12), type: "general" },
+  {
+    path: PATHS.catchup,
+    title: "Catch-up with Dev",
+    date: isoDaysAgo(0),
+    type: "general",
+    gist: "An informal catch-up with Dev about the week; nothing was decided.",
+  },
+  {
+    path: PATHS.pricing,
+    title: "Pricing page rework",
+    date: isoDaysAgo(1),
+    type: "design-review",
+    gist: "The team reviewed the current pricing page and agreed it is doing too much at once.",
+  },
+  {
+    path: PATHS.vendor,
+    title: "Vendor call — Northwind",
+    date: isoDaysAgo(2),
+    type: "client",
+    gist: null,
+  },
+  {
+    path: PATHS.standup,
+    title: "Monday standup",
+    date: isoDaysAgo(3),
+    type: "general",
+    gist: null,
+  },
+  {
+    path: PATHS.planning,
+    title: "Quarterly planning",
+    date: isoDaysAgo(12),
+    type: "general",
+    gist: "Quarterly planning across three teams, settling the roadmap and who owns the migration, with hiring left open.",
+  },
   {
     path: "C:\\Users\\you\\Documents\\TRACE\\2026-07-14 Acme discovery.md",
     title: "Acme discovery call",
     date: isoDaysAgo(53),
     type: "discovery",
+    gist: "A first call with Acme to understand how their support team triages tickets.",
   },
 ];
 
@@ -151,6 +189,23 @@ export const SCENARIOS: Scenario[] = [
         },
       ],
     },
+  },
+
+  {
+    id: "library-ollama-closed",
+    name: "Ollama closed",
+    group: "Library",
+    note: "Ollama was quit. Said before a meeting, not discovered after one. Open Ollama clears it.",
+    screen: "library",
+    state: { ...POPULATED, llm: { state: "not_running" } },
+  },
+  {
+    id: "library-no-model",
+    name: "Ollama has no model",
+    group: "Library",
+    note: "Running, but nothing pulled. A different fix, so a different message.",
+    screen: "library",
+    state: { ...POPULATED, llm: { state: "no_model", suggested: "qwen3:8b" } },
   },
 
   /* --- Capture ----------------------------------------------------- */
@@ -274,6 +329,15 @@ export const SCENARIOS: Scenario[] = [
     screen: "note",
     notePath: PATHS.standup,
     state: POPULATED,
+  },
+  {
+    id: "note-transcript-only",
+    name: "No notes, no summary",
+    group: "Reading",
+    note: "Nothing typed and Ollama closed at the end. Opens on the summary side, offering to generate one.",
+    screen: "note",
+    notePath: PATHS.vendor,
+    state: { ...POPULATED, llm: { state: "not_running" } },
   },
   {
     id: "note-nothing",

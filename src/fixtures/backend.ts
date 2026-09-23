@@ -15,6 +15,7 @@ import {
   EVENT,
   type FakeBackend,
   type FinishedMeeting,
+  type LlmStatus,
   type ModelStatus,
   type NoteSummary,
   type RecoverableSession,
@@ -71,6 +72,8 @@ export interface BackendState {
   settings: Settings;
   /** Commands that should reject, mapped to their message. */
   failures: Record<string, string>;
+  /** Whether Ollama is usable. Opening it from the notice makes it ready. */
+  llm: LlmStatus;
 }
 
 export const DEFAULT_STATE: BackendState = {
@@ -113,6 +116,7 @@ export const DEFAULT_STATE: BackendState = {
   },
   settings: { keepAudio: false },
   failures: {},
+  llm: { state: "ready", model: "qwen3:8b" },
 };
 
 type Handler = (payload: unknown) => void;
@@ -145,6 +149,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
   // "Ready" instead of snapping back to "no model" when the download finishes.
   let model = state.model;
   let settings = state.settings;
+  let llm = state.llm;
   const tags: Record<string, string[]> = { ...state.tags };
 
   const emit = (event: string, payload: unknown) => {
@@ -313,6 +318,16 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return null;
         case "can_regenerate":
           return state.canRegenerate;
+
+        case "llm_status":
+          return llm;
+        case "start_ollama":
+          // Ready a moment later, as the real one is: the notice should be
+          // seen clearing itself, not vanishing on click.
+          window.setTimeout(() => {
+            llm = { state: "ready", model: "qwen3:8b" };
+          }, 1_500);
+          return null;
 
         case "note_tags":
           return tags[args?.notePath as string] ?? [];

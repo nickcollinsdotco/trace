@@ -105,6 +105,49 @@ pub struct GeneratedMeeting {
     pub generated_at: String,
 }
 
+/// Longest gist shown in the library, in characters.
+const GIST_MAX_CHARS: usize = 140;
+
+impl GeneratedMeeting {
+    /// One line saying what the meeting was about, for the library list.
+    ///
+    /// Taken from the summary's first sentence rather than asked of the model
+    /// separately. A second field would have to survive windowing and
+    /// consolidation on long meetings, and the summary already opens with the
+    /// high-level description almost every time — deriving it costs nothing
+    /// and cannot disagree with the summary it came from.
+    pub fn gist(&self) -> Option<String> {
+        let summary = self
+            .summary
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if summary.is_empty() {
+            return None;
+        }
+
+        // A sentence ends at terminal punctuation followed by a space, so
+        // "v2.1" and "e.g.x" do not end one early.
+        let end = summary
+            .char_indices()
+            .find(|&(i, c)| {
+                matches!(c, '.' | '!' | '?') && summary[i + c.len_utf8()..].starts_with(' ')
+            })
+            .map(|(i, c)| i + c.len_utf8())
+            .unwrap_or(summary.len());
+        let sentence = &summary[..end];
+
+        if sentence.chars().count() <= GIST_MAX_CHARS {
+            return Some(sentence.to_string());
+        }
+
+        // Cut on a word boundary, so the line never ends mid-word.
+        let cut: String = sentence.chars().take(GIST_MAX_CHARS).collect();
+        let cut = cut.rsplit_once(' ').map_or(cut.as_str(), |(head, _)| head);
+        Some(format!("{}…", cut.trim_end_matches([',', ';', ':', ' '])))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Meeting {
     pub id: String,
@@ -227,6 +270,49 @@ mod tests {
         m.transcript = segments.iter().map(|id| segment(id)).collect();
         m.generated = Some(generated);
         m
+    }
+
+    fn summarised(summary: &str) -> GeneratedMeeting {
+        GeneratedMeeting {
+            summary: summary.into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn the_gist_is_the_first_sentence() {
+        let g = summarised("We reviewed the pricing page. Sarah owns the copy.");
+        assert_eq!(g.gist().as_deref(), Some("We reviewed the pricing page."));
+    }
+
+    #[test]
+    fn a_decimal_does_not_end_the_gist() {
+        let g = summarised("We agreed to ship v2.1 on Friday. Then lunch.");
+        assert_eq!(
+            g.gist().as_deref(),
+            Some("We agreed to ship v2.1 on Friday.")
+        );
+    }
+
+    #[test]
+    fn a_long_first_sentence_is_cut_on_a_word() {
+        let long = "word ".repeat(60);
+        let gist = summarised(&long).gist().unwrap();
+        assert!(gist.ends_with('…'));
+        assert!(gist.chars().count() <= GIST_MAX_CHARS + 1);
+        assert!(gist.trim_end_matches('…').ends_with("word"));
+    }
+
+    #[test]
+    fn line_breaks_in_the_summary_do_not_reach_the_gist() {
+        // The gist is written to a single frontmatter line.
+        let g = summarised("We met\nabout hiring");
+        assert_eq!(g.gist().as_deref(), Some("We met about hiring"));
+    }
+
+    #[test]
+    fn an_empty_summary_has_no_gist() {
+        assert_eq!(summarised("  \n ").gist(), None);
     }
 
     #[test]

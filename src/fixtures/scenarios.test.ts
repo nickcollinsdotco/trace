@@ -32,6 +32,8 @@ const COMMANDS = [
   "system_report",
   "get_settings",
   "abort_capture",
+  "llm_status",
+  "start_ollama",
 ];
 
 describe("scenarios", () => {

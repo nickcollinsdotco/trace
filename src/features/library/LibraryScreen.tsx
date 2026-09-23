@@ -8,6 +8,31 @@ import {
   type RecoverableSession,
   type SearchHit,
 } from "../../lib/ipc";
+import { LlmNotice } from "../llm/LlmNotice";
+import { useLlmStatus } from "../llm/useLlmStatus";
+
+const GISTS_KEY = "trace.library.gists";
+
+/*
+ * A per-machine viewing preference, so browser storage rather than the
+ * settings file. Wrapped because storage can be unavailable, and a missing
+ * preference must never stop the library rendering.
+ */
+function loadShowGists(): boolean {
+  try {
+    return localStorage.getItem(GISTS_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+function saveShowGists(show: boolean): void {
+  try {
+    localStorage.setItem(GISTS_KEY, show ? "on" : "off");
+  } catch {
+    // Not worth surfacing: the toggle still works for this session.
+  }
+}
 
 export function LibraryScreen({
   onNewMeeting,
@@ -25,6 +50,15 @@ export function LibraryScreen({
   const [root, setRoot] = useState<string>("");
   const [query, setQuery] = useState(initialSearch);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
+  const [showGists, setShowGists] = useState(loadShowGists);
+  const llm = useLlmStatus();
+
+  function toggleGists() {
+    setShowGists((on) => {
+      saveShowGists(!on);
+      return !on;
+    });
+  }
 
   /*
    * Search runs on a debounce rather than per keystroke.
@@ -87,14 +121,29 @@ export function LibraryScreen({
       <div className="trace-measure flex flex-col gap-8 px-6 py-10">
         <div className="flex items-center justify-between">
           <SystemLabel tone="muted">Meetings</SystemLabel>
-          <button
-            type="button"
-            onClick={onNewMeeting}
-            className="flex items-center gap-2 rounded-sm border border-line-strong bg-surface-2 px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor"
-          >
-            <span aria-hidden>+</span>
-            New meeting
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleGists}
+              aria-pressed={showGists}
+              title="Show a one-line summary under each meeting"
+              className={`rounded-sm border px-2.5 py-1 font-mono text-2xs uppercase tracking-system trace-press ${
+                showGists
+                  ? "border-phosphor bg-phosphor-dim text-phosphor"
+                  : "border-transparent text-ink-faint hover:text-ink"
+              }`}
+            >
+              Summaries
+            </button>
+            <button
+              type="button"
+              onClick={onNewMeeting}
+              className="flex items-center gap-2 rounded-sm border border-line-strong bg-surface-2 px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor"
+            >
+              <span aria-hidden>+</span>
+              New meeting
+            </button>
+          </div>
         </div>
 
         {hasBackend() && (
@@ -116,6 +165,8 @@ export function LibraryScreen({
           <RecoveryCard key={session.sessionDir} session={session} onDone={refresh} />
         ))}
 
+        <LlmNotice status={llm.status} onRecheck={llm.recheck} context="library" />
+
         {hits !== null ? (
           <SearchResults hits={hits} query={query} onOpen={onOpenNote} />
         ) : loading ? (
@@ -129,7 +180,13 @@ export function LibraryScreen({
             <section key={group} className="trace-section gap-1">
               <SectionHead title={group} />
               {items.map((note) => (
-                <NoteRow key={note.path} note={note} onOpen={onOpenNote} onChanged={refresh} />
+                <NoteRow
+                  key={note.path}
+                  note={note}
+                  showGist={showGists}
+                  onOpen={onOpenNote}
+                  onChanged={refresh}
+                />
               ))}
             </section>
           ))
@@ -241,10 +298,12 @@ function BrowserNotice() {
  */
 function NoteRow({
   note,
+  showGist,
   onOpen,
   onChanged,
 }: {
   note: NoteSummary;
+  showGist: boolean;
   onOpen: (path: string) => void;
   onChanged: () => void;
 }) {
@@ -285,16 +344,35 @@ function NoteRow({
       }`}
     >
       {/*
-        `truncate` lives on the button, not on a span inside it. Overflow and
-        text-overflow do not apply to a non-replaced inline element, so the
-        span version silently did nothing and a long title overflowed its row.
+        The title span is `block`: overflow and text-overflow do not apply to a
+        non-replaced inline element, so an inline span with `truncate` silently
+        did nothing and a long title overflowed its row.
+
+        The gist sits inside the same button so the whole block opens the note,
+        and the row's baseline stays the title's, keeping the type label level
+        with it rather than with the gist.
       */}
       <button
         type="button"
         onClick={() => onOpen(note.path)}
-        className="trace-title min-w-0 flex-1 truncate text-left text-base text-ink group-hover:text-phosphor"
+        className={`flex min-w-0 flex-col gap-0.5 text-left ${
+          // With a gist, the title block takes the row and the hover leader
+          // shrinks to its minimum. Sharing the width equally, as a lone title
+          // can, squeezed the gist into a narrow column of wrapped lines.
+          showGist ? "flex-[1_1_100%]" : "flex-1"
+        }`}
       >
-        {note.title}
+        <span className="trace-title block truncate text-base text-ink group-hover:text-phosphor">
+          {note.title}
+        </span>
+        {showGist &&
+          (note.gist ? (
+            <span className="line-clamp-2 text-sm text-ink-muted">{note.gist}</span>
+          ) : (
+            // Said rather than left blank, so an old note reads as "not
+            // summarised" instead of the toggle appearing to do nothing.
+            <span className="font-mono text-2xs text-ink-faint">— no summary</span>
+          ))}
       </button>
 
       <span

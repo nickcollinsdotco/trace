@@ -74,6 +74,29 @@ describe("groupByDate", () => {
     expect(result[0]?.items.map((i) => i.title)).toEqual(["newer", "older"]);
   });
 
+  it("keeps same-day items in the order given, which is their start order", () => {
+    // Two meetings on one day: the backend has already put the later first.
+    const result = groupByDate(
+      [item("2026-09-04", "afternoon"), item("2026-09-04", "morning")],
+      (i) => i.date,
+      NOW,
+    );
+
+    expect(result[0]?.items.map((i) => i.title)).toEqual(["afternoon", "morning"]);
+  });
+
+  it("reverses groups and items for oldest first", () => {
+    const result = groupByDate(
+      [item("2026-09-04", "afternoon"), item("2026-09-04", "morning"), item("2026-08-06", "old")],
+      (i) => i.date,
+      NOW,
+      "oldest",
+    );
+
+    expect(result.map((g) => g.group)).toEqual(["This month", "Today"]);
+    expect(result[1]?.items.map((i) => i.title)).toEqual(["morning", "afternoon"]);
+  });
+
   it("returns an empty array for no items", () => {
     expect(groupByDate([], (i: { date: string }) => i.date, NOW)).toEqual([]);
   });

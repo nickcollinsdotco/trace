@@ -69,15 +69,67 @@ export function splitSections(markdown: string): NoteSections {
 }
 
 /**
- * Drop a section's own `## ` heading.
+ * The meeting's title, from the `# ` heading under the frontmatter, and
+ * whatever else the head holds besides the frontmatter.
  *
- * The transcript is rendered inside a `<details>` whose `<summary>` already
- * names it, so keeping the heading in the body prints "Transcript" twice.
- * Only the first line is considered, and only when it is a heading — a
- * transcript that happens to start with speech is left alone.
+ * Pulled out so the title can sit in the note's sticky header, where it
+ * stays in view down a long note, instead of scrolling away with the body.
  */
-export function withoutHeading(markdown: string): string {
-  const lines = markdown.split("\n");
-  if (lines[0]?.startsWith("## ")) return lines.slice(1).join("\n").trimStart();
-  return markdown;
+export function splitTitle(head: string): { title: string | null; rest: string } {
+  const lines = head.split("\n");
+  let i = 0;
+  // Skip frontmatter, which the body renderer would drop anyway.
+  if (lines[0] === "---") {
+    const close = lines.indexOf("---", 1);
+    i = close === -1 ? 0 : close + 1;
+  }
+  const body = i;
+  for (; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (line.startsWith("# ")) {
+      // Frontmatter left out of `rest`: kept, it rendered as a stray rule.
+      const rest = [...lines.slice(body, i), ...lines.slice(i + 1)].join("\n").trim();
+      return { title: line.slice(2).trim(), rest };
+    }
+    if (line.trim() !== "") break;
+  }
+  return { title: null, rest: lines.slice(body).join("\n").trim() };
+}
+
+export interface Part {
+  /** The `## ` heading's text, or null for anything before the first one. */
+  heading: string | null;
+  /** Everything under the heading, heading excluded. */
+  body: string;
+}
+
+/**
+ * Split a half of the note at its `## ` headings.
+ *
+ * Each becomes a section that can be framed — as a rule or a box, whichever
+ * the theme draws — and collapsed on its own. Rendering the headings inline
+ * between paragraphs, as before, meant no element wrapped a section, so the
+ * boxed themes had nothing to draw a box around.
+ */
+export function splitParts(markdown: string): Part[] {
+  const parts: Part[] = [];
+  let current: Part = { heading: null, body: "" };
+  const lines: string[] = [];
+
+  const flush = () => {
+    current.body = lines.join("\n").trim();
+    if (current.heading !== null || current.body !== "") parts.push(current);
+    lines.length = 0;
+  };
+
+  for (const line of markdown.split("\n")) {
+    if (line.startsWith("## ")) {
+      flush();
+      current = { heading: line.slice(3).trim(), body: "" };
+    } else {
+      lines.push(line);
+    }
+  }
+  flush();
+  return parts;
 }

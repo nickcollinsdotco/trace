@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitSections, withoutHeading } from "./sections";
+import { splitParts, splitSections, splitTitle } from "./sections";
 
 const FULL = `---
 id: sess-1
@@ -46,31 +46,6 @@ just my own words
 
 **you** \`00:01\` — hello
 `;
-
-describe("withoutHeading", () => {
-  it("drops the section's own heading", () => {
-    // The transcript sits inside a <details> whose <summary> already says
-    // "Transcript". Keeping the heading printed it twice.
-    const s = splitSections(FULL);
-    expect(s.transcript.startsWith("## Transcript")).toBe(true);
-    expect(withoutHeading(s.transcript).startsWith("## ")).toBe(false);
-    expect(withoutHeading(s.transcript)).toContain("shall we ship on friday");
-  });
-
-  it("leaves a body that does not start with a heading alone", () => {
-    expect(withoutHeading("**you** `00:01` — hi")).toBe("**you** `00:01` — hi");
-  });
-
-  it("drops only the first heading", () => {
-    const out = withoutHeading("## A\n\ntext\n\n## B\n\nmore");
-    expect(out).not.toContain("## A");
-    expect(out).toContain("## B");
-  });
-
-  it("handles an empty string", () => {
-    expect(withoutHeading("")).toBe("");
-  });
-});
 
 describe("splitSections", () => {
   it("separates generated sections from the user's own notes", () => {
@@ -151,5 +126,41 @@ something I added by hand
     const s = splitSections("");
     expect(s.hasEnhanced).toBe(false);
     expect(s.hasNotes).toBe(false);
+  });
+});
+
+describe("splitTitle", () => {
+  it("takes the title from under the frontmatter", () => {
+    const { head } = splitSections(FULL);
+    const { title, rest } = splitTitle(head);
+    expect(title).toBe("Client Alpha");
+    expect(rest).not.toContain("# Client Alpha");
+    // Nor the frontmatter, which rendered as a stray rule.
+    expect(rest).toBe("");
+  });
+
+  it("has no title when there is no heading", () => {
+    expect(splitTitle("---\nid: x\n---\n\njust text").title).toBeNull();
+  });
+});
+
+describe("splitParts", () => {
+  it("gives each heading its own part, heading removed from the body", () => {
+    const parts = splitParts("## Summary\n\nOne.\n\n## Key points\n\n- a\n- b");
+    expect(parts).toEqual([
+      { heading: "Summary", body: "One." },
+      { heading: "Key points", body: "- a\n- b" },
+    ]);
+  });
+
+  it("keeps text before the first heading rather than dropping it", () => {
+    expect(splitParts("stray line\n\n## Notes\n\nmine")).toEqual([
+      { heading: null, body: "stray line" },
+      { heading: "Notes", body: "mine" },
+    ]);
+  });
+
+  it("returns nothing for an empty half", () => {
+    expect(splitParts("")).toEqual([]);
   });
 });

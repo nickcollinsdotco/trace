@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { SectionHead, SystemLabel } from "../../components/ui/terminal";
-import { hasBackend, ipc, type LlmStatus } from "../../lib/ipc";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { Collapsible, SectionHead } from "../../components/ui/terminal";
+import { hasBackend, ipc, type LlmStatus, type NoteContext } from "../../lib/ipc";
 import { LlmNotice } from "../llm/LlmNotice";
 import { useLlmStatus } from "../llm/useLlmStatus";
 import { RefinementNotice } from "./RefinementNotice";
-import { splitSections, withoutHeading } from "./sections";
+import { splitParts, splitSections, splitTitle } from "./sections";
 import { useNoteRefinement } from "./useNoteRefinement";
 
 /**
@@ -54,6 +54,8 @@ export function NoteScreen({
    */
   const [replayable, setReplayable] = useState(false);
 
+  const [about, setAbout] = useState<NoteContext>({ context: "", participants: [] });
+
   useEffect(() => {
     void ipc
       .readNote(path)
@@ -65,6 +67,10 @@ export function NoteScreen({
       .canRegenerate(path)
       .then(setReplayable)
       .catch(() => setReplayable(false));
+    void ipc
+      .noteContext(path)
+      .then(setAbout)
+      .catch(() => {});
   }, [path]);
 
   // Stable, so the subscription is not torn down and rebuilt on every render.
@@ -109,35 +115,71 @@ export function NoteScreen({
   }
 
   const active = view ?? "mine";
+  const head = useMemo(() => (sections === null ? null : splitTitle(sections.head)), [sections]);
+  /*
+   * One name replaces "them" as soon as it is given, before any regeneration
+   * rewrites the file. The file still says "them" until then; the reader
+   * should not have to wait minutes to see the name they just typed.
+   */
+  const them = about.participants.length === 1 ? (about.participants[0] ?? null) : null;
+
+  async function saveAbout(next: NoteContext, andRegenerate: boolean) {
+    const stored = await ipc.setNoteContext(path, next.context, next.participants);
+    setAbout(stored);
+    if (andRegenerate) {
+      setPicked(true);
+      setView("enhanced");
+      // Not awaited: the command returns only once the notes are written,
+      // minutes later, and the form has nothing left to wait for. Progress
+      // and failure arrive through the job, as for the ↻ button.
+      void regenerate();
+    }
+  }
 
   return (
     <div data-mode="reading" className="h-full overflow-y-auto">
-      <div className="trace-measure flex flex-col gap-6 px-6 py-10">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-phosphor"
-          >
-            &lt; Meetings
-          </button>
-          <span aria-hidden className="trace-rule" />
+      {/*
+        Sticky, title included, so a long note never leaves the reader
+        wondering which meeting they are in or reaching back up for the
+        controls. Painted with the ground colour so text scrolls under it
+        rather than through it.
+      */}
+      <header className="sticky top-0 z-10 border-b border-line bg-surface-0">
+        <div className="trace-measure flex flex-col gap-2 px-6 pt-6 pb-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-phosphor"
+            >
+              &lt; Meetings
+            </button>
+            <span aria-hidden className="trace-rule" />
 
-          {sections && (
-            <ViewToggle
-              view={active}
-              hasEnhanced={sections.hasEnhanced}
-              onChange={(v) => {
-                setPicked(true);
-                setView(v);
-              }}
-              onRegenerate={regenerate}
-              regenerating={busy}
-              replayable={replayable}
-            />
+            {sections && (
+              <ViewToggle
+                view={active}
+                hasEnhanced={sections.hasEnhanced}
+                onChange={(v) => {
+                  setPicked(true);
+                  setView(v);
+                }}
+                onRegenerate={regenerate}
+                regenerating={busy}
+                replayable={replayable}
+              />
+            )}
+          </div>
+
+          {head?.title && (
+            <h1 className="trace-title truncate text-2xl text-ink" title={head.title}>
+              {head.title}
+            </h1>
           )}
         </div>
+      </header>
 
+      <div className="trace-measure flex flex-col gap-6 px-6 pt-6 pb-10">
         {error && <p className="font-mono text-xs text-error">&gt; {error}</p>}
         {text === null && !error && (
           <p className="font-mono text-xs text-ink-faint">&gt; reading…</p>
@@ -147,18 +189,28 @@ export function NoteScreen({
 
         <Tags path={path} onSearchTag={onSearchTag} />
 
-        {sections && (
+        {hasBackend() && sections && (
+          <AboutMeeting
+            about={about}
+            onSave={saveAbout}
+            replayable={replayable}
+            busy={busy}
+            usable={llm.status === null || llm.status.state === "ready"}
+          />
+        )}
+
+        {sections && head && (
           <>
-            <NoteBody markdown={sections.head} />
+            {head.rest && <NoteBody markdown={head.rest} them={them} />}
 
             {active === "enhanced" ? (
               sections.hasEnhanced ? (
                 busy ? (
                   <Rewriting>
-                    <NoteBody markdown={sections.enhanced} />
+                    <Parts markdown={sections.enhanced} them={them} />
                   </Rewriting>
                 ) : (
-                  <NoteBody markdown={sections.enhanced} />
+                  <Parts markdown={sections.enhanced} them={them} />
                 )
               ) : busy ? (
                 <NotesPending />
@@ -172,7 +224,7 @@ export function NoteScreen({
                 />
               )
             ) : sections.hasNotes ? (
-              <NoteBody markdown={sections.notes} />
+              <Parts markdown={sections.notes} them={them} />
             ) : (
               <p className="font-mono text-xs text-ink-faint">
                 &gt; no notes were typed during this meeting.
@@ -180,25 +232,15 @@ export function NoteScreen({
             )}
 
             {/* The transcript sits under both views: it is the evidence for
-                the enhanced half and the context for the user's own. Collapsed
-                so it does not bury either. */}
+                the enhanced half and the context for the user's own. Closed
+                by default so it does not bury either. */}
             {sections.transcript && (
-              <details className="mt-4">
-                {/*
-                  Shrink-wrapped, so the focus ring hugs the word rather than
-                  drawing a full-width rectangle that reads as a text field.
-                */}
-                <summary className="inline-flex w-fit cursor-pointer list-none rounded-xs">
-                  <SystemLabel tone="muted">Transcript</SystemLabel>
-                </summary>
-                <div className="mt-4">
-                  {/* The summary above is the heading; the body must not repeat it. */}
-                  <NoteBody markdown={withoutHeading(sections.transcript)} />
-                </div>
-              </details>
+              <div className="mt-4">
+                <Parts markdown={sections.transcript} them={them} closed={["transcript"]} />
+              </div>
             )}
 
-            {sections.footer && <NoteBody markdown={sections.footer} />}
+            {sections.footer && <NoteBody markdown={sections.footer} them={them} />}
           </>
         )}
 
@@ -208,6 +250,238 @@ export function NoteScreen({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * A half of the note, one framed and collapsible section per `## ` heading.
+ *
+ * Spaced well apart: sections set as paragraphs a heading's margin apart ran
+ * into each other, so the end of one read as the start of the next.
+ */
+function Parts({
+  markdown,
+  them,
+  closed = [],
+}: {
+  markdown: string;
+  them: string | null;
+  /** Headings, lower-case, that start closed. */
+  closed?: string[];
+}) {
+  return (
+    <div className="flex flex-col gap-10">
+      {splitParts(markdown).map((part, i) =>
+        part.heading === null ? (
+          // biome-ignore lint/suspicious/noArrayIndexKey: static document render
+          <NoteBody key={i} markdown={part.body} them={them} />
+        ) : (
+          <Collapsible
+            // biome-ignore lint/suspicious/noArrayIndexKey: headings can repeat in a hand-edited note
+            key={`${i}-${part.heading}`}
+            title={part.heading}
+            defaultOpen={!closed.includes(part.heading.toLowerCase())}
+          >
+            <NoteBody markdown={part.body} them={them} />
+          </Collapsible>
+        ),
+      )}
+    </div>
+  );
+}
+
+/**
+ * What the user can tell TRACE about a meeting after it has ended.
+ *
+ * The recording knows only which device heard each voice, so it cannot know
+ * that a meeting was an interview or that "them" was Amira. Both change what
+ * a good summary says, so both go to the next regeneration — offered in the
+ * same press, since that is almost always why someone is filling this in.
+ * Saving alone stays possible: fixing a misspelt name should not cost a
+ * minutes-long rewrite of notes someone may already have edited.
+ */
+function AboutMeeting({
+  about,
+  onSave,
+  replayable,
+  busy,
+  usable,
+}: {
+  about: NoteContext;
+  onSave: (next: NoteContext, andRegenerate: boolean) => Promise<void>;
+  replayable: boolean;
+  busy: boolean;
+  /** Whether Ollama can write notes right now. */
+  usable: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [context, setContext] = useState(about.context);
+  const [names, setNames] = useState(about.participants.join(", "));
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const contextId = useId();
+  const namesId = useId();
+
+  function open() {
+    setContext(about.context);
+    setNames(about.participants.join(", "));
+    setFailed(null);
+    setEditing(true);
+  }
+
+  async function save(andRegenerate: boolean) {
+    setSaving(true);
+    setFailed(null);
+    try {
+      await onSave(
+        {
+          context,
+          participants: names
+            .split(",")
+            .map((n) => n.trim())
+            .filter(Boolean),
+        },
+        andRegenerate,
+      );
+      setEditing(false);
+    } catch (e) {
+      setFailed(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const empty = about.context === "" && about.participants.length === 0;
+
+  if (!editing) {
+    return empty ? (
+      <button
+        type="button"
+        onClick={open}
+        className="self-start rounded-sm border border-dashed border-line-strong px-2 py-1 font-mono text-2xs tracking-system text-ink-faint trace-press hover:border-phosphor hover:text-phosphor"
+      >
+        + Context &amp; names
+      </button>
+    ) : (
+      <button
+        type="button"
+        onClick={open}
+        title="Edit what TRACE knows about this meeting"
+        className="group flex flex-col gap-1 self-stretch rounded-sm border border-line px-3 py-2 text-left trace-press hover:border-phosphor"
+      >
+        {about.participants.length > 0 && (
+          <span className="flex items-baseline gap-2">
+            <span className="w-16 shrink-0 font-mono text-2xs uppercase tracking-system text-ink-faint">
+              With
+            </span>
+            <span className="text-sm text-ink">{about.participants.join(", ")}</span>
+          </span>
+        )}
+        {about.context && (
+          <span className="flex items-baseline gap-2">
+            <span className="w-16 shrink-0 font-mono text-2xs uppercase tracking-system text-ink-faint">
+              Context
+            </span>
+            <span className="line-clamp-2 whitespace-pre-line text-sm text-ink-muted">
+              {about.context}
+            </span>
+          </span>
+        )}
+        <span className="font-mono text-2xs text-ink-faint group-hover:text-phosphor">edit</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4 rounded-sm border border-line-strong p-4 trace-panel">
+      <div className="flex flex-col gap-1.5">
+        <label
+          htmlFor={namesId}
+          className="font-mono text-2xs uppercase tracking-system text-ink-muted"
+        >
+          Who was on the other end?
+        </label>
+        <input
+          id={namesId}
+          value={names}
+          onChange={(e) => setNames(e.target.value)}
+          placeholder="Amira, Tom"
+          name="participants"
+          autoComplete="off"
+          className="trace-field text-sm"
+        />
+        <p className="text-xs text-ink-faint">
+          One name replaces THEM in the transcript. With several, the summary is told who was there,
+          but lines stay THEM — the recording cannot tell voices on the call apart.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label
+          htmlFor={contextId}
+          className="font-mono text-2xs uppercase tracking-system text-ink-muted"
+        >
+          What should the summary know?
+        </label>
+        <textarea
+          id={contextId}
+          value={context}
+          onChange={(e) => setContext(e.target.value)}
+          rows={3}
+          placeholder="This was a second-round interview with a candidate for the design lead role."
+          name="context"
+          className="trace-field resize-y text-sm"
+        />
+        <p className="text-xs text-ink-faint">
+          Used to frame the notes. It is never cited, because nobody said it in the meeting.
+        </p>
+      </div>
+
+      {failed && <p className="font-mono text-xs text-error">&gt; {failed}</p>}
+
+      <div className="flex flex-wrap items-center gap-3">
+        {replayable && (
+          <button
+            type="button"
+            onClick={() => save(true)}
+            disabled={saving || busy || !usable}
+            title={
+              busy
+                ? "Notes for this meeting are being written"
+                : !usable
+                  ? "Ollama is not ready, so notes cannot be written now"
+                  : undefined
+            }
+            className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+          >
+            Save and regenerate
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => save(false)}
+          disabled={saving}
+          className="rounded-sm border border-line-strong px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor disabled:opacity-50"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          disabled={saving}
+          className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+
+      {!replayable && (
+        <p className="text-xs text-ink-faint">
+          Saved with the note. This meeting&apos;s transcript record is no longer on disk, so its
+          summary cannot be regenerated with it.
+        </p>
+      )}
     </div>
   );
 }
@@ -365,9 +639,9 @@ function NotesPending() {
   return (
     <div aria-busy="true" className="flex flex-col gap-6">
       <p className="sr-only">The summary and action items are being written.</p>
-      <div aria-hidden className="flex flex-col gap-6">
+      <div aria-hidden className="flex flex-col gap-10">
         {PENDING_SHAPE.map(([title, widths]) => (
-          <div key={title} className="flex flex-col gap-3">
+          <div key={title} className="trace-section">
             <SectionHead title={title} />
             <div className="trace-breathe flex flex-col gap-1.5">
               {widths.map((w, i) => (
@@ -388,7 +662,7 @@ function NotesPending() {
   );
 }
 
-function NoteBody({ markdown }: { markdown: string }) {
+function NoteBody({ markdown, them = null }: { markdown: string; them?: string | null }) {
   const { body } = splitFrontmatter(markdown);
   const blocks = body.split("\n\n").filter((b) => b.trim().length > 0);
 
@@ -398,13 +672,13 @@ function NoteBody({ markdown }: { markdown: string }) {
         // Blocks have no stable identity of their own; index is the honest key
         // for a static, non-reorderable rendering of a file's contents.
         // biome-ignore lint/suspicious/noArrayIndexKey: static document render
-        <Block key={i} text={block.trim()} />
+        <Block key={i} text={block.trim()} them={them} />
       ))}
     </article>
   );
 }
 
-function Block({ text }: { text: string }) {
+function Block({ text, them }: { text: string; them: string | null }) {
   if (text.startsWith("# ")) {
     return <h1 className="trace-title text-2xl text-ink">{text.slice(2)}</h1>;
   }
@@ -456,11 +730,19 @@ function Block({ text }: { text: string }) {
     const match = text.match(/^\*\*(.+?)\*\* `(.+?)` — ([\s\S]*)$/);
     if (match) {
       const [, speaker, time, said] = match;
+      const name = speaker === "them" && them ? them : speaker;
       return (
         <p className="flex gap-3 font-mono text-xs">
           <span className="shrink-0 tabular-nums text-ink-faint">{time}</span>
-          <span className="w-12 shrink-0 uppercase tracking-system text-phosphor-muted">
-            {speaker}
+          {/* Wider once a name can appear, so the text column stays aligned
+              down the whole transcript rather than jumping line to line. */}
+          <span
+            className={`shrink-0 truncate uppercase tracking-system text-phosphor-muted ${
+              them ? "w-20" : "w-12"
+            }`}
+            title={name}
+          >
+            {name}
           </span>
           <span className="text-ink">{said}</span>
         </p>

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SectionHead, SystemLabel } from "../../components/ui/terminal";
-import { groupByDate } from "../../lib/dates";
+import { groupByDate, type SortOrder } from "../../lib/dates";
+import { formatMeetingLength } from "../../lib/format";
 import {
   hasBackend,
   ipc,
@@ -12,6 +13,7 @@ import { LlmNotice } from "../llm/LlmNotice";
 import { useLlmStatus } from "../llm/useLlmStatus";
 
 const GISTS_KEY = "trace.library.gists";
+const ORDER_KEY = "trace.library.order";
 
 /*
  * A per-machine viewing preference, so browser storage rather than the
@@ -34,6 +36,22 @@ function saveShowGists(show: boolean): void {
   }
 }
 
+function loadOrder(): SortOrder {
+  try {
+    return localStorage.getItem(ORDER_KEY) === "oldest" ? "oldest" : "newest";
+  } catch {
+    return "newest";
+  }
+}
+
+function saveOrder(order: SortOrder): void {
+  try {
+    localStorage.setItem(ORDER_KEY, order);
+  } catch {
+    // As above.
+  }
+}
+
 export function LibraryScreen({
   onNewMeeting,
   onOpenNote,
@@ -51,7 +69,16 @@ export function LibraryScreen({
   const [query, setQuery] = useState(initialSearch);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [showGists, setShowGists] = useState(loadShowGists);
+  const [order, setOrder] = useState(loadOrder);
+  // One tag at a time. Several would need an and/or rule to explain, and the
+  // search box already does "tag:a tag:b" for anyone who wants both.
+  const [tag, setTag] = useState<string | null>(null);
   const llm = useLlmStatus();
+
+  function pickOrder(next: SortOrder) {
+    setOrder(next);
+    saveOrder(next);
+  }
 
   function toggleGists() {
     setShowGists((on) => {
@@ -114,7 +141,12 @@ export function LibraryScreen({
     void refresh();
   }, [refresh]);
 
-  const groups = groupByDate(notes, (n) => n.date);
+  const allTags = useMemo(() => [...new Set(notes.flatMap((n) => n.tags))].sort(), [notes]);
+  // A filter on a tag that no longer exists — deleted from its last note —
+  // would hide everything with no visible reason.
+  const activeTag = tag !== null && allTags.includes(tag) ? tag : null;
+  const shown = activeTag === null ? notes : notes.filter((n) => n.tags.includes(activeTag));
+  const groups = groupByDate(shown, (n) => n.date, undefined, order);
 
   return (
     <div data-mode="reading" className="h-full overflow-y-auto">
@@ -159,6 +191,16 @@ export function LibraryScreen({
           />
         )}
 
+        {hits === null && notes.length > 0 && (
+          <ListControls
+            order={order}
+            onOrder={pickOrder}
+            tags={allTags}
+            tag={activeTag}
+            onTag={setTag}
+          />
+        )}
+
         {/* Interrupted meetings come first: there is unsaved work here and it
             is the only thing on this screen that can still be lost. */}
         {recoverable.map((session) => (
@@ -173,7 +215,7 @@ export function LibraryScreen({
           <p className="font-mono text-xs text-ink-faint">&gt; reading notes…</p>
         ) : !hasBackend() ? (
           <BrowserNotice />
-        ) : groups.length === 0 ? (
+        ) : notes.length === 0 ? (
           <EmptyState root={root} />
         ) : (
           groups.map(({ group, items }) => (
@@ -184,7 +226,9 @@ export function LibraryScreen({
                   key={note.path}
                   note={note}
                   showGist={showGists}
+                  activeTag={activeTag}
                   onOpen={onOpenNote}
+                  onTag={setTag}
                   onChanged={refresh}
                 />
               ))}
@@ -193,6 +237,89 @@ export function LibraryScreen({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Order and tag filter for the list.
+ *
+ * Deliberately two controls and no more for now. Filtering by length or type
+ * is worth having once type is something a meeting is actually given — every
+ * meeting is "general" today, so a type filter would be a control that
+ * always shows everything.
+ */
+function ListControls({
+  order,
+  onOrder,
+  tags,
+  tag,
+  onTag,
+}: {
+  order: SortOrder;
+  onOrder: (o: SortOrder) => void;
+  tags: string[];
+  tag: string | null;
+  onTag: (t: string | null) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <fieldset className="flex items-center gap-1">
+        <legend className="sr-only">Order</legend>
+        <Toggle active={order === "newest"} onClick={() => onOrder("newest")}>
+          Newest
+        </Toggle>
+        <Toggle active={order === "oldest"} onClick={() => onOrder("oldest")}>
+          Oldest
+        </Toggle>
+      </fieldset>
+
+      {tags.length > 0 && (
+        <fieldset className="flex min-w-0 flex-wrap items-center gap-1">
+          <legend className="sr-only">Filter by tag</legend>
+          <span aria-hidden className="mr-1 font-mono text-2xs text-ink-faint">
+            #
+          </span>
+          <Toggle active={tag === null} onClick={() => onTag(null)}>
+            All
+          </Toggle>
+          {tags.map((t) => (
+            <Toggle key={t} active={tag === t} onClick={() => onTag(tag === t ? null : t)} plain>
+              {t}
+            </Toggle>
+          ))}
+        </fieldset>
+      )}
+    </div>
+  );
+}
+
+function Toggle({
+  active,
+  onClick,
+  plain,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  /** Tags keep their own case; everything else here is a system label. */
+  plain?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-sm border px-2 py-0.5 font-mono text-2xs tracking-system trace-press ${
+        plain ? "" : "uppercase"
+      } ${
+        active
+          ? "border-phosphor bg-phosphor-dim text-phosphor"
+          : "border-transparent text-ink-faint hover:text-ink"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -299,12 +426,16 @@ function BrowserNotice() {
 function NoteRow({
   note,
   showGist,
+  activeTag,
   onOpen,
+  onTag,
   onChanged,
 }: {
   note: NoteSummary;
   showGist: boolean;
+  activeTag: string | null;
   onOpen: (path: string) => void;
+  onTag: (tag: string) => void;
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -352,37 +483,43 @@ function NoteRow({
         and the row's baseline stays the title's, keeping the type label level
         with it rather than with the gist.
       */}
-      <button
-        type="button"
-        onClick={() => onOpen(note.path)}
-        className={`flex min-w-0 flex-col gap-0.5 text-left ${
+      <div
+        className={`flex min-w-0 flex-col gap-1.5 ${
           // With a gist, the title block takes the row and the hover leader
           // shrinks to its minimum. Sharing the width equally, as a lone title
           // can, squeezed the gist into a narrow column of wrapped lines.
           showGist ? "flex-[1_1_100%]" : "flex-1"
         }`}
       >
-        <span className="trace-title block truncate text-base text-ink group-hover:text-phosphor">
-          {note.title}
-        </span>
-        {showGist &&
-          (note.gist ? (
-            <span className="line-clamp-2 text-sm text-ink-muted">{note.gist}</span>
-          ) : (
-            // Said rather than left blank, so an old note reads as "not
-            // summarised" instead of the toggle appearing to do nothing.
-            <span className="font-mono text-2xs text-ink-faint">— no summary</span>
-          ))}
-      </button>
+        <button
+          type="button"
+          onClick={() => onOpen(note.path)}
+          className="flex min-w-0 flex-col gap-0.5 text-left"
+        >
+          <span className="trace-title block truncate text-base text-ink group-hover:text-phosphor">
+            {note.title}
+          </span>
+          {showGist &&
+            (note.gist ? (
+              <span className="line-clamp-2 text-sm text-ink-muted">{note.gist}</span>
+            ) : (
+              // Said rather than left blank, so an old note reads as "not
+              // summarised" instead of the toggle appearing to do nothing.
+              <span className="font-mono text-2xs text-ink-faint">— no summary</span>
+            ))}
+        </button>
+
+        {/* Under the title rather than beside it: beside, two tags were
+            enough to cut a title down to a few characters. */}
+        {note.tags.length > 0 && <RowTags tags={note.tags} active={activeTag} onTag={onTag} />}
+      </div>
 
       <span
         aria-hidden
         className="trace-rule opacity-0 transition-opacity group-hover:opacity-100"
       />
 
-      <span className="shrink-0 font-mono text-2xs uppercase tracking-system text-ink-faint">
-        {note.type}
-      </span>
+      <RowFacts note={note} />
 
       {hasBackend() && (
         <span className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
@@ -395,6 +532,54 @@ function NoteRow({
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * Length and — when it says something — type, on the right of a row.
+ *
+ * Type used to sit here alone, and since nothing yet sets it every meeting
+ * read "general". That looked like the meeting's tags, and like tagging being
+ * broken. It shows only when it is not the default now; the tags the user
+ * actually gave sit under the title.
+ */
+function RowFacts({ note }: { note: NoteSummary }) {
+  return (
+    <span className="flex shrink-0 items-baseline gap-3 font-mono text-2xs tracking-system text-ink-faint">
+      {note.type !== "general" && <span className="uppercase">{note.type}</span>}
+      {note.durationMs !== null && (
+        <span className="tabular-nums">{formatMeetingLength(note.durationMs)}</span>
+      )}
+    </span>
+  );
+}
+
+/** A row's tags. Pressing one filters the library to it. */
+function RowTags({
+  tags,
+  active,
+  onTag,
+}: {
+  tags: string[];
+  active: string | null;
+  onTag: (tag: string) => void;
+}) {
+  return (
+    <span className="flex flex-wrap gap-1.5 font-mono text-2xs tracking-system">
+      {tags.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => onTag(t)}
+          title={`Show only meetings tagged ${t}`}
+          className={`rounded-sm px-1.5 py-0.5 trace-press hover:bg-phosphor hover:text-surface-0 ${
+            t === active ? "bg-phosphor text-surface-0" : "bg-phosphor-dim text-phosphor"
+          }`}
+        >
+          {t}
+        </button>
+      ))}
+    </span>
   );
 }
 
@@ -465,8 +650,13 @@ function SearchResults({
             <span className="trace-title min-w-0 flex-1 truncate text-base text-ink group-hover:text-phosphor">
               {hit.title}
             </span>
-            <span className="shrink-0 font-mono text-2xs uppercase tracking-system text-ink-faint">
-              {hit.type}
+            <span className="flex shrink-0 items-baseline gap-2 font-mono text-2xs tracking-system text-ink-faint">
+              {hit.tags.map((t) => (
+                <span key={t} className="rounded-sm bg-phosphor-dim px-1.5 py-0.5 text-phosphor">
+                  {t}
+                </span>
+              ))}
+              {hit.type !== "general" && <span className="uppercase">{hit.type}</span>}
             </span>
           </span>
           {hit.snippet && (

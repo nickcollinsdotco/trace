@@ -604,7 +604,15 @@ fn synthesize(
         }
     };
 
-    let result = crate::synthesis::generate(&provider, &replay.meeting, |progress| {
+    // What the user has said about the meeting since — the kind of meeting,
+    // who was on the other end — is in the note, not the journal. Without
+    // this, adding context and regenerating would change nothing.
+    let mut meeting = replay.meeting;
+    if let Ok(text) = std::fs::read_to_string(note_path) {
+        store::context::apply_edits(&mut meeting, &text);
+    }
+
+    let result = crate::synthesis::generate(&provider, &meeting, |progress| {
         job.start(if progress.combining {
             StepKind::Combine
         } else {

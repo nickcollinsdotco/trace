@@ -160,12 +160,20 @@ pub struct Meeting {
     pub ended_at: Option<String>,
     #[serde(default, rename = "type")]
     pub meeting_type: MeetingType,
+    /// Who was on the other end — the people behind `them`. Named by the user
+    /// after the meeting, since the audio topology knows only that a voice
+    /// came from the system stream, not whose it was.
     #[serde(default)]
     pub participants: Vec<String>,
     #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project: Option<String>,
+    /// What the user said about the meeting afterwards — "this was an
+    /// interview" — for synthesis to frame the notes by. Not evidence: nothing
+    /// may cite it, because nobody said it in the meeting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
     /// The user's own notes. Never overwritten by generation.
     #[serde(default)]
     pub notes: String,
@@ -191,10 +199,23 @@ impl Meeting {
             participants: Vec::new(),
             tags: Vec::new(),
             project: None,
+            context: None,
             notes: String::new(),
             transcript: Vec::new(),
             generated: None,
             status: MeetingStatus::Active,
+        }
+    }
+
+    /// The name to show for a segment's speaker.
+    ///
+    /// `them` becomes a name only when exactly one is known. With several, the
+    /// system stream is still all of them at once, and picking one would be a
+    /// guess dressed up as attribution.
+    pub fn speaker_name<'a>(&'a self, segment: &'a Segment) -> &'a str {
+        match (segment.source, self.participants.as_slice()) {
+            (crate::audio::StreamSource::System, [only]) => only.as_str(),
+            _ => segment.speaker_label(),
         }
     }
 

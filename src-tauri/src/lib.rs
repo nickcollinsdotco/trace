@@ -88,6 +88,8 @@ pub fn run() {
             commands::search_notes,
             commands::note_tags,
             commands::set_note_tags,
+            commands::note_context,
+            commands::set_note_context,
             commands::llm_status,
             commands::start_ollama,
             commands::app_info,

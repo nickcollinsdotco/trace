@@ -39,14 +39,34 @@ export function groupForDate(isoDate: string, now: Date = new Date()): DateGroup
 
 const GROUP_ORDER: DateGroup[] = ["Today", "Yesterday", "This week", "This month", "Earlier"];
 
+export type SortOrder = "newest" | "oldest";
+
 /**
- * Groups items by date, newest first within each group, and returns only
- * non-empty groups in display order.
+ * Groups items by date and returns only non-empty groups in display order —
+ * newest first unless asked otherwise, for the groups and within them.
+ *
+ * Items sharing a date keep the order they arrived in, newest first. The
+ * backend orders meetings within a day by start time, which a date alone
+ * cannot, so reversing that order is what makes "oldest" right within a day.
  */
 export function groupByDate<T>(
   items: T[],
   getDate: (item: T) => string,
   now: Date = new Date(),
+  order: SortOrder = "newest",
+): Array<{ group: DateGroup; items: T[] }> {
+  const newest = groupNewestFirst(items, getDate, now);
+  if (order === "newest") return newest;
+  return newest.reverse().map(({ group, items: groupItems }) => ({
+    group,
+    items: groupItems.reverse(),
+  }));
+}
+
+function groupNewestFirst<T>(
+  items: T[],
+  getDate: (item: T) => string,
+  now: Date,
 ): Array<{ group: DateGroup; items: T[] }> {
   const buckets = new Map<DateGroup, T[]>();
 

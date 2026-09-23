@@ -69,6 +69,16 @@ function isoDaysAgo(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** When a fixture meeting started: `days` ago at `hour` o'clock, local. */
+function startedDaysAgo(days: number, hour: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+}
+
+const MINUTE = 60_000;
+
 /*
  * Gists on some notes and not others, as a real library has: anything
  * recorded before gists existed, or while Ollama was closed, has none.
@@ -80,6 +90,9 @@ const NOTES: NoteSummary[] = [
     date: isoDaysAgo(0),
     type: "general",
     gist: "An informal catch-up with Dev about the week; nothing was decided.",
+    tags: [],
+    startedAt: startedDaysAgo(0, 16),
+    durationMs: 18 * MINUTE,
   },
   {
     path: PATHS.pricing,
@@ -87,6 +100,9 @@ const NOTES: NoteSummary[] = [
     date: isoDaysAgo(1),
     type: "design-review",
     gist: "The team reviewed the current pricing page and agreed it is doing too much at once.",
+    tags: [],
+    startedAt: startedDaysAgo(1, 14),
+    durationMs: 47 * MINUTE,
   },
   {
     path: PATHS.vendor,
@@ -94,6 +110,9 @@ const NOTES: NoteSummary[] = [
     date: isoDaysAgo(2),
     type: "client",
     gist: null,
+    tags: [],
+    startedAt: startedDaysAgo(2, 11),
+    durationMs: null,
   },
   {
     path: PATHS.standup,
@@ -101,6 +120,9 @@ const NOTES: NoteSummary[] = [
     date: isoDaysAgo(3),
     type: "general",
     gist: null,
+    tags: [],
+    startedAt: startedDaysAgo(3, 9),
+    durationMs: 12 * MINUTE,
   },
   {
     path: PATHS.planning,
@@ -108,6 +130,9 @@ const NOTES: NoteSummary[] = [
     date: isoDaysAgo(12),
     type: "general",
     gist: "Quarterly planning across three teams, settling the roadmap and who owns the migration, with hiring left open.",
+    tags: [],
+    startedAt: startedDaysAgo(12, 10),
+    durationMs: 94 * MINUTE,
   },
   {
     path: "C:\\Users\\you\\Documents\\TRACE\\2026-07-14 Acme discovery.md",
@@ -115,6 +140,9 @@ const NOTES: NoteSummary[] = [
     date: isoDaysAgo(53),
     type: "discovery",
     gist: "A first call with Acme to understand how their support team triages tickets.",
+    tags: [],
+    startedAt: startedDaysAgo(53, 15),
+    durationMs: 38 * MINUTE,
   },
 ];
 
@@ -499,6 +527,23 @@ export const SCENARIOS: Scenario[] = [
     screen: "note",
     notePath: PATHS.pricing,
     state: POPULATED,
+  },
+  {
+    id: "note-context",
+    name: "Context and a name given",
+    group: "Reading",
+    note: "The user said what the meeting was and who THEM was. The name replaces THEM in the transcript at once; Edit opens the form, with Save and regenerate.",
+    screen: "note",
+    notePath: PATHS.catchup,
+    state: {
+      ...POPULATED,
+      contexts: {
+        [PATHS.catchup]: {
+          context: "Weekly one-to-one with Dev, who joined the design team last month.",
+          participants: ["Dev"],
+        },
+      },
+    },
   },
   {
     id: "note-raw",

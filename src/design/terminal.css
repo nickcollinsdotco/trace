@@ -225,6 +225,31 @@
   padding-bottom: 0.2rem;
 }
 
+/*
+ * Card — the modern frame. A soft panel one surface up, its title inside at
+ * the top rather than cut into the border. The rule stays in the layout,
+ * invisible, so a section's actions are still pushed to the right.
+ */
+[data-frame="card"] .trace-section {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-1);
+  padding: 1.25rem 1.5rem 1.5rem;
+  gap: 1rem;
+}
+
+[data-frame="card"] .trace-section[data-open="false"] {
+  padding-block: 1rem;
+}
+
+[data-frame="card"] .trace-section-head .trace-rule {
+  visibility: hidden;
+}
+
+[data-frame="card"] .trace-section-corner {
+  display: none;
+}
+
 [data-frame="box"] .trace-section-head .trace-rule,
 [data-frame="box"] .trace-section-corner {
   display: none;
@@ -428,4 +453,53 @@ select.trace-field option {
 
 .trace-breathe {
   animation: trace-breathe 1.6s var(--ease-out) infinite alternate;
+}
+
+/* The breadcrumb's current page arriving in the top bar. */
+@keyframes trace-crumb-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------
+ * Wave — level bars, filled like every other meter.
+ * ------------------------------------------------------------------ */
+.trace-wave-bar {
+  background: var(--fill-active);
+  opacity: 0.7;
+  min-height: 2px;
+}
+
+/*
+ * A playhead sweeping a recorded envelope. Slow enough to read as time
+ * passing, not as something happening; reduced motion leaves it parked.
+ */
+@keyframes trace-playhead {
+  from {
+    left: 0%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+.trace-playhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--color-phosphor-bright);
+  box-shadow: 0 0 6px var(--color-phosphor);
+  animation: trace-playhead 16s linear infinite;
+}
+
+/* A search field shaped like the filter pills around it. */
+.trace-field-pill {
+  border-radius: var(--radius-pill);
 }

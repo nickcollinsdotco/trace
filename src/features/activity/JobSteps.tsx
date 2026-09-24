@@ -1,4 +1,4 @@
-import { Spinner } from "../../components/ui/terminal";
+import { Prompt, Spinner } from "../../components/ui/terminal";
 import type { Job } from "../../lib/ipc";
 import { formatDuration, isQueued, partsTotal, stepLabel } from "./jobs";
 
@@ -17,7 +17,10 @@ export function JobSteps({ job, now }: { job: Job; now: number }) {
   return (
     <div className="flex flex-col gap-1 font-mono text-2xs">
       {isQueued(job) && (
-        <p className="text-ink-faint">&gt; queued — one meeting's notes are written at a time</p>
+        <p className="text-ink-faint">
+          <Prompt />
+          queued — one meeting's notes are written at a time
+        </p>
       )}
       <ol className="flex flex-col gap-1">
         {job.steps.map((step, i) => {

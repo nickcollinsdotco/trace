@@ -26,6 +26,12 @@
  * that reads it, and past three, themes stop being cheap — which is the whole
  * reason for having them. Anything further is a layout variant, not a theme.
  *
+ * And so, 2026-09-23, the modern family is not a theme: it is `data-family`
+ * (family.css), which decides whether the terminal voice is spoken at all.
+ * Frame gained a third value, `card`, for it — a value, not a switch; nothing
+ * new forks. CRT mode is not a theme either (crt.css): it is the monitor the
+ * theme is shown on.
+ *
  * The three looks below each come from one reference the user pointed at.
  * See docs/12-VISUAL-TRIAGE.md for how they were chosen.
  */
@@ -311,4 +317,73 @@
 [data-theme="termcn"] .trace-title,
 [data-theme="termcn"] .trace-system-label {
   font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------
+ * graphite — the first MODERN theme.
+ *
+ * Researched from shadcn/ui's dark neutral palette and the appllama browse
+ * screen the user pointed at: a near-black ground with no hue, cards one
+ * step lighter with a hairline edge, and WHITE as the accent — the active
+ * pill, the primary button — rather than any colour. That is what reads as
+ * "modern app" rather than "instrument": the accent stops meaning a signal
+ * and becomes plain emphasis. `report` already proved the app survives
+ * losing its green.
+ *
+ * Its family (`data-family="modern"`, family.css) does the rest: sans type,
+ * sentence case, no prompts or box-drawing corners.
+ * ------------------------------------------------------------------ */
+[data-theme="graphite"] {
+  --color-surface-0: #141414;
+  --color-surface-1: #1b1b1c;
+  --color-surface-2: #222224;
+  --color-surface-3: #2b2b2e;
+
+  --color-line: rgb(255 255 255 / 8%);
+  --color-line-strong: rgb(255 255 255 / 15%);
+
+  --color-ink: #f4f4f5;
+  --color-ink-muted: #a1a1aa;
+  --color-ink-faint: #71717a;
+
+  /* White as emphasis. `bg-phosphor text-surface-0` becomes shadcn's primary. */
+  --color-phosphor: #ededee;
+  --color-phosphor-bright: #fafafa;
+  --color-phosphor-muted: #a1a1aa;
+  --color-phosphor-dim: rgb(255 255 255 / 8%);
+
+  --color-warn: #f5a524;
+  --color-warn-dim: rgb(245 165 36 / 12%);
+  --color-error: #f25c54;
+  --color-error-dim: rgb(242 92 84 / 12%);
+
+  /* Soft, not square: the single biggest tell of the two languages. */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* The smallest step is a button's text here, and 12px buttons read as
+     fine print once they are no longer tracked-out capitals. */
+  --text-2xs: 0.8125rem;
+  --tracking-system: 0;
+
+  --label-font: var(--font-sans);
+  --label-transform: none;
+  --label-tracking: 0;
+  --label-size: var(--text-sm);
+
+  --fill-active: #ededee;
+  --fill-hot: var(--color-warn);
+  --fill-track: rgb(255 255 255 / 8%);
+  --fill-hatch:
+    radial-gradient(circle at center, rgb(255 255 255 / 10%) 0.7px, transparent 0.8px) 0 0 / 8px 8px;
+
+  --field-padding: 0.8rem 1.1rem;
+  --field-bg: rgb(255 255 255 / 4%);
+  --field-bg-focus: rgb(255 255 255 / 6%);
+  --field-border: var(--color-line);
+  --field-border-focus: var(--color-line-strong);
+  --field-focus-shadow: 0 0 0 3px rgb(255 255 255 / 6%);
 }

@@ -18,11 +18,54 @@
  * product and which were the tooling.
  */
 
-export const THEMES = ["terminal", "report", "console", "industrial", "termcn"] as const;
+export const THEMES = [
+  "terminal",
+  "report",
+  "console",
+  "industrial",
+  "termcn",
+  "graphite",
+] as const;
 
 export type Theme = (typeof THEMES)[number];
 
-export const FRAMES = ["rule", "box"] as const;
+/**
+ * Two design languages, each with its own themes.
+ *
+ * A family is not a theme: it decides whether the app speaks terminal at all
+ * — prompts, box-drawing corners, caps — where a theme only re-skins the one
+ * language it belongs to. That is a layout decision, which the switch budget
+ * in themes.css always said themes should not make; so it is an attribute of
+ * its own, `data-family`, read by `family.css`, and no component forks on it.
+ */
+export const FAMILIES = ["modern", "terminal"] as const;
+
+export type Family = (typeof FAMILIES)[number];
+
+export const THEME_FAMILY: Record<Theme, Family> = {
+  terminal: "terminal",
+  report: "terminal",
+  console: "terminal",
+  industrial: "terminal",
+  termcn: "terminal",
+  graphite: "modern",
+};
+
+export const FAMILY_NOTES: Record<Family, string> = {
+  modern: "A contemporary app: sans type, soft cards, rounded controls, no terminal glyphs.",
+  terminal: "An instrument from an alternate 1987: monospace system text, rules and boxes.",
+};
+
+/** The themes in a family, in switcher order. */
+export function themesIn(family: Family): Theme[] {
+  return THEMES.filter((t) => THEME_FAMILY[t] === family);
+}
+
+/**
+ * Sections framed as a rule, a drawn box with an inlaid title, or a card —
+ * the modern family's soft panel with its title inside.
+ */
+export const FRAMES = ["rule", "box", "card"] as const;
 
 export type Frame = (typeof FRAMES)[number];
 
@@ -58,6 +101,7 @@ export const THEME_NOTES: Record<Theme, string> = {
   console: "conky — dense rows, and a hue ramp that makes the meters readable at a glance.",
   industrial: "R-1 / LAB — hot orange as a brand colour, not a status accent.",
   termcn: "termcn — pure black, saturated ANSI, heavy square boxes. The loudest of the five.",
+  graphite: "Neutral greys, white as the accent, soft cards and pill controls — shadcn-like.",
 };
 
 /** Each look's own framing. The gallery may override it to explore combinations. */
@@ -67,6 +111,7 @@ export const THEME_FRAME: Record<Theme, Frame> = {
   console: "rule",
   industrial: "box",
   termcn: "box",
+  graphite: "card",
 };
 
 /** Each look's starting typeface pairing. All of it is overridable in the gallery. */
@@ -82,6 +127,9 @@ export const THEME_TYPE: Record<Theme, { mono: Mono; role: TypeRole; case: Lette
   industrial: { mono: "fragment", role: "hybrid", case: "upper" },
   // Their shots are bold Title Case, not caps — weight does the shouting.
   termcn: { mono: "jetbrains", role: "mono", case: "normal" },
+  // Proportional throughout: system text in mono is exactly the terminal
+  // voice this family leaves behind. Timestamps keep tabular figures.
+  graphite: { mono: "geist", role: "sans", case: "normal" },
 };
 
 export const MONO_NOTES: Record<Mono, string> = {
@@ -122,6 +170,7 @@ export function applyTheme(theme: Theme, target: HTMLElement, o: Overrides = {})
   else target.setAttribute("data-theme", theme);
 
   const type = THEME_TYPE[theme];
+  target.setAttribute("data-family", THEME_FAMILY[theme]);
   target.setAttribute("data-frame", o.frame ?? THEME_FRAME[theme]);
   target.setAttribute("data-mono", o.mono ?? type.mono);
   target.setAttribute("data-type", o.role ?? type.role);

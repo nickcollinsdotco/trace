@@ -50,20 +50,7 @@ pub fn run_capture(
     preferred: Option<String>,
     tap: Option<super::AudioTapSender>,
 ) -> Result<StreamFormat, AudioError> {
-    let host = cpal::default_host();
-
-    let device = match preferred {
-        Some(wanted) => host
-            .input_devices()
-            .ok()
-            .and_then(|mut devices| devices.find(|d| d.to_string() == wanted))
-            // Falling back to the default would silently ignore an explicit
-            // choice; if the named device is gone the user must be told.
-            .ok_or(AudioError::NoDevice("named microphone"))?,
-        None => host
-            .default_input_device()
-            .ok_or(AudioError::NoDevice("microphone"))?,
-    };
+    let device = open_device(preferred)?;
 
     let supported = device
         .default_input_config()
@@ -152,6 +139,63 @@ pub fn run_capture(
 
     sink.finalize()?;
     Ok(format)
+}
+
+/// The named microphone, or the default when none is named.
+fn open_device(preferred: Option<String>) -> Result<cpal::Device, AudioError> {
+    let host = cpal::default_host();
+    match preferred {
+        Some(wanted) => host
+            .input_devices()
+            .ok()
+            .and_then(|mut devices| devices.find(|d| d.to_string() == wanted))
+            // Falling back to the default would silently ignore an explicit
+            // choice; if the named device is gone the user must be told.
+            .ok_or(AudioError::NoDevice("named microphone")),
+        None => host
+            .default_input_device()
+            .ok_or(AudioError::NoDevice("microphone")),
+    }
+}
+
+/// Listen to the microphone without recording it, until `stop`.
+///
+/// For the mic check before a meeting: the callback measures the level into
+/// `stats` and the samples go nowhere — no file, no transcriber, no channel.
+/// Blocks, like `run_capture`, because the stream must live and die on the
+/// thread that made it.
+pub fn run_preview(
+    stats: Arc<StreamStats>,
+    stop: StopSignal,
+    preferred: Option<String>,
+    on_started: impl FnOnce(),
+) -> Result<(), AudioError> {
+    let device = open_device(preferred)?;
+    let supported = device
+        .default_input_config()
+        .map_err(|e| AudioError::Config(e.to_string()))?;
+    let sample_format = supported.sample_format();
+    let config: cpal::StreamConfig = supported.into();
+    let channels = config.channels;
+
+    let cb_stats = Arc::clone(&stats);
+    let stream = build_stream(
+        &device,
+        config,
+        sample_format,
+        move |samples: &[f32]| cb_stats.record_level(&downmix_to_mono(samples, channels)),
+        |err| eprintln!("trace: microphone preview error: {err}"),
+    )?;
+    stream
+        .play()
+        .map_err(|e| AudioError::Backend(e.to_string()))?;
+    on_started();
+
+    while !stop.is_stopped() {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    drop(stream);
+    Ok(())
 }
 
 fn write_chunk(sink: &mut WavSink, chunk: &[f32], stats: &StreamStats) -> Result<(), AudioError> {

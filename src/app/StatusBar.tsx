@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Popover, PopoverDivider, PopoverHeading, PopoverItem } from "../components/ui/Popover";
+import { Prompt } from "../components/ui/terminal";
 import { ActivityEntry } from "../features/activity/ActivityEntry";
 import { useLlmStatus } from "../features/llm/useLlmStatus";
 import { formatBytes } from "../lib/format";
@@ -116,7 +117,10 @@ function SpeechPicker({
         <>
           <PopoverHeading>Transcription</PopoverHeading>
           {installed.length === 0 && (
-            <p className="px-3 py-2 font-mono text-2xs text-ink-faint">&gt; none downloaded.</p>
+            <p className="px-3 py-2 font-mono text-2xs text-ink-faint">
+              <Prompt />
+              none downloaded.
+            </p>
           )}
           {installed.map((m) => (
             <PopoverItem
@@ -137,7 +141,12 @@ function SpeechPicker({
               {m.name}
             </PopoverItem>
           ))}
-          {error && <p className="px-3 py-2 font-mono text-2xs text-error">&gt; {error}</p>}
+          {error && (
+            <p className="px-3 py-2 font-mono text-2xs text-error">
+              <Prompt />
+              {error}
+            </p>
+          )}
           <p className="px-3 py-1 text-2xs text-ink-faint">
             A meeting already recording keeps the model it started with.
           </p>
@@ -211,9 +220,15 @@ function SummaryPicker({
               </button>
             </div>
           ) : models === null ? (
-            <p className="px-3 py-2 font-mono text-2xs text-ink-faint">&gt; asking Ollama…</p>
+            <p className="px-3 py-2 font-mono text-2xs text-ink-faint">
+              <Prompt />
+              asking Ollama…
+            </p>
           ) : models.installed.length === 0 ? (
-            <p className="px-3 py-2 font-mono text-2xs text-ink-faint">&gt; none installed.</p>
+            <p className="px-3 py-2 font-mono text-2xs text-ink-faint">
+              <Prompt />
+              none installed.
+            </p>
           ) : (
             models.installed.map((m) => (
               <PopoverItem
@@ -235,7 +250,12 @@ function SummaryPicker({
               </PopoverItem>
             ))
           )}
-          {error && <p className="px-3 py-2 font-mono text-2xs text-error">&gt; {error}</p>}
+          {error && (
+            <p className="px-3 py-2 font-mono text-2xs text-error">
+              <Prompt />
+              {error}
+            </p>
+          )}
           {models && models.loaded.length > 0 && (
             <>
               <PopoverDivider />

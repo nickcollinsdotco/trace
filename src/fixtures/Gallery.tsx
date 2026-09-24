@@ -19,7 +19,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Shell } from "../app/Shell";
 import type { Page } from "../app/Sidebar";
-import { AppearanceContext, type AppearanceControl } from "../design/appearance";
+import { AppearanceContext, type AppearanceControl, applyCrt } from "../design/appearance";
 import {
   applyTheme,
   CASE_NOTES,
@@ -73,6 +73,7 @@ export function Gallery() {
   const [mono, setMono] = useState<Mono | null>(null);
   const [role, setRole] = useState<TypeRole | null>(null);
   const [letterCase, setLetterCase] = useState<LetterCase | null>(null);
+  const [crt, setCrt] = useState(false);
   const preview = useRef<HTMLDivElement>(null);
 
   const scenario = scenarioById(scenarioId) ?? SCENARIOS[0];
@@ -121,8 +122,10 @@ export function Gallery() {
         role: role ?? undefined,
         case: letterCase ?? undefined,
       },
+      crt,
     },
     setTheme,
+    setCrt,
     setAxis: (axis, value) => {
       if (axis === "frame") setFrame((value as Frame | undefined) ?? null);
       if (axis === "mono") setMono((value as Mono | undefined) ?? null);
@@ -145,9 +148,10 @@ export function Gallery() {
         role: role ?? undefined,
         case: letterCase ?? undefined,
       });
+      applyCrt(crt, preview.current);
     }
     saveTheme(theme);
-  }, [theme, frame, mono, role, letterCase]);
+  }, [theme, frame, mono, role, letterCase, crt]);
 
   useEffect(() => {
     if (scenario) location.hash = `gallery/${scenario.id}`;
@@ -254,6 +258,15 @@ export function Gallery() {
             ]}
             value={letterCase ?? "auto"}
             onChange={(v) => setLetterCase(v === "auto" ? null : (v as LetterCase))}
+          />
+          <Switcher
+            label="CRT"
+            options={[
+              { id: "off", label: "off" },
+              { id: "on", label: "on" },
+            ]}
+            value={crt ? "on" : "off"}
+            onChange={(v) => setCrt(v === "on")}
           />
           <Switcher
             label="Width"

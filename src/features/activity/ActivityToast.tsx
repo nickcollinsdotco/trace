@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Prompt } from "../../components/ui/terminal";
 import type { Job } from "../../lib/ipc";
 
 /** Long enough to notice from the corner of an eye, short enough to not nag. */
@@ -75,7 +76,8 @@ export function ActivityToast({
       className="trace-overlay trace-segment-in pointer-events-auto flex max-w-sm items-baseline gap-3 rounded-md border border-line-strong bg-surface-1 px-3 py-2 font-mono text-2xs"
     >
       <span className={`min-w-0 ${failed ? "text-warn" : "text-phosphor"}`}>
-        &gt; {failed ? "notes could not be written" : "notes ready"}
+        <Prompt />
+        {failed ? "notes could not be written" : "notes ready"}
         <span className="text-ink-muted"> · {title}</span>
       </span>
       {onOpenNote && (

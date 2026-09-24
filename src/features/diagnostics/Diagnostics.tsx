@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Section, SystemLabel } from "../../components/ui/terminal";
+import { Prompt, Section, SystemLabel } from "../../components/ui/terminal";
 import { formatBytes } from "../../lib/format";
 import { type DiagnosticsReport, hasBackend, ipc } from "../../lib/ipc";
 import { describeLlm, describeLoaded, describeRetention, formatReport } from "./report";
@@ -70,21 +70,34 @@ export function Diagnostics() {
         </div>
         {copied === "copied" && (
           <p role="status" className="font-mono text-2xs text-phosphor">
-            &gt; copied — paste it into your message.
+            <Prompt />
+            copied — paste it into your message.
           </p>
         )}
         {copied === "failed" && (
           <p role="status" className="font-mono text-2xs text-warn">
-            &gt; the clipboard refused. Open “Report as text” below and copy it from there.
+            <Prompt />
+            the clipboard refused. Open “Report as text” below and copy it from there.
           </p>
         )}
-        {error && <p className="font-mono text-2xs text-error">&gt; {error}</p>}
+        {error && (
+          <p className="font-mono text-2xs text-error">
+            <Prompt />
+            {error}
+          </p>
+        )}
       </Section>
 
       {!hasBackend() ? (
-        <p className="font-mono text-xs text-ink-faint">&gt; no backend — run the desktop app.</p>
+        <p className="font-mono text-xs text-ink-faint">
+          <Prompt />
+          no backend — run the desktop app.
+        </p>
       ) : report === null ? (
-        <p className="font-mono text-xs text-ink-faint">&gt; reading machine…</p>
+        <p className="font-mono text-xs text-ink-faint">
+          <Prompt />
+          reading machine…
+        </p>
       ) : (
         <>
           <Section title="Machine">
@@ -135,7 +148,10 @@ export function Diagnostics() {
 
           <Section title="Recent events">
             {report.recent.length === 0 ? (
-              <p className="font-mono text-xs text-ink-faint">&gt; nothing logged yet.</p>
+              <p className="font-mono text-xs text-ink-faint">
+                <Prompt />
+                nothing logged yet.
+              </p>
             ) : (
               <pre
                 data-selectable

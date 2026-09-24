@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SystemLabel } from "../../components/ui/terminal";
+import { Prompt, SystemLabel } from "../../components/ui/terminal";
 import { ipc, type LlmStatus } from "../../lib/ipc";
 
 /**
@@ -86,7 +86,12 @@ export function LlmNotice({
         </>
       )}
 
-      {launchError && <p className="font-mono text-2xs text-error">&gt; {launchError}</p>}
+      {launchError && (
+        <p className="font-mono text-2xs text-error">
+          <Prompt />
+          {launchError}
+        </p>
+      )}
 
       <div className="flex items-center gap-3">
         {status.state === "not_running" && (

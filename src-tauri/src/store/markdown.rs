@@ -50,6 +50,9 @@ pub fn serialize(meeting: &Meeting) -> String {
     if let Some(context) = meeting.context.as_deref().filter(|c| !c.trim().is_empty()) {
         push_field(&mut out, "context", context.trim());
     }
+    if let Some(signal) = &meeting.signal {
+        push_field(&mut out, "signal", signal);
+    }
     push_list(&mut out, "participants", &meeting.participants);
     push_list(&mut out, "tags", &meeting.tags);
     out.push_str("---\n\n");
@@ -619,6 +622,14 @@ mod tests {
             frontmatter_value(&md, "gist").as_deref(),
             Some("Pricing: we chose three tiers.")
         );
+    }
+
+    #[test]
+    fn the_signal_is_a_frontmatter_string_that_reads_back() {
+        let mut m = meeting();
+        m.signal = Some("▁▂▅█▅▂▁".into());
+        let md = serialize(&m);
+        assert_eq!(frontmatter_value(&md, "signal").as_deref(), Some("▁▂▅█▅▂▁"));
     }
 
     #[test]

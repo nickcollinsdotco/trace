@@ -671,6 +671,21 @@ fn synthesize(
     });
 }
 
+/// Reduce the session's WAVs to a loudness envelope and journal it.
+fn record_signal(session_dir: &std::path::Path) {
+    let paths = [
+        session_dir.join(format!("{}.wav", StreamSource::Microphone.file_stem())),
+        session_dir.join(format!("{}.wav", StreamSource::System.file_stem())),
+    ];
+    let refs: Vec<&std::path::Path> = paths.iter().map(PathBuf::as_path).collect();
+    let Some(levels) = crate::audio::envelope::of_wavs(&refs) else {
+        return;
+    };
+    if let Ok(mut journal) = Journal::open(session_dir) {
+        let _ = journal.append(&JournalEvent::Signal { levels });
+    }
+}
+
 /// The model to synthesise with, if one can be used right now.
 fn default_provider() -> Option<crate::synthesis::ollama::OllamaProvider> {
     use crate::synthesis::ollama::{OllamaProvider, Readiness};
@@ -739,6 +754,11 @@ fn spawn_repass(
             if let Some(job) = &job {
                 job.start(StepKind::Transcript);
             }
+
+            // Before anything can delete the audio. Journalled, so every
+            // rewrite from here — the re-pass, the summary, a regeneration
+            // next year — carries it without reading a WAV again.
+            record_signal(&session_dir);
 
             if let Err(reason) = repass(&app, &session_dir, &note_path, &summary, speech) {
                 diagnostics::log(format!(

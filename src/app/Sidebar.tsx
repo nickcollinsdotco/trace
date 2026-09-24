@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { formatElapsed } from "../components/ui/terminal";
+import { formatElapsed, SystemLabel } from "../components/ui/terminal";
 import { hasBackend, ipc } from "../lib/ipc";
 import { Wordmark } from "./Wordmark";
 
@@ -34,7 +34,9 @@ export function Sidebar({
   const recording = useRecordingElapsed();
 
   return (
-    <aside className="flex w-44 shrink-0 flex-col gap-6 border-r border-line bg-surface-1 px-3 py-4">
+    // Width from one variable, so the collapsible version planned for this
+    // sidebar changes a value rather than every class that assumes a size.
+    <aside className="flex w-(--sidebar-width) shrink-0 flex-col gap-6 border-r border-line bg-surface-1 px-3 py-4">
       <button
         type="button"
         onClick={() => onNavigate("library")}
@@ -59,7 +61,7 @@ export function Sidebar({
             />
           ))}
         </NavGroup>
-        <NavGroup>
+        <NavGroup label="System">
           {SECONDARY.map(({ page, label }) => (
             <NavItem
               key={page}
@@ -74,8 +76,17 @@ export function Sidebar({
   );
 }
 
-function NavGroup({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-col gap-0.5">{children}</div>;
+function NavGroup({ label, children }: { label?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      {label && (
+        <span className="px-2 pb-1">
+          <SystemLabel>{label}</SystemLabel>
+        </span>
+      )}
+      {children}
+    </div>
+  );
 }
 
 function NavItem({
@@ -96,20 +107,23 @@ function NavItem({
       type="button"
       aria-current={current ? "page" : undefined}
       onClick={onSelect}
-      className={`flex items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-2xs uppercase tracking-system trace-press ${
+      // Sentence case at the UI size, not 11px caps: these are the most-used
+      // controls in the app, and caps at that size were the hardest thing in
+      // it to read. The group labels above keep the system voice.
+      className={`flex items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-sm trace-press ${
         current
           ? "bg-phosphor-dim text-phosphor"
           : "text-ink-muted hover:bg-surface-2 hover:text-ink"
       }`}
     >
-      <span aria-hidden className="w-2 shrink-0">
+      {/* The prompt is terminal-only; the live dot is state, so it stays in
+          every family. The slot collapses when it holds neither. */}
+      <span aria-hidden className="trace-marker w-2 shrink-0">
         {live ? (
           <span className="inline-block size-1.5 rounded-full bg-error" />
         ) : current ? (
-          ">"
-        ) : (
-          ""
-        )}
+          <span className="trace-glyph">&gt;</span>
+        ) : null}
       </span>
       <span className="flex-1 truncate">{label}</span>
       {trailing && <span className="tabular-nums text-ink-faint">{trailing}</span>}

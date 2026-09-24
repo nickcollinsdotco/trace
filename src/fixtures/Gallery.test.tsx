@@ -28,6 +28,14 @@ async function openScenario(user: ReturnType<typeof userEvent.setup>, name: stri
 }
 
 /**
+ * A meeting's title in the library list.
+ *
+ * By selector, because the signal panel above the list names meetings too —
+ * "Longest: Pricing page rework" — and a bare text match finds both.
+ */
+const ROW = "[data-note-row] .trace-title";
+
+/**
  * One model's card on the Models page, found by its name.
  *
  * By card rather than by "the nth Download button": the speech and summary
@@ -74,7 +82,9 @@ describe("Gallery", () => {
     await openScenario(user, "Meetings");
 
     // Rendered by the actual LibraryScreen from fixture data.
-    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument(),
+    );
   });
 
   it("themes the preview but never the harness chrome", async () => {
@@ -167,7 +177,7 @@ describe("Gallery", () => {
     expect(screen.queryByRole("button", { name: "Open Ollama" })).toBeNull();
 
     await openScenario(user, "Meetings");
-    await screen.findByText("Pricing page rework");
+    await screen.findByText("Pricing page rework", { selector: ROW });
     expect(screen.queryByText(/Notes offline/i)).toBeNull();
   });
 
@@ -182,11 +192,17 @@ describe("Gallery", () => {
     // A note without one says so, so the toggle never looks like it did nothing.
     expect(screen.getAllByText("— no summary").length).toBeGreaterThan(0);
 
-    const toggle = screen.getByRole("button", { name: "Summaries" });
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
-    await user.click(toggle);
+    // The list/compact switch is the old Summaries toggle, and keeps its key.
+    expect(screen.getByRole("button", { name: "List view" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await user.click(screen.getByRole("button", { name: "Compact view" }));
 
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Compact view" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     expect(screen.queryByText(gist)).toBeNull();
     expect(localStorage.getItem("trace.library.gists")).toBe("off");
   });
@@ -306,6 +322,58 @@ describe("Gallery", () => {
       expect(container.querySelector('[data-theme="industrial"]')).not.toBeNull();
     });
     expect(card).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("switches between the modern and terminal families", async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    const { container } = render(<Gallery />);
+    await openScenario(user, "Appearance");
+
+    const main = await screen.findByRole("main");
+    // Terminal's themes, and no modern one, until the family changes.
+    expect(within(main).getByRole("button", { name: /termcn/ })).toBeInTheDocument();
+    expect(within(main).queryByRole("button", { name: /graphite/ })).toBeNull();
+
+    await user.click(within(main).getByRole("button", { name: "modern" }));
+
+    await waitFor(() => {
+      expect(
+        container.querySelector('[data-family="modern"][data-theme="graphite"]'),
+      ).not.toBeNull();
+    });
+    expect(within(main).getByRole("button", { name: /graphite/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(main).queryByRole("button", { name: /termcn/ })).toBeNull();
+  });
+
+  it("turns CRT mode on over whichever theme is chosen", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Gallery />);
+    await openScenario(user, "Appearance");
+
+    await user.click(await screen.findByRole("checkbox", { name: /old monitor/ }));
+
+    await waitFor(() => expect(container.querySelector('[data-screen="crt"]')).not.toBeNull());
+    // The hardware is in the shell already, and only shown under the switch.
+    expect(container.querySelectorAll(".trace-screw")).toHaveLength(4);
+  });
+
+  it("tests the microphone only when asked, and stops when asked", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Before recording");
+
+    const test = await screen.findByRole("button", { name: "Test mic" });
+    expect(screen.queryByRole("img", { name: /Microphone level/ })).toBeNull();
+
+    await user.click(test);
+    expect(await screen.findByRole("img", { name: "Microphone level, live" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Stop test" }));
+    await waitFor(() => expect(screen.queryByRole("img", { name: /Microphone level/ })).toBeNull());
   });
 
   it("copies a diagnostics report that says what is on the GPU", async () => {
@@ -542,9 +610,13 @@ describe("Gallery", () => {
     render(<Gallery />);
     await openScenario(user, "Meetings");
 
-    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
-    expect(screen.getAllByRole("button", { name: "Rename" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "Delete" }).length).toBeGreaterThan(0);
+    await waitFor(() =>
+      expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument(),
+    );
+    // In each row's menu, rather than two buttons reserved in every row.
+    await user.click(screen.getAllByRole("button", { name: "Meeting actions" })[1] as HTMLElement);
+    expect(screen.getByRole("button", { name: "Rename" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
   });
 
   it("removes a meeting from the list when deleted", async () => {
@@ -552,12 +624,17 @@ describe("Gallery", () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<Gallery />);
     await openScenario(user, "Meetings");
-    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument(),
+    );
 
     // The row order matches the fixture list; the second is "Pricing page rework".
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[1] as HTMLElement);
+    await user.click(screen.getAllByRole("button", { name: "Meeting actions" })[1] as HTMLElement);
+    await user.click(screen.getByRole("button", { name: "Delete" }));
 
-    await waitFor(() => expect(screen.queryByText("Pricing page rework")).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByText("Pricing page rework", { selector: ROW })).toBeNull(),
+    );
     confirm.mockRestore();
   });
 
@@ -566,12 +643,15 @@ describe("Gallery", () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<Gallery />);
     await openScenario(user, "Meetings");
-    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument(),
+    );
 
-    await user.click(screen.getAllByRole("button", { name: "Delete" })[1] as HTMLElement);
+    await user.click(screen.getAllByRole("button", { name: "Meeting actions" })[1] as HTMLElement);
+    await user.click(screen.getByRole("button", { name: "Delete" }));
 
     // Still there. A destructive action that ignores "no" is worse than none.
-    expect(screen.getByText("Pricing page rework")).toBeInTheDocument();
+    expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument();
     confirm.mockRestore();
   });
 
@@ -608,7 +688,7 @@ describe("Gallery", () => {
 
     // The title span is made `block` for exactly that reason, and its button
     // must be allowed to shrink or there is nothing to truncate against.
-    const title = await screen.findByText("Pricing page rework");
+    const title = await screen.findByText("Pricing page rework", { selector: ROW });
     expect(title.classList.contains("truncate")).toBe(true);
     expect(title.classList.contains("block")).toBe(true);
     expect(title.closest("button")?.classList.contains("min-w-0")).toBe(true);
@@ -618,7 +698,9 @@ describe("Gallery", () => {
     const user = userEvent.setup();
     render(<Gallery />);
     await openScenario(user, "Meetings");
-    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument(),
+    );
 
     // "comparison" appears only in a transcript line, never in a title.
     await user.type(screen.getByRole("searchbox"), "comparison");
@@ -631,7 +713,9 @@ describe("Gallery", () => {
     const user = userEvent.setup();
     render(<Gallery />);
     await openScenario(user, "Meetings");
-    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument(),
+    );
 
     await user.type(screen.getByRole("searchbox"), "pricing elephant");
 
@@ -642,7 +726,9 @@ describe("Gallery", () => {
     const user = userEvent.setup();
     render(<Gallery />);
     await openScenario(user, "Meetings");
-    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument(),
+    );
 
     const box = screen.getByRole("searchbox");
     await user.type(box, "comparison");
@@ -651,7 +737,7 @@ describe("Gallery", () => {
     await user.clear(box);
     // Back to the library, not an empty result set.
     await waitFor(() => expect(screen.queryByText(/result/)).toBeNull());
-    expect(screen.getByText("Monday standup")).toBeInTheDocument();
+    expect(screen.getByText("Monday standup", { selector: ROW })).toBeInTheDocument();
   });
 
   it("shows a note's tags and lets one be added", async () => {
@@ -688,30 +774,42 @@ describe("Gallery", () => {
     const user = userEvent.setup();
     render(<Gallery />);
     await openScenario(user, "Meetings");
-    await waitFor(() => expect(screen.getByText("Monday standup")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Monday standup", { selector: ROW })).toBeInTheDocument(),
+    );
 
     expect(screen.queryByText("general")).toBeNull();
     const filters = screen.getByRole("group", { name: "Filter by tag" });
-    await user.click(within(filters).getByRole("button", { name: "internal" }));
+    // Pills carry their counts, as the reference's categories do.
+    await user.click(within(filters).getByRole("button", { name: "internal 1" }));
 
-    await waitFor(() => expect(screen.queryByText("Pricing page rework")).toBeNull());
-    expect(screen.getByText("Monday standup")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText("Pricing page rework", { selector: ROW })).toBeNull(),
+    );
+    expect(screen.getByText("Monday standup", { selector: ROW })).toBeInTheDocument();
 
-    await user.click(within(filters).getByRole("button", { name: "All" }));
-    await waitFor(() => expect(screen.getByText("Pricing page rework")).toBeInTheDocument());
+    // And the search line says so, since the controls only ever edit it.
+    expect(screen.getByRole("searchbox")).toHaveValue("tag:internal");
+    await user.click(within(filters).getByRole("button", { name: "All 6" }));
+    await waitFor(() =>
+      expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument(),
+    );
   });
 
   it("orders the library oldest first on request", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
     await openScenario(user, "Meetings");
-    await waitFor(() => expect(screen.getByText("Monday standup")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Monday standup", { selector: ROW })).toBeInTheDocument(),
+    );
 
-    const titles = () =>
-      [...document.querySelectorAll(".trace-section .trace-title")].map((e) => e.textContent);
+    const titles = () => [...document.querySelectorAll(ROW)].map((e) => e.textContent);
     expect(titles()[0]).toBe("Catch-up with Dev");
 
+    await user.click(screen.getByRole("button", { name: /Newest/ }));
     await user.click(screen.getByRole("button", { name: "Oldest" }));
+    expect(screen.getByRole("searchbox")).toHaveValue("sort:oldest");
     await waitFor(() => expect(titles()[0]).toBe("Acme discovery call"));
     expect(titles().at(-1)).toBe("Catch-up with Dev");
   });
@@ -735,13 +833,66 @@ describe("Gallery", () => {
     expect(screen.getByText(/I pulled the numbers this morning/)).toBeVisible();
   });
 
-  it("keeps the note's title in its sticky header", async () => {
+  it("moves the note's title into the top bar once it scrolls away", async () => {
+    // jsdom has no layout, so the observer is played by hand: the title is
+    // reported as having left through the top of the scroller.
+    const callbacks: IntersectionObserverCallback[] = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(cb: IntersectionObserverCallback) {
+          callbacks.push(cb);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
     const user = userEvent.setup();
     render(<Gallery />);
     await openScenario(user, "Enhanced note");
 
-    const title = await screen.findByRole("heading", { level: 1, name: "Pricing page rework" });
-    expect(title.closest("header")).toHaveClass("sticky");
+    const bar = await screen.findByRole("navigation", { name: "Breadcrumb" });
+    await screen.findByRole("heading", { level: 1, name: "Pricing page rework" });
+    expect(within(bar).queryByText("Pricing page rework")).toBeNull();
+
+    const gone = {
+      isIntersecting: false,
+      boundingClientRect: { top: -40 },
+      rootBounds: { top: 0 },
+    } as unknown as IntersectionObserverEntry;
+    for (const cb of callbacks) cb([gone], {} as IntersectionObserver);
+
+    await waitFor(() => expect(within(bar).getByText("Pricing page rework")).toBeVisible());
+    expect(within(bar).getByText("Meetings")).toBeVisible();
+    vi.unstubAllGlobals();
+  });
+
+  it("filters by length and summary from the Filters menu, writing it into the search line", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Meetings");
+    await screen.findByText("Monday standup", { selector: ROW });
+
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    await user.click(screen.getByRole("button", { name: /Under 15 min/ }));
+
+    expect(screen.getByRole("searchbox")).toHaveValue("len:<15m");
+    await waitFor(() =>
+      expect(screen.queryByText("Pricing page rework", { selector: ROW })).toBeNull(),
+    );
+    expect(screen.getByText("Monday standup", { selector: ROW })).toBeInTheDocument();
+    expect(screen.getByText(/1 of 6 meetings/)).toBeInTheDocument();
+  });
+
+  it("shows the last meeting's loudness in the signal panel", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Meetings");
+
+    expect(
+      await screen.findByRole("img", { name: "Loudness across Catch-up with Dev" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Meetings per day this week" })).toBeInTheDocument();
   });
 
   it("names THEM in the transcript once one name is given", async () => {
@@ -790,13 +941,16 @@ describe("Gallery", () => {
     const user = userEvent.setup();
     render(<Gallery />);
     await openScenario(user, "Meetings");
-    await waitFor(() => expect(screen.getByText("Monday standup")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Monday standup", { selector: ROW })).toBeInTheDocument(),
+    );
 
     await user.type(screen.getByRole("searchbox"), "tag:client");
 
-    await waitFor(() => expect(screen.getByText(/1 result/)).toBeInTheDocument());
-    expect(screen.getByText("Pricing page rework")).toBeInTheDocument();
-    expect(screen.queryByText("Monday standup")).toBeNull();
+    // Filters alone are answered from the listing, with no search at all.
+    await waitFor(() => expect(screen.getByText(/1 of 6 meetings/)).toBeInTheDocument());
+    expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument();
+    expect(screen.queryByText("Monday standup", { selector: ROW })).toBeNull();
   });
 
   it("clears the fake backend when it unmounts", async () => {

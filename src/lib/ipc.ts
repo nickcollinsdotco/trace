@@ -148,6 +148,8 @@ export interface NoteSummary {
   startedAt: string | null;
   /** Null when the meeting never recorded an end, e.g. one recovered after a crash. */
   durationMs: number | null;
+  /** Loudness across the meeting as block characters (▁…█). Null on older notes. */
+  signal: string | null;
 }
 
 /**
@@ -367,6 +369,10 @@ export const ipc = {
   updateNotes: (text: string) => call<void>("update_notes", { text }),
   setTitle: (title: string) => call<void>("set_title", { title }),
   stopCapture: () => call<FinishedMeeting>("stop_capture"),
+  /** The mic check. Stops itself unless `micPreviewLevel` keeps being polled. */
+  startMicPreview: (micDevice: string | null) => call<void>("start_mic_preview", { micDevice }),
+  stopMicPreview: () => call<void>("stop_mic_preview"),
+  micPreviewLevel: () => call<number | null>("mic_preview_level"),
   abortCapture: () => call<void>("abort_capture"),
 
   listNotes: () => call<NoteSummary[]>("list_notes"),

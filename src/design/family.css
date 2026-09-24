@@ -1,0 +1,65 @@
+/*
+ * TRACE — design families
+ *
+ * `data-family` decides which language the app speaks; the theme inside it
+ * only re-skins that language. Terminal is the default and needs nothing
+ * here. Modern removes the terminal voice wherever it is spoken in markup
+ * rather than in tokens — the prompts, the box-drawing corners, the tracked
+ * capitals — so no component has to fork to leave it behind.
+ *
+ * Imported after themes.css and BEFORE type.css: the letter-case axis must
+ * still win when someone deliberately asks a modern theme for capitals.
+ */
+
+[data-family="modern"] .trace-glyph,
+[data-family="modern"] .trace-section-corner {
+  display: none;
+}
+
+/* The modern family's own markers, where terminal uses a glyph. */
+.trace-modern-only {
+  display: none;
+}
+
+[data-family="modern"] .trace-modern-only {
+  display: inline;
+}
+
+/* A marker slot holding only a hidden prompt would still take its width. */
+[data-family="modern"] .trace-marker:not(:has(:not(.trace-glyph))) {
+  display: none;
+}
+
+/*
+ * Sentence case. The `uppercase` utility is how the terminal voice reaches
+ * buttons and labels in markup; overriding it here is one rule instead of a
+ * prop threaded through every button in the app.
+ */
+[data-family="modern"] .uppercase {
+  text-transform: none;
+}
+
+/* Weight, not capitals, carries a heading in this language. */
+[data-family="modern"] .trace-system-label {
+  font-weight: 500;
+}
+
+[data-family="modern"] .trace-title {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+/* Section titles inside a card read as the card's title, not an eyebrow. */
+[data-family="modern"] .trace-section-head .trace-system-label {
+  color: var(--color-ink);
+}
+
+/*
+ * The active pill is filled in the modern family — white on dark, the
+ * appllama "All" — where terminal keeps its tinted outline.
+ */
+[data-family="modern"] .trace-pill[aria-pressed="true"] {
+  background: var(--color-phosphor);
+  border-color: transparent;
+  color: var(--color-surface-0);
+}

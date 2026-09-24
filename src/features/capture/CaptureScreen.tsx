@@ -5,12 +5,14 @@ import {
   Elapsed,
   formatElapsed,
   Meter,
+  Prompt,
   Section,
   StatusDot,
   SystemLabel,
 } from "../../components/ui/terminal";
 import { type DeviceInfo, hasBackend, ipc, type LiveSegment } from "../../lib/ipc";
 import { AudioRetentionField } from "../settings/AudioRetentionField";
+import { MicCheck } from "./MicCheck";
 import { useCapture } from "./useCapture";
 
 /**
@@ -265,6 +267,8 @@ function SetupPanel({
           )}
         </label>
 
+        <MicCheck device={micDevice} />
+
         <div className="flex flex-col gap-2">
           <SystemLabel>Audio after notes are written</SystemLabel>
           <AudioRetentionField />
@@ -315,7 +319,8 @@ function TranscriptView({
     return (
       <div className="flex flex-col gap-2">
         <p className="font-mono text-xs text-ink-faint">
-          &gt; awaiting signal
+          <Prompt />
+          awaiting signal
           <span className="trace-cursor" />
         </p>
         <ProcessingLine pendingSpeechMs={pendingSpeechMs} inFlight={inFlight} />

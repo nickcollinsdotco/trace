@@ -1,5 +1,6 @@
 import { type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmProvider } from "../components/ui/Confirm";
+import { Grain } from "../components/ui/Grain";
 import { formatElapsed } from "../components/ui/terminal";
 import { ActivityToast } from "../features/activity/ActivityToast";
 import { useActivity } from "../features/activity/useActivity";
@@ -127,8 +128,9 @@ export function Shell({
                     changing the screen changes attributes, not the tree. */}
                 <span aria-hidden className="trace-fx trace-fx-dots" />
                 <span aria-hidden className="trace-fx trace-fx-scanlines" />
-                <span aria-hidden className="trace-fx trace-fx-grain" />
+                <Grain />
                 <span aria-hidden className="trace-fx trace-fx-vignette" />
+                <span aria-hidden className="trace-fx trace-fx-glass" />
                 <span aria-hidden className="trace-fx trace-fx-roll" />
                 <span aria-hidden className="trace-fx trace-fx-flicker" />
                 {/* Always present, so a toast appearing inside it is announced:

@@ -91,6 +91,14 @@ describe("screen.css", () => {
     }
   });
 
+  it("never animates grain by moving a picture of it", () => {
+    // The rejected grain slid one noise image about with keyframes. Grain is
+    // drawn afresh each frame by Grain.tsx; CSS only says how it blends.
+    const rules = css.match(/\.trace-fx-grain\s*\{[^}]*\}/g) ?? [];
+    expect(rules.length).toBeGreaterThan(0);
+    for (const rule of rules) expect(rule).not.toMatch(/animation|transform|background/);
+  });
+
   it("draws on the canvas only, never over the sidebar", () => {
     expect(css).toMatch(/\.trace-canvas\s*\{[^}]*isolation:\s*isolate/);
     expect(css).not.toMatch(/\.trace-screen/);

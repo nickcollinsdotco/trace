@@ -50,8 +50,8 @@ above it, untouched.
 _Avoid_: Screen filter, CRT mode
 
 **Screen effect**:
-One part of a screen — grain, scanlines, a dot grid, a vignette, glow,
-flicker, a refresh bar — with its own amount. Textures can sit **over** the
+One part of a screen — grain, scanlines, a dot grid, a vignette, glass,
+glow, flicker, a refresh bar — with its own amount. Textures can sit **over** the
 content or **behind** the letters, where they never touch one.
 
 **Screen preset**:

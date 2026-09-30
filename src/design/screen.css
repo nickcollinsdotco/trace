@@ -54,29 +54,24 @@
 }
 
 /* ---------------------------------------------------------------------
- * Grain — boils ten times a second, and breathes stronger and weaker over
- * a few seconds so it never settles into a pattern.
+ * Grain — a canvas that Grain.tsx fills with fresh noise every frame. Only
+ * its look lives here.
  *
  * Over, it is screened: it can only lighten, so it adds specks to the dark
- * and next to nothing to a bright letter. Oversized, so jumping it about
- * never shows an edge.
+ * and next to nothing to a bright letter. Behind, it lightens only what is
+ * darker than it — the ground, never a letter.
  * ------------------------------------------------------------------ */
 [data-fx-grain] .trace-fx-grain {
-  --grain-k: 0.5;
   display: block;
-  inset: -160px;
-  background: var(--fx-grain-tex) 0 0 / 160px 160px;
+  width: 100%;
+  height: 100%;
   mix-blend-mode: screen;
-  opacity: calc(var(--fx-grain) * var(--grain-k));
-  animation:
-    trace-grain-boil 1s steps(10) infinite,
-    trace-grain-breathe 4.6s ease-in-out infinite alternate;
-  will-change: transform, opacity;
+  opacity: calc(var(--fx-grain) * 0.5);
 }
 
 [data-fx-grain="behind"] .trace-fx-grain {
-  --grain-k: 0.75;
   mix-blend-mode: lighten;
+  opacity: calc(var(--fx-grain) * 0.75);
 }
 
 /* ---------------------------------------------------------------------
@@ -136,6 +131,26 @@
 }
 
 /* ---------------------------------------------------------------------
+ * Glass — the sheen on the face of a tube: a soft highlight top left and a
+ * broad diagonal glare, as vault66-crt-effect draws them. It only lightens,
+ * and faintly, so it costs no letter anything.
+ * ------------------------------------------------------------------ */
+[data-fx-glass] .trace-fx-glass {
+  display: block;
+  background:
+    radial-gradient(ellipse 70% 60% at 22% 12%, rgb(255 255 255 / 9%) 0%, transparent 60%),
+    linear-gradient(
+      115deg,
+      transparent 18%,
+      rgb(255 255 255 / 2%) 30%,
+      rgb(255 255 255 / 5%) 42%,
+      rgb(255 255 255 / 2%) 54%,
+      transparent 66%
+    );
+  opacity: var(--fx-glass);
+}
+
+/* ---------------------------------------------------------------------
  * Glow — lofi.cafe's bloom: a bright core, a halo, and a wide haze, in the
  * theme's own accent. Static; an animated shadow would repaint every
  * letter every frame.
@@ -183,51 +198,6 @@
 /* ---------------------------------------------------------------------
  * Motion
  * ------------------------------------------------------------------ */
-@keyframes trace-grain-boil {
-  0% {
-    transform: translate(0, 0);
-  }
-  10% {
-    transform: translate(-37px, 22px);
-  }
-  20% {
-    transform: translate(51px, -64px);
-  }
-  30% {
-    transform: translate(-83px, 45px);
-  }
-  40% {
-    transform: translate(12px, 97px);
-  }
-  50% {
-    transform: translate(-106px, -18px);
-  }
-  60% {
-    transform: translate(74px, 33px);
-  }
-  70% {
-    transform: translate(-29px, -88px);
-  }
-  80% {
-    transform: translate(95px, 71px);
-  }
-  90% {
-    transform: translate(-58px, -41px);
-  }
-  100% {
-    transform: translate(0, 0);
-  }
-}
-
-@keyframes trace-grain-breathe {
-  from {
-    opacity: calc(var(--fx-grain) * var(--grain-k) * 0.7);
-  }
-  to {
-    opacity: calc(var(--fx-grain) * var(--grain-k) * 1.15);
-  }
-}
-
 @keyframes trace-lines-drift {
   from {
     transform: translateY(0);

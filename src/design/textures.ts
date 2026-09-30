@@ -2,18 +2,16 @@
  * The screen effects' textures, drawn once at start-up.
  *
  * Generated rather than shipped as images: nothing is fetched, and the
- * texture is exactly the one designed here. They are seeded, so every launch
- * — and every screenshot of one — draws the same grain.
+ * texture is exactly the one designed here. Seeded, so every launch — and
+ * every screenshot of one — draws the same lines.
  *
- * Put on the root as `--fx-grain-tex` and `--fx-lines-tex` (screen.css). A
- * data URL, not a blob: the content security policy allows `data:` images
- * and nothing else from script.
+ * Put on the root as `--fx-lines-tex` (screen.css). Grain is not a texture:
+ * it is drawn afresh every frame (Grain.tsx). A data URL, not a blob: the
+ * content security policy allows `data:` images and nothing else from script.
  */
 
 export function installTextures(root: HTMLElement = document.documentElement): void {
-  const grain = drawGrain();
   const lines = drawLines();
-  if (grain) root.style.setProperty("--fx-grain-tex", `url("${grain}")`);
   if (lines) root.style.setProperty("--fx-lines-tex", `url("${lines}")`);
 }
 
@@ -33,31 +31,6 @@ function canvas(width: number, height: number): CanvasRenderingContext2D | null 
   c.width = width;
   c.height = height;
   return c.getContext("2d");
-}
-
-/**
- * Film grain: mostly black, with specks of every brightness.
- *
- * Drawn for a `screen` blend, which can only lighten. Over the dark ground
- * the specks show; over bright text they add almost nothing, so grain never
- * costs a letter its shape. The skew towards black is what makes it read as
- * grain rather than static.
- */
-function drawGrain(): string | null {
-  const size = 160;
-  const ctx = canvas(size, size);
-  if (!ctx) return null;
-  const random = seeded(0x7ace);
-  const image = ctx.createImageData(size, size);
-  for (let i = 0; i < image.data.length; i += 4) {
-    const v = Math.round(random() ** 2.6 * 255);
-    image.data[i] = v;
-    image.data[i + 1] = v;
-    image.data[i + 2] = v;
-    image.data[i + 3] = 255;
-  }
-  ctx.putImageData(image, 0, 0);
-  return ctx.canvas.toDataURL("image/png");
 }
 
 /**

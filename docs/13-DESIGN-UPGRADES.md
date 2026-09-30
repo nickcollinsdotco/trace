@@ -280,6 +280,17 @@ measuring lofi.cafe's own textures:
 - Checked in headless screenshots at 2× on real screens before shipping,
   since both earlier versions passed every test and were still wrong.
 
+**Grain, done properly (v0.7.3).** The v0.7.2 grain slid one noise image
+about with CSS keyframes, and read as a picture jumping. So do grained.js
+and vault66-crt-effect, the libraries worth looking at; Pixlated's grain is
+static, and Jashior/grain regenerates the whole screen at 60fps with no
+licence. None was usable. `Grain.tsx` now rolls a fresh 256px tile of noise
+24 times a second and has the GPU repeat it from a random offset: measured
+in headless Chrome, consecutive frames correlate at ~0.00 (best over every
+shift ±24px ~0.05, the noise floor), 24 frames a second, 0.17ms of work a
+frame. vault66's glare became the **glass** effect, a faint sheen that only
+lightens.
+
 ### Stage 1 — quick wins
 
 Items 1–3 and 5–9. Independent of one another, small, and all things touched

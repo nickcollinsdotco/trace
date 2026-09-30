@@ -50,7 +50,7 @@ describe("screens", () => {
 
   it("keep a hand-set effect on its own family only", () => {
     let a = withEffect(fresh(), "grain", { amount: 70, place: "behind" });
-    expect(currentScreen(a).grain).toEqual({ amount: 70, place: "behind" });
+    expect(currentScreen(a).grain).toEqual({ amount: 70, place: "behind", size: 1 });
     a = withFamily(a, "modern");
     expect(currentScreen(a).grain.amount).toBe(0);
   });

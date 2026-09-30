@@ -26,7 +26,11 @@ const FPS = 24;
 
 export function Grain() {
   const control = useContext(AppearanceContext);
-  const on = control ? currentScreen(control.appearance).grain.amount > 0 : false;
+  const grain = control ? currentScreen(control.appearance).grain : null;
+  const on = (grain?.amount ?? 0) > 0;
+  // CSS pixels per grain. A coarser grain is drawn at lower resolution and
+  // the browser scales it up smoothly, which softens it into clumps.
+  const size = Math.max(1, grain?.size ?? 1);
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -36,23 +40,23 @@ export function Grain() {
     const ctx = el.getContext("2d", { alpha: false });
     if (!ctx) return;
 
-    const grain = grainer((Date.now() ^ 0x9e3779b9) >>> 0);
-    if (!grain) return;
+    const noise = grainer((Date.now() ^ 0x9e3779b9) >>> 0);
+    if (!noise) return;
 
     const draw = () => {
-      grain.roll();
-      const pattern = ctx.createPattern(grain.tile, "repeat");
+      noise.roll();
+      const pattern = ctx.createPattern(noise.tile, "repeat");
       if (!pattern) return;
-      pattern.setTransform(new DOMMatrix().translateSelf(-grain.offset(), -grain.offset()));
+      pattern.setTransform(new DOMMatrix().translateSelf(-noise.offset(), -noise.offset()));
       ctx.fillStyle = pattern;
       ctx.fillRect(0, 0, el.width, el.height);
     };
 
-    // One grain per CSS pixel: on a high-density screen the browser scales
-    // it up a little, which softens it the way film grain is soft.
+    // Sized in CSS pixels, not device pixels: on a high-density screen the
+    // browser scales it up a little, which softens it the way film is soft.
     const resize = () => {
-      el.width = Math.max(1, Math.ceil(el.clientWidth));
-      el.height = Math.max(1, Math.ceil(el.clientHeight));
+      el.width = Math.max(1, Math.ceil(el.clientWidth / size));
+      el.height = Math.max(1, Math.ceil(el.clientHeight / size));
       draw();
     };
     const observer = new ResizeObserver(resize);
@@ -80,7 +84,7 @@ export function Grain() {
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [on]);
+  }, [on, size]);
 
   return <canvas ref={canvas} aria-hidden className="trace-fx trace-fx-grain" />;
 }

@@ -1,6 +1,6 @@
 [package]
 name = "trace"
-version = "0.7.3"
+version = "0.7.4"
 description = "Local-first meeting capture and intelligence"
 authors = ["Nick"]
 license = "MIT"

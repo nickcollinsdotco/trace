@@ -291,6 +291,18 @@ shift ±24px ~0.05, the noise floor), 24 frames a second, 0.17ms of work a
 frame. vault66's glare became the **glass** effect, a faint sheen that only
 lightens.
 
+**Behind that works, and sizes (v0.7.4).** "Behind" had been a lighten blend
+over everything: it spared bright letters but still covered every dark card
+and box, so it looked the same as "over". It is now a layer under the
+content (`z-index: -1` in the canvas's stacking context); boxes and fields
+take the ground as a fill while anything is behind, and cards already had
+one. Measured on screenshots, the inside of a box and of the search field go
+from a texture's variation (σ≈22) to none (σ=0.0) while the ground keeps it.
+The top bar moved out of the scroller so it needs no fill, and the texture
+runs under it. Grain, scanlines and dots gained sizes (1–3px grain; 2, 3, 4,
+6px lines; 6, 8, 12, 16px dots), stepped rather than free so no pattern lands
+off the pixel grid.
+
 ### Stage 1 — quick wins
 
 Items 1–3 and 5–9. Independent of one another, small, and all things touched

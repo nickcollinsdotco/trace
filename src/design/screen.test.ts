@@ -49,9 +49,23 @@ describe("effects", () => {
       },
       presetScreen("grid"),
     );
-    expect(s.grain).toEqual({ amount: 30, place: "behind" });
+    expect(s.grain).toEqual({ amount: 30, place: "behind", size: 1 });
     expect(s.glow.amount).toBe(0);
     expect(s.dots).toEqual(presetScreen("grid").dots);
+  });
+});
+
+describe("sizes", () => {
+  it("default to the middle of the range and are kept by presets", () => {
+    const s = presetScreen("lines");
+    expect(s.scanlines.size).toBe(3);
+    expect(presetOf(withEffectSetting(s, "scanlines", { size: 6 }))).toBeNull();
+  });
+
+  it("refuse a size the effect does not come in", () => {
+    const s = withEffectSetting(presetScreen("grid"), "dots", { size: 7 });
+    expect(s.dots.size).toBe(8);
+    expect(readScreen({ dots: { amount: 60, size: 99 } }, presetScreen("grid")).dots.size).toBe(8);
   });
 });
 
@@ -63,6 +77,11 @@ describe("applyScreen", () => {
     expect(el.style.getPropertyValue("--fx-grain")).toBe("0.45");
     expect(el.hasAttribute("data-fx-scanlines")).toBe(false);
     expect(el.getAttribute("data-screen-preset")).toBe("film");
+    expect(el.style.getPropertyValue("--fx-grain-size")).toBe("1");
+    expect(el.hasAttribute("data-fx-behind")).toBe(false);
+
+    applyScreen(presetScreen("grid"), el);
+    expect(el.hasAttribute("data-fx-behind")).toBe(true);
 
     applyScreen(presetScreen("none"), el);
     for (const e of EFFECTS) expect(el.hasAttribute(`data-fx-${e}`)).toBe(false);
@@ -81,14 +100,18 @@ describe("screen.css", () => {
     expect(css).toMatch(/\.trace-fx-scanlines\s*\{[^}]*mix-blend-mode:\s*overlay/);
   });
 
-  it("puts textures behind the letters by blending to lighten", () => {
+  it("puts textures behind by layering them under the content", () => {
+    // Under, not blended over: a blend over everything still covered every
+    // dark card, and "behind" looked the same as "over".
+    const under = css.match(/([^{}]*)\{\s*z-index:\s*-1;\s*\}/)?.[1] ?? "";
     for (const e of ["grain", "scanlines", "dots"]) {
-      expect(css).toMatch(
-        new RegExp(
-          `\\[data-fx-${e}="behind"\\] \\.trace-fx-${e}\\s*\\{[^}]*mix-blend-mode:\\s*lighten`,
-        ),
-      );
+      expect(under).toContain(`[data-fx-${e}="behind"] .trace-fx-${e}`);
     }
+  });
+
+  it("fills boxes and fields while something is behind, so it stops at their edge", () => {
+    expect(css).toMatch(/\[data-fx-behind\]\[data-frame="box"\] \.trace-section/);
+    expect(css).toMatch(/\[data-fx-behind\] \.trace-field/);
   });
 
   it("never animates grain by moving a picture of it", () => {

@@ -28,14 +28,13 @@ export const EFFECTS = [
 export type Effect = (typeof EFFECTS)[number];
 
 /**
- * Textures, which can go behind the letters. The rest act on everything.
+ * Textures, which can go behind the content. The rest act on everything.
  *
- * "Behind" is a blend, not a layer underneath: a layer underneath would be
- * hidden by every surface — the sidebar, the top bar, each card — and leave
- * the texture in patches. Blended to lighten, it shows wherever the screen is
- * darker than the texture and nowhere a letter is brighter, which is the
- * promise: it never touches a letter. The vignette cannot be one of these,
- * since its whole job is to darken.
+ * Behind means underneath: the texture shows on the page's ground, and every
+ * letter, card, box and field is drawn over it (screen.css). It was a blend
+ * at first — lighten, over everything — which spared bright letters but
+ * still covered every dark card, so "behind" and "over" looked the same. The
+ * vignette is not one of these: it darkens, and the ground is already dark.
  */
 export const PLACEABLE: readonly Effect[] = ["grain", "scanlines", "dots"];
 
@@ -47,6 +46,27 @@ export interface EffectSetting {
   /** 0–100. Zero is off, and costs nothing: its layer is not drawn at all. */
   amount: number;
   place: Place;
+  /** For the effects in SIZES: one of theirs, in CSS pixels. Otherwise 0. */
+  size: number;
+}
+
+/**
+ * The sizes a texture comes in, in CSS pixels: the pitch of a scanline or a
+ * dot, the size of a grain. Steps rather than a slider, because in between
+ * sizes a pattern lands off the pixel grid and shimmers.
+ */
+export const SIZES: Partial<Record<Effect, readonly number[]>> = {
+  grain: [1, 2, 3],
+  scanlines: [2, 3, 4, 6],
+  dots: [6, 8, 12, 16],
+};
+
+const DEFAULT_SIZE: Partial<Record<Effect, number>> = { grain: 1, scanlines: 3, dots: 8 };
+
+/** How a size is shown: grain in words, since "2px" of grain means little. */
+export function sizeLabel(effect: Effect, size: number): string {
+  if (effect === "grain") return ["fine", "medium", "coarse"][size - 1] ?? `${size}px`;
+  return `${size}px`;
 }
 
 export type Screen = Record<Effect, EffectSetting>;
@@ -110,7 +130,10 @@ const PRESET_AMOUNTS: Record<Preset, Partial<Record<Effect, number>>> = {
 export function presetScreen(preset: Preset): Screen {
   const amounts = PRESET_AMOUNTS[preset];
   return Object.fromEntries(
-    EFFECTS.map((e) => [e, { amount: amounts[e] ?? 0, place: DEFAULT_PLACE[e] }]),
+    EFFECTS.map((e) => [
+      e,
+      { amount: amounts[e] ?? 0, place: DEFAULT_PLACE[e], size: DEFAULT_SIZE[e] ?? 0 },
+    ]),
   ) as Screen;
 }
 
@@ -122,7 +145,8 @@ export function presetOf(screen: Screen): Preset | null {
       return EFFECTS.every(
         (e) =>
           screen[e].amount === target[e].amount &&
-          (screen[e].amount === 0 || screen[e].place === target[e].place),
+          (screen[e].amount === 0 ||
+            (screen[e].place === target[e].place && screen[e].size === target[e].size)),
       );
     }) ?? null
   );
@@ -142,7 +166,10 @@ export function isEffect(value: unknown): value is Effect {
  */
 export function readScreen(raw: unknown, fallback: Screen): Screen {
   if (!raw || typeof raw !== "object") return fallback;
-  const saved = raw as Record<string, { amount?: unknown; place?: unknown } | undefined>;
+  const saved = raw as Record<
+    string,
+    { amount?: unknown; place?: unknown; size?: unknown } | undefined
+  >;
   return Object.fromEntries(
     EFFECTS.map((e) => {
       const s = saved[e];
@@ -154,7 +181,9 @@ export function readScreen(raw: unknown, fallback: Screen): Screen {
         PLACEABLE.includes(e) && (s?.place === "over" || s?.place === "behind")
           ? s.place
           : fallback[e].place;
-      return [e, { amount, place }];
+      const size =
+        typeof s?.size === "number" && SIZES[e]?.includes(s.size) ? s.size : fallback[e].size;
+      return [e, { amount, place, size }];
     }),
   ) as Screen;
 }
@@ -168,6 +197,7 @@ export function withEffectSetting(
   const next = { ...screen[effect], ...patch };
   next.amount = Math.max(0, Math.min(100, Math.round(next.amount)));
   if (!PLACEABLE.includes(effect)) next.place = DEFAULT_PLACE[effect];
+  if (!SIZES[effect]?.includes(next.size)) next.size = screen[effect].size;
   return { ...screen, [effect]: next };
 }
 
@@ -176,20 +206,29 @@ export function withEffectSetting(
  *
  * Each effect in use gets an attribute naming its place and a variable
  * holding its amount; an effect at zero gets neither, so its layer is not
- * drawn and costs nothing. The preset, when the mix is exactly one, is named
- * too, so a preset can carry a moment of its own (CRT switches on).
+ * drawn and costs nothing. A size, where the effect has one, is a variable
+ * in pixels. `data-fx-behind` marks that something is under the content, so
+ * boxes and fields can take a fill and keep it off what they hold. The
+ * preset, when the mix is exactly one, is named too, so a preset can carry a
+ * moment of its own (CRT switches on).
  */
 export function applyScreen(screen: Screen, target: HTMLElement): void {
+  let behind = false;
   for (const e of EFFECTS) {
-    const { amount, place } = screen[e];
+    const { amount, place, size } = screen[e];
     if (amount > 0) {
       target.setAttribute(`data-fx-${e}`, place);
       target.style.setProperty(`--fx-${e}`, String(amount / 100));
+      if (SIZES[e]) target.style.setProperty(`--fx-${e}-size`, String(size));
+      if (place === "behind") behind = true;
     } else {
       target.removeAttribute(`data-fx-${e}`);
       target.style.removeProperty(`--fx-${e}`);
+      target.style.removeProperty(`--fx-${e}-size`);
     }
   }
+  if (behind) target.setAttribute("data-fx-behind", "");
+  else target.removeAttribute("data-fx-behind");
   const preset = presetOf(screen);
   if (preset && preset !== "none") target.setAttribute("data-screen-preset", preset);
   else target.removeAttribute("data-screen-preset");

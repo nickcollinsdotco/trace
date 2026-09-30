@@ -1,7 +1,7 @@
 import type { ReactNode, Ref } from "react";
 
 /**
- * A page: the scroll container, the top bar, and the content column.
+ * A page: the top bar, then the scrolling column.
  *
  * Every screen used to build this itself, and each did it a little
  * differently — three top paddings, a bar on some pages and not others — so
@@ -11,6 +11,11 @@ import type { ReactNode, Ref } from "react";
  *
  * The bar's height is reserved even on pages with nothing to put in it. That
  * is what makes every page start at the same height.
+ *
+ * The bar sits above the scroller rather than stuck inside it. Nothing ever
+ * passes beneath it, so it needs no fill of its own — and so a screen effect
+ * placed behind the content shows under the bar as it does everywhere else,
+ * instead of stopping at a solid band across the top of every page.
  */
 export function Page({
   ref,
@@ -35,9 +40,11 @@ export function Page({
   children: ReactNode;
 }) {
   return (
-    <div ref={ref} data-mode={mode} data-page={kind} className="trace-page">
+    <div data-mode={mode} data-page={kind} className="trace-page">
       {bar ?? <div aria-hidden className="h-12 shrink-0" />}
-      <div className={`trace-column flex flex-col ${className}`}>{children}</div>
+      <div ref={ref} className="trace-scroll">
+        <div className={`trace-column flex flex-col ${className}`}>{children}</div>
+      </div>
     </div>
   );
 }

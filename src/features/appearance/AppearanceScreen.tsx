@@ -13,6 +13,8 @@ import {
   PRESET_NOTES,
   PRESETS,
   presetOf,
+  SIZES,
+  sizeLabel,
 } from "../../design/screen";
 import {
   applyTheme,
@@ -89,8 +91,8 @@ export function AppearanceScreen() {
           screen, so flipping to Modern and back brings this one back. */}
       <Section title={`Screen · ${family}`}>
         <p className="text-sm text-ink-muted">
-          Effects on the glass, each as strong as you like. Textures can sit over everything or
-          behind it — behind, they show on the ground and never touch a letter.
+          Effects on the glass, each as strong as you like. Textures can sit over everything, or
+          behind it — on the ground only, under every letter, card, box and field.
         </p>
 
         <div className="flex flex-col gap-1">
@@ -248,10 +250,12 @@ function FamilyChoice({
 }
 
 /**
- * One effect: how much, and for textures, over or behind the content.
+ * One effect: how much, and for textures, how big and where.
  *
- * A slider rather than steps, because the right amount is a matter of the
- * monitor as much as of taste; arrow keys still step it by five.
+ * A slider for the amount, because the right amount is a matter of the
+ * monitor as much as of taste; arrow keys still step it by five. Size and
+ * place sit on a line of their own beneath, so every slider is the same
+ * length whether or not its effect has them.
  */
 function EffectRow({
   effect,
@@ -264,10 +268,12 @@ function EffectRow({
 }) {
   const id = `trace-effect-${effect}`;
   const on = setting.amount > 0;
+  const sizes = SIZES[effect];
+  const placeable = PLACEABLE.includes(effect);
 
   return (
     <div
-      className="grid grid-cols-[8rem_1fr_3ch_8.5rem] items-center gap-x-4"
+      className="grid grid-cols-[8rem_1fr_3ch] items-center gap-x-4 gap-y-1.5"
       title={EFFECT_NOTES[effect]}
     >
       <label
@@ -291,23 +297,49 @@ function EffectRow({
       <span className="text-right font-mono text-2xs tabular-nums text-ink-muted">
         {setting.amount}
       </span>
-      {PLACEABLE.includes(effect) ? (
-        <fieldset
-          className={`m-0 flex gap-1 border-0 p-0 transition-opacity ${on ? "" : "opacity-40"}`}
+      {(sizes || placeable) && (
+        // Dimmed, not hidden, while the effect is off: its size and place
+        // are still worth setting before turning it up.
+        <div
+          className={`col-start-2 col-end-4 flex flex-wrap items-center gap-x-5 gap-y-1 transition-opacity ${
+            on ? "" : "opacity-40"
+          }`}
         >
-          <legend className="sr-only">{`${EFFECT_LABELS[effect]} placement`}</legend>
-          {PLACES.map((place) => (
-            <Choice
-              key={place}
-              selected={setting.place === place}
-              onClick={() => onChange({ place })}
-            >
-              {place}
-            </Choice>
-          ))}
-        </fieldset>
-      ) : (
-        <span />
+          {sizes && (
+            <fieldset className="m-0 flex items-center gap-1 border-0 p-0">
+              <legend className="sr-only">{`${EFFECT_LABELS[effect]} size`}</legend>
+              <span aria-hidden className="pr-1 font-mono text-2xs text-ink-faint">
+                size
+              </span>
+              {sizes.map((size) => (
+                <Choice
+                  key={size}
+                  selected={setting.size === size}
+                  onClick={() => onChange({ size })}
+                >
+                  {sizeLabel(effect, size)}
+                </Choice>
+              ))}
+            </fieldset>
+          )}
+          {placeable && (
+            <fieldset className="m-0 flex items-center gap-1 border-0 p-0">
+              <legend className="sr-only">{`${EFFECT_LABELS[effect]} placement`}</legend>
+              <span aria-hidden className="pr-1 font-mono text-2xs text-ink-faint">
+                place
+              </span>
+              {PLACES.map((place) => (
+                <Choice
+                  key={place}
+                  selected={setting.place === place}
+                  onClick={() => onChange({ place })}
+                >
+                  {place}
+                </Choice>
+              ))}
+            </fieldset>
+          )}
+        </div>
       )}
       <span id={`${id}-note`} className="sr-only">
         {EFFECT_NOTES[effect]}

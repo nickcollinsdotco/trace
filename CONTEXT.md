@@ -51,8 +51,9 @@ _Avoid_: Screen filter, CRT mode
 
 **Screen effect**:
 One part of a screen — grain, scanlines, a dot grid, a vignette, glass,
-glow, flicker, a refresh bar — with its own amount. Textures can sit **over** the
-content or **behind** the letters, where they never touch one.
+glow, flicker, a refresh bar — with its own amount, and for textures a size.
+Textures can sit **over** the content or **behind** it: on the page's ground
+only, under every letter, card, box and field.
 
 **Screen preset**:
 A named mix of screen effects to start from. Moving any effect makes the

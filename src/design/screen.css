@@ -21,9 +21,11 @@
  *      so the middle of the screen glows rather than only the edges dimming.
  *   3. The glow is big.
  *
- * "Behind" blends to `lighten`: the texture shows only where the screen is
- * darker than it, which is the ground and the surfaces, and never where a
- * letter is brighter. See PLACEABLE in screen.ts.
+ * "Behind" means underneath. The canvas is its own stacking context, so a
+ * layer at `z-index: -1` is painted over the canvas's ground and under
+ * everything on the page: letters, cards, boxes and fields sit on top of it,
+ * untouched. The first "behind" was a lighten blend over everything, which
+ * still covered every dark card — and looked the same as "over".
  *
  * COST AND SAFETY
  *
@@ -53,13 +55,42 @@
   pointer-events: none;
 }
 
+[data-fx-grain="behind"] .trace-fx-grain,
+[data-fx-scanlines="behind"] .trace-fx-scanlines,
+[data-fx-dots="behind"] .trace-fx-dots {
+  z-index: -1;
+}
+
+/*
+ * With something behind the content, boxes and fields take the ground's
+ * colour as a fill, so the texture stops at their edge and what they hold
+ * stays clean. Cards already have a fill. Without, they stay transparent —
+ * nothing looks different until there is something to keep out.
+ */
+[data-fx-behind][data-frame="box"] .trace-section,
+[data-fx-behind] [data-frame="box"] .trace-section {
+  background-color: var(--color-surface-0);
+}
+
+[data-fx-behind] .trace-field,
+[data-fx-behind] .trace-field:focus,
+[data-fx-behind] .trace-field:focus-visible {
+  background-color: var(--color-surface-0);
+  background-image: linear-gradient(var(--field-bg), var(--field-bg));
+}
+
+[data-fx-behind] .trace-field:focus,
+[data-fx-behind] .trace-field:focus-visible {
+  background-image: linear-gradient(var(--field-bg-focus), var(--field-bg-focus));
+}
+
 /* ---------------------------------------------------------------------
  * Grain — a canvas that Grain.tsx fills with fresh noise every frame. Only
  * its look lives here.
  *
- * Over, it is screened: it can only lighten, so it adds specks to the dark
- * and next to nothing to a bright letter. Behind, it lightens only what is
- * darker than it — the ground, never a letter.
+ * Screened: it can only lighten, so it adds specks to the dark and next to
+ * nothing to a bright letter. Coarser sizes are drawn at lower resolution
+ * and scaled up smoothly, which softens them into clumps, as film's are.
  * ------------------------------------------------------------------ */
 [data-fx-grain] .trace-fx-grain {
   display: block;
@@ -69,46 +100,52 @@
   opacity: calc(var(--fx-grain) * 0.5);
 }
 
+/* No stronger than over: turned right up on the ground alone, it washed out
+   the faint text that sits there — tags, dates, counts. */
 [data-fx-grain="behind"] .trace-fx-grain {
-  mix-blend-mode: lighten;
-  opacity: calc(var(--fx-grain) * 0.75);
+  opacity: calc(var(--fx-grain) * 0.45);
 }
 
 /* ---------------------------------------------------------------------
  * Scanlines — lofi.cafe's recipe: a soft line texture in overlay, drifting
- * slowly down. Three pixels to a line, drawn at twice that and scaled down
- * so no edge is hard.
+ * slowly down. The texture is six lines tall, drawn at twice its shown size
+ * so no edge is hard; `--fx-scanlines-size` is the pitch of one line.
  * ------------------------------------------------------------------ */
 [data-fx-scanlines] .trace-fx-scanlines {
+  --pitch: calc(var(--fx-scanlines-size, 3) * 1px);
   display: block;
-  inset: -18px 0 0;
-  background: var(--fx-lines-tex) 0 0 / 64px 18px;
+  inset: calc(var(--pitch) * -6) 0 0;
+  background: var(--fx-lines-tex) 0 0 / calc(var(--pitch) * 21.333) calc(var(--pitch) * 6);
   mix-blend-mode: overlay;
   opacity: var(--fx-scanlines);
   animation: trace-lines-drift 12s linear infinite;
   will-change: transform;
 }
 
-/* Lit bands on the ground only: faint, since lighten adds rather than shades. */
+/* Overlay shades what is under it, and the ground is too dark to shade, so
+   behind, the lines are lit bands on it instead. */
 [data-fx-scanlines="behind"] .trace-fx-scanlines {
   mix-blend-mode: lighten;
-  opacity: calc(var(--fx-scanlines) * 0.28);
+  opacity: calc(var(--fx-scanlines) * 0.3);
 }
 
 /* ---------------------------------------------------------------------
  * Dot grid — the ground of a punch card or an LED panel. Behind, the dots
- * sit on the ground and surfaces and vanish under letters; over, they sit
- * on everything.
+ * are the ground and everything sits on them; over, they sit on everything.
+ * The dot grows a little with the pitch, so a wide grid still reads.
  * ------------------------------------------------------------------ */
 [data-fx-dots] .trace-fx-dots {
+  --pitch: calc(var(--fx-dots-size, 8) * 1px);
+  --dot: calc(0.3px + var(--fx-dots-size, 8) * 0.07px);
   display: block;
   background:
-    radial-gradient(circle at center, var(--color-ink) 0 0.8px, transparent 1.3px) 0 0 / 8px 8px;
+    radial-gradient(
+      circle at center,
+      var(--color-ink) 0 var(--dot),
+      transparent calc(var(--dot) + 0.5px)
+    )
+    0 0 / var(--pitch) var(--pitch);
   opacity: calc(var(--fx-dots) * 0.35);
-}
-
-[data-fx-dots="behind"] .trace-fx-dots {
-  mix-blend-mode: lighten;
 }
 
 /* ---------------------------------------------------------------------
@@ -198,12 +235,13 @@
 /* ---------------------------------------------------------------------
  * Motion
  * ------------------------------------------------------------------ */
+/* One texture's height, so the loop has no seam at any size. */
 @keyframes trace-lines-drift {
   from {
     transform: translateY(0);
   }
   to {
-    transform: translateY(18px);
+    transform: translateY(calc(var(--fx-scanlines-size, 3) * 6px));
   }
 }
 

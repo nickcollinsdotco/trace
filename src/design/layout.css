@@ -28,12 +28,20 @@
   --page-bottom: 2.5rem;
 }
 
-/* The scroll container a page lives in. A column flexbox, so auto margins on
-   the column can centre it when alignment asks for that. */
+/* A page: its bar, then the scroller (Page.tsx). */
 .trace-page {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+/* A column flexbox, so auto margins on the column can centre it when the
+   alignment rule asks for that. */
+.trace-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -44,7 +52,7 @@
   padding-inline: var(--page-gutter);
 }
 
-.trace-page > .trace-column {
+.trace-scroll > .trace-column {
   flex: none;
   padding-top: var(--page-top);
   padding-bottom: var(--page-bottom);
@@ -67,15 +75,15 @@
  * that is shorter than its container and collapse to nothing when it is
  * taller, which is exactly "centre if it fits".
  * ------------------------------------------------------------------ */
-.trace-page[data-page="focus"] > .trace-column {
+[data-page="focus"] .trace-scroll > .trace-column {
   margin-block: auto;
 }
 
-[data-align="fit"] .trace-page > .trace-column {
+[data-align="fit"] .trace-scroll > .trace-column {
   margin-block: auto;
 }
 
-[data-align="top"] .trace-page > .trace-column {
+[data-align="top"] .trace-scroll > .trace-column {
   margin-block: 0;
 }
 

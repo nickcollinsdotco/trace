@@ -7,6 +7,7 @@ import {
   saveAppearance,
   withFamily,
   withFilter,
+  withStrength,
   withTheme,
 } from "./appearance";
 
@@ -45,6 +46,15 @@ describe("screen filters", () => {
     expect(currentFilter(a)).toBe("crt");
   });
 
+  it("keep their strength per family too", () => {
+    let a = withStrength(fresh(), "strong");
+    a = withFamily(a, "modern");
+    expect(a.families.modern.strength).toBe("medium");
+    a = withFamily(a, "retro");
+    expect(a.families.retro.strength).toBe("strong");
+    expect(withStrength(a, "blinding")).toBe(a);
+  });
+
   it("ignore a filter that does not exist", () => {
     const a = fresh();
     expect(withFilter(a, "bezel")).toBe(a);
@@ -73,6 +83,6 @@ describe("storage", () => {
       JSON.stringify({ modern: { filter: "glow", theme: "termcn" } }),
     );
     const a = loadAppearance();
-    expect(a.families.modern).toEqual({ filter: "glow" });
+    expect(a.families.modern).toEqual({ filter: "glow", strength: "medium" });
   });
 });

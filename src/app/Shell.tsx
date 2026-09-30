@@ -4,7 +4,7 @@ import { formatElapsed } from "../components/ui/terminal";
 import { ActivityToast } from "../features/activity/ActivityToast";
 import { useActivity } from "../features/activity/useActivity";
 import { hasBackend, ipc } from "../lib/ipc";
-import { type Page, PanelIcon, Sidebar } from "./Sidebar";
+import { type Page, Sidebar, SidebarHead } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
 
 /**
@@ -110,6 +110,7 @@ export function Shell({
                   // Hidden by hand on a wide window: the toggle brings it back
                   // for good. Too narrow to dock: it can only ever overlay.
                   onToggle={() => (narrow ? setOverlay((o) => !o) : setHidden(false))}
+                  onHome={() => go("library")}
                   recording={recording}
                   onRecording={() => go("capture")}
                 />
@@ -153,6 +154,14 @@ export function Shell({
             onManageModels={() => onNavigate("models")}
             onOpenNote={onOpenNote}
           />
+          {/* The screen filter's layers (screen.css). Always rendered, shown
+              only under `data-filter`, so choosing one changes an attribute
+              rather than remounting the app. */}
+          <div aria-hidden className="trace-glass">
+            <span className="trace-glass-lines" />
+            <span className="trace-glass-grain" />
+            <span className="trace-glass-band" />
+          </div>
         </div>
       </ConfirmProvider>
     </div>
@@ -162,7 +171,8 @@ export function Shell({
 /**
  * The sidebar folded into a strip across the top.
  *
- * A strip rather than a floating button: a floating one collided with the
+ * Its head is the sidebar's own, so the toggle and wordmark stay exactly
+ * where they were. A strip rather than a floating button: one collided with the
  * capture screen's header, and a strip is also somewhere to keep the
  * recording timer. Leaving a recording must never feel like losing it, and
  * hiding the sidebar is a way of leaving it.
@@ -171,28 +181,29 @@ function SidebarStrip({
   toggle,
   open,
   onToggle,
+  onHome,
   recording,
   onRecording,
 }: {
   toggle: RefObject<HTMLButtonElement | null>;
   open: boolean;
   onToggle: () => void;
+  onHome: () => void;
   recording: number | null;
   onRecording: () => void;
 }) {
   return (
-    <div className="flex h-9 shrink-0 items-center gap-3 border-b border-line bg-surface-1 px-2">
-      <button
-        ref={toggle}
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        aria-label="Show sidebar"
+    // The border sits below the head row, not inside it, so the row is the
+    // same height as the sidebar's and the toggle lands on the same pixel.
+    <div className="flex shrink-0 items-center border-b border-line bg-surface-1 pr-2">
+      <SidebarHead
+        toggle={toggle}
+        label="Show sidebar"
         title="Show sidebar (Ctrl+\)"
-        className="flex size-7 items-center justify-center rounded-sm text-ink-muted trace-press hover:bg-surface-2 hover:text-ink"
-      >
-        <PanelIcon />
-      </button>
+        expanded={open}
+        onToggle={onToggle}
+        onHome={onHome}
+      />
       {recording !== null && (
         <button
           type="button"

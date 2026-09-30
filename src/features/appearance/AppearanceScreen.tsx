@@ -5,8 +5,10 @@ import {
   AXES,
   type Axis,
   currentFilter,
+  currentStrength,
   FILTER_NOTES,
   FILTERS,
+  STRENGTHS,
   useAppearanceControl,
 } from "../../design/appearance";
 import {
@@ -36,10 +38,12 @@ import {
  * C). They were gallery-only, which made that test depend on a dev harness.
  */
 export function AppearanceScreen() {
-  const { appearance, setTheme, setFamily, setFilter, setAxis, reset } = useAppearanceControl();
+  const { appearance, setTheme, setFamily, setFilter, setStrength, setAxis, reset } =
+    useAppearanceControl();
   const overridden = Object.values(appearance.overrides).some((v) => v !== undefined);
   const family = THEME_FAMILY[appearance.theme];
   const filter = currentFilter(appearance);
+  const strength = currentStrength(appearance);
 
   return (
     <Page className="gap-10">
@@ -80,6 +84,16 @@ export function AppearanceScreen() {
               ))}
             </fieldset>
             <p className="text-2xs text-ink-faint">{FILTER_NOTES[filter]}</p>
+            {filter !== "none" && (
+              <fieldset className="m-0 mt-1 flex flex-wrap gap-1 border-0 p-0">
+                <legend className="sr-only">Filter strength</legend>
+                {STRENGTHS.map((v) => (
+                  <Choice key={v} selected={strength === v} onClick={() => setStrength(v)}>
+                    {v}
+                  </Choice>
+                ))}
+              </fieldset>
+            )}
           </div>
         </div>
 

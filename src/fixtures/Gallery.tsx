@@ -27,12 +27,15 @@ import {
   type AppearanceControl,
   applyFilter,
   currentFilter,
+  currentStrength,
   FAMILY_DEFAULTS,
   FILTER_NOTES,
   FILTERS,
+  STRENGTHS,
   withAxis,
   withFamily,
   withFilter,
+  withStrength,
   withTheme,
 } from "../design/appearance";
 import {
@@ -127,6 +130,7 @@ export function Gallery() {
   const scenario = scenarioById(scenarioId) ?? SCENARIOS[0];
   const { theme, overrides } = look;
   const filter = currentFilter(look);
+  const strength = currentStrength(look);
 
   /*
    * Installed during render, deliberately.
@@ -168,6 +172,7 @@ export function Gallery() {
     setTheme: (t) => setLook((a) => withTheme(a, t)),
     setFamily: (f) => setLook((a) => withFamily(a, f)),
     setFilter: (f) => setLook((a) => withFilter(a, f)),
+    setStrength: (v) => setLook((a) => withStrength(a, v)),
     setAxis: (axis, value) => setLook((a) => withAxis(a, axis, value)),
     reset: () => setLook((a) => ({ ...a, overrides: {} })),
   };
@@ -176,14 +181,14 @@ export function Gallery() {
   useEffect(() => {
     if (preview.current) {
       applyTheme(theme, preview.current, overrides);
-      applyFilter(filter, preview.current);
+      applyFilter(filter, strength, preview.current);
     }
     try {
       localStorage.setItem(THEME_KEY, theme);
     } catch {
       // Not worth surfacing.
     }
-  }, [theme, overrides, filter]);
+  }, [theme, overrides, filter, strength]);
 
   useEffect(() => {
     if (scenario) location.hash = `gallery/${scenario.id}`;
@@ -261,6 +266,12 @@ export function Gallery() {
               options={FILTERS.map((f) => ({ id: f, label: f, title: FILTER_NOTES[f] }))}
               value={filter}
               onChange={(v) => appearance.setFilter(v as typeof filter)}
+            />
+            <Switcher
+              label="Strength"
+              options={STRENGTHS.map((v) => ({ id: v, label: v }))}
+              value={strength}
+              onChange={(v) => appearance.setStrength(v as typeof strength)}
             />
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 import { formatElapsed, SystemLabel } from "../components/ui/terminal";
 import { Wordmark } from "./Wordmark";
 
@@ -52,30 +52,18 @@ export function Sidebar({
   return (
     <aside
       aria-label="Sidebar"
-      className="flex w-(--sidebar-width) shrink-0 flex-col gap-6 border-r border-line bg-surface-1 px-3 py-4"
+      className="flex w-(--sidebar-width) shrink-0 flex-col border-r border-line bg-surface-1"
     >
-      <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => onNavigate("library")}
-          className="rounded-xs px-2 transition-opacity duration-120 hover:opacity-80"
-          aria-label="TRACE — back to meetings"
-        >
-          <Wordmark />
-        </button>
-        <button
-          ref={hide}
-          type="button"
-          onClick={onHide}
-          aria-label={overlay ? "Close sidebar" : "Hide sidebar"}
-          title={overlay ? "Close sidebar (Esc)" : "Hide sidebar (Ctrl+)"}
-          className="flex size-7 shrink-0 items-center justify-center rounded-sm text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
-        >
-          <PanelIcon />
-        </button>
-      </div>
+      <SidebarHead
+        toggle={hide}
+        label={overlay ? "Close sidebar" : "Hide sidebar"}
+        title={overlay ? "Close sidebar (Esc)" : "Hide sidebar (Ctrl+\\)"}
+        expanded
+        onToggle={onHide}
+        onHome={() => onNavigate("library")}
+      />
 
-      <nav aria-label="App" className="flex flex-col gap-4">
+      <nav aria-label="App" className="flex flex-col gap-4 px-3 pt-4 pb-4">
         <NavGroup>
           {PRIMARY.map(({ page, label }) => (
             <NavItem
@@ -157,6 +145,54 @@ function NavItem({
       <span className="flex-1 truncate">{label}</span>
       {trailing && <span className="tabular-nums text-ink-faint">{trailing}</span>}
     </button>
+  );
+}
+
+/**
+ * The toggle and the wordmark, in the one place they always sit.
+ *
+ * Shared by the sidebar and the strip it folds into, so hiding or showing
+ * the sidebar never moves the button you just pressed — Granola's rule. The
+ * two only line up because they are the same row: same height, same padding,
+ * toggle first.
+ */
+export function SidebarHead({
+  toggle,
+  label,
+  title,
+  expanded,
+  onToggle,
+  onHome,
+}: {
+  toggle?: RefObject<HTMLButtonElement | null>;
+  label: string;
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  onHome: () => void;
+}) {
+  return (
+    <div className="flex h-10 shrink-0 items-center gap-1 px-2">
+      <button
+        ref={toggle}
+        type="button"
+        onClick={onToggle}
+        aria-label={label}
+        aria-expanded={expanded}
+        title={title}
+        className="flex size-7 shrink-0 items-center justify-center rounded-sm text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
+      >
+        <PanelIcon />
+      </button>
+      <button
+        type="button"
+        onClick={onHome}
+        className="rounded-xs px-1.5 transition-opacity duration-120 hover:opacity-80"
+        aria-label="TRACE — back to meetings"
+      >
+        <Wordmark />
+      </button>
+    </div>
   );
 }
 

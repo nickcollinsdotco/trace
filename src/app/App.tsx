@@ -5,11 +5,13 @@ import {
   type AppearanceControl,
   applyFilter,
   currentFilter,
+  currentStrength,
   loadAppearance,
   saveAppearance,
   withAxis,
   withFamily,
   withFilter,
+  withStrength,
   withTheme,
 } from "../design/appearance";
 import { applyTheme, THEMES, themeForKey } from "../design/theme";
@@ -152,7 +154,7 @@ function useAppearance(): AppearanceControl {
 
   useEffect(() => {
     applyTheme(appearance.theme, document.documentElement, appearance.overrides);
-    applyFilter(currentFilter(appearance), document.documentElement);
+    applyFilter(currentFilter(appearance), currentStrength(appearance), document.documentElement);
     saveAppearance(appearance);
   }, [appearance]);
 
@@ -182,6 +184,7 @@ function useAppearance(): AppearanceControl {
     setTheme: (theme) => setAppearance((a) => withTheme(a, theme)),
     setFamily: (family) => setAppearance((a) => withFamily(a, family)),
     setFilter: (filter) => setAppearance((a) => withFilter(a, filter)),
+    setStrength: (strength) => setAppearance((a) => withStrength(a, strength)),
     setAxis: (axis, value) => setAppearance((a) => withAxis(a, axis, value)),
     reset: () => setAppearance((a) => ({ ...a, overrides: {} })),
   };

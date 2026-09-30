@@ -26,22 +26,47 @@ import {
  * vent — around the app. The bezel was the part that aged badly; what was
  * worth keeping was the glass, and the glass is a filter.
  */
-export const FILTERS = ["none", "scanlines", "glow", "dots", "dither", "vignette", "crt"] as const;
+export const FILTERS = [
+  "none",
+  "scanlines",
+  "glow",
+  "dots",
+  "dither",
+  "vignette",
+  "crt",
+  "vhs",
+] as const;
 
 export type Filter = (typeof FILTERS)[number];
 
 export const FILTER_NOTES: Record<Filter, string> = {
   none: "Clean glass.",
-  scanlines: "Faint horizontal lines, as a raster display draws them.",
-  glow: "Phosphor bloom around the text.",
-  dots: "A dot-matrix mesh, like an old LCD up close.",
+  scanlines: "Horizontal lines, as a raster display draws them.",
+  glow: "Phosphor bloom around every letter.",
+  dots: "A dot grid over everything, like an LED sign up close.",
   dither: "A fine checkerboard, as a one-bit screen fakes a grey.",
   vignette: "The corners fall into shadow.",
-  crt: "Scanlines, glow and vignette together.",
+  crt: "A tube: scanlines, an RGB grille, glow, a rolling refresh bar, rounded glass. It switches on.",
+  vhs: "A worn tape: colour fringing, grain, flicker and a tracking band drifting down.",
 };
 
 export function isFilter(value: unknown): value is Filter {
   return typeof value === "string" && (FILTERS as readonly string[]).includes(value);
+}
+
+/**
+ * How hard the filter is laid on.
+ *
+ * Taste varies more here than anywhere else in the app, and so does the
+ * screen: what reads as texture on one monitor is invisible on another. The
+ * first version shipped a single, faint setting and nobody could see it.
+ */
+export const STRENGTHS = ["soft", "medium", "strong"] as const;
+
+export type Strength = (typeof STRENGTHS)[number];
+
+export function isStrength(value: unknown): value is Strength {
+  return typeof value === "string" && (STRENGTHS as readonly string[]).includes(value);
 }
 
 /**
@@ -53,13 +78,14 @@ export function isFilter(value: unknown): value is Filter {
  */
 export interface FamilySettings {
   filter: Filter;
+  strength: Strength;
   /** The theme last chosen in this family, restored when flipping back to it. */
   theme?: Theme | undefined;
 }
 
 export const FAMILY_DEFAULTS: Record<Family, FamilySettings> = {
-  retro: { filter: "scanlines" },
-  modern: { filter: "none" },
+  retro: { filter: "scanlines", strength: "medium" },
+  modern: { filter: "none", strength: "medium" },
 };
 
 /**
@@ -97,6 +123,7 @@ function loadFamilies(theme: Theme): Record<Family, FamilySettings> {
       for (const f of FAMILIES) {
         const saved = raw[f];
         if (isFilter(saved?.filter)) families[f].filter = saved.filter;
+        if (isStrength(saved?.strength)) families[f].strength = saved.strength;
         if (isTheme(saved?.theme) && THEME_FAMILY[saved.theme] === f)
           families[f] = {
             ...families[f],
@@ -146,10 +173,20 @@ export function currentFilter(a: Appearance): Filter {
   return a.families[THEME_FAMILY[a.theme]].filter;
 }
 
+/** How hard the filter in force is laid on. */
+export function currentStrength(a: Appearance): Strength {
+  return a.families[THEME_FAMILY[a.theme]].strength;
+}
+
 /** Set or clear the screen filter on the element that carries the look. */
-export function applyFilter(filter: Filter, target: HTMLElement): void {
-  if (filter === "none") target.removeAttribute("data-filter");
-  else target.setAttribute("data-filter", filter);
+export function applyFilter(filter: Filter, strength: Strength, target: HTMLElement): void {
+  if (filter === "none") {
+    target.removeAttribute("data-filter");
+    target.removeAttribute("data-filter-strength");
+    return;
+  }
+  target.setAttribute("data-filter", filter);
+  target.setAttribute("data-filter-strength", strength);
 }
 
 export const AXES = {
@@ -168,6 +205,7 @@ export interface AppearanceControl {
   setFamily: (family: Family) => void;
   /** Set the filter for the current theme's family. */
   setFilter: (filter: Filter) => void;
+  setStrength: (strength: Strength) => void;
   setAxis: (axis: Axis, value: string | undefined) => void;
   reset: () => void;
 }
@@ -219,4 +257,10 @@ export function withFilter(a: Appearance, filter: string): Appearance {
   if (!isFilter(filter)) return a;
   const family = THEME_FAMILY[a.theme];
   return { ...a, families: { ...a.families, [family]: { ...a.families[family], filter } } };
+}
+
+export function withStrength(a: Appearance, strength: string): Appearance {
+  if (!isStrength(strength)) return a;
+  const family = THEME_FAMILY[a.theme];
+  return { ...a, families: { ...a.families, [family]: { ...a.families[family], strength } } };
 }

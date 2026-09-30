@@ -250,6 +250,46 @@
   display: none;
 }
 
+/*
+ * Ascii — no box at all. The title sits in brackets and the rule is typed
+ * out in line-drawing characters, as a terminal program draws a heading.
+ * The characters run long and the rule clips them, so it fills any width.
+ */
+[data-frame="ascii"] .trace-section-corner {
+  display: none;
+}
+
+[data-frame="ascii"] .trace-section-head .trace-system-label::before {
+  content: "[ ";
+}
+
+[data-frame="ascii"] .trace-section-head .trace-system-label::after {
+  content: " ]";
+}
+
+/* The heading never gives way; the rule does, from nothing. Without these
+   the rule's long run of characters set its starting width, and the flex
+   row squeezed the title until "[ SIGNAL ]" wrapped onto three lines. */
+[data-frame="ascii"] .trace-section-head .trace-system-label {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+[data-frame="ascii"] .trace-section-head .trace-rule {
+  flex: 1 1 0;
+  height: auto;
+  overflow: hidden;
+  background: none;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  color: var(--color-line-strong);
+  line-height: 1;
+}
+
+[data-frame="ascii"] .trace-section-head .trace-rule::after {
+  content: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────";
+}
+
 [data-frame="box"] .trace-section-head .trace-rule,
 [data-frame="box"] .trace-section-corner {
   display: none;

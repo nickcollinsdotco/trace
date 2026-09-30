@@ -3,6 +3,7 @@ import {
   type Appearance,
   AppearanceContext,
   type AppearanceControl,
+  currentAdjustments,
   currentScreen,
   loadAppearance,
   saveAppearance,
@@ -10,6 +11,7 @@ import {
   withEffect,
   withFamily,
   withPreset,
+  withReset,
   withTheme,
 } from "../design/appearance";
 import { applyScreen } from "../design/screen";
@@ -153,7 +155,7 @@ function useAppearance(): AppearanceControl {
   const [appearance, setAppearance] = useState<Appearance>(loadAppearance);
 
   useEffect(() => {
-    applyTheme(appearance.theme, document.documentElement, appearance.overrides);
+    applyTheme(appearance.theme, document.documentElement, currentAdjustments(appearance));
     applyScreen(currentScreen(appearance), document.documentElement);
     saveAppearance(appearance);
   }, [appearance]);
@@ -186,6 +188,6 @@ function useAppearance(): AppearanceControl {
     setPreset: (preset) => setAppearance((a) => withPreset(a, preset)),
     setEffect: (effect, patch) => setAppearance((a) => withEffect(a, effect, patch)),
     setAxis: (axis, value) => setAppearance((a) => withAxis(a, axis, value)),
-    reset: () => setAppearance((a) => ({ ...a, overrides: {} })),
+    reset: () => setAppearance(withReset),
   };
 }

@@ -25,12 +25,14 @@ import {
   type Appearance,
   AppearanceContext,
   type AppearanceControl,
+  currentAdjustments,
   currentScreen,
   defaultFamilies,
   withAxis,
   withEffect,
   withFamily,
   withPreset,
+  withReset,
   withTheme,
 } from "../design/appearance";
 import { applyScreen, PRESET_NOTES, PRESETS, presetOf } from "../design/screen";
@@ -114,7 +116,7 @@ export function Gallery() {
   // gallery cannot disagree with the app about what a switch does.
   const [look, setLook] = useState<Appearance>(() => ({
     theme: loadGalleryTheme(),
-    overrides: {},
+    adjustments: {},
     families: defaultFamilies(),
   }));
   const [width, setWidth] = useState<(typeof WIDTHS)[number]["id"]>("1200");
@@ -124,7 +126,8 @@ export function Gallery() {
   const preview = useRef<HTMLDivElement>(null);
 
   const scenario = scenarioById(scenarioId) ?? SCENARIOS[0];
-  const { theme, overrides } = look;
+  const { theme } = look;
+  const overrides = currentAdjustments(look);
   const screen = currentScreen(look);
 
   /*
@@ -169,7 +172,7 @@ export function Gallery() {
     setPreset: (p) => setLook((a) => withPreset(a, p)),
     setEffect: (e, patch) => setLook((a) => withEffect(a, e, patch)),
     setAxis: (axis, value) => setLook((a) => withAxis(a, axis, value)),
-    reset: () => setLook((a) => ({ ...a, overrides: {} })),
+    reset: () => setLook(withReset),
   };
   const setAxis = appearance.setAxis;
 
@@ -250,7 +253,8 @@ export function Gallery() {
               label="Theme"
               options={THEMES.map((t, i) => ({
                 id: t,
-                label: `${i + 1} ${t}`,
+                // The key that picks it: 1–9, then 0.
+                label: `${(i + 1) % 10} ${t}`,
                 title: THEME_NOTES[t],
               }))}
               value={theme}

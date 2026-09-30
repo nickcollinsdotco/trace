@@ -60,7 +60,7 @@ export function StatusBar({
   const active = speech?.find((m) => m.active);
 
   return (
-    <footer className="flex shrink-0 items-center gap-5 border-t border-line px-4 py-1.5 font-mono text-2xs text-ink-muted">
+    <footer className="trace-statusbar flex shrink-0 items-center gap-5 border-t border-line px-4 py-1.5 font-mono text-2xs text-ink-muted">
       {speech && (
         <SpeechPicker
           models={speech}

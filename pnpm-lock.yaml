@@ -17,6 +17,9 @@ importers:
       '@fontsource-variable/jetbrains-mono':
         specifier: ^5.3.0
         version: 5.3.0
+      '@fontsource-variable/roboto-condensed':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@fontsource-variable/space-grotesk':
         specifier: ^5.3.0
         version: 5.3.0
@@ -24,6 +27,15 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
       '@fontsource/ibm-plex-mono':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/share-tech-mono':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/silkscreen':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/vt323':
         specifier: ^5.3.0
         version: 5.3.0
       '@tauri-apps/api':
@@ -445,6 +457,9 @@ packages:
   '@fontsource-variable/jetbrains-mono@5.3.0':
     resolution: {integrity: sha512-F32xpS2NsGYoQi2ADSkKTgpJj7ozajsGgDJ8woTnqjmIB+dxDIqImjl4pXZVEExu8UFZ2ndhmX18EBS/hdz3Lw==}
 
+  '@fontsource-variable/roboto-condensed@5.3.0':
+    resolution: {integrity: sha512-RpYyF6G0h0nsVcCDLRIbZbK+l8cVDoe1PVbzvzVhtLzCiPqIEEGDs9xB9ZWPJawKS4bJzpKn42KgZFISF/AOuQ==}
+
   '@fontsource-variable/space-grotesk@5.3.0':
     resolution: {integrity: sha512-2IxmvfB08i9vnGB3Ym/AXvhRE+8XOjWMXIyDum03c+tPwH0FUoMNQfGpU8NXPxjbws0Vvss3AH0Zqt4oJBBAdw==}
 
@@ -453,6 +468,15 @@ packages:
 
   '@fontsource/ibm-plex-mono@5.3.0':
     resolution: {integrity: sha512-eTgnZjZEGk1QtD3ZstF+Vclo2HLAni8YMy34/DxllwZvyz1lR/1RF/xTiAquOBO7MvqBx8D2Ig2WCPMVfdZu7Q==}
+
+  '@fontsource/share-tech-mono@5.3.0':
+    resolution: {integrity: sha512-hVEzVCzEid/fBfhggMyvkfDzn9ODrMihxC0EiOeQK3BuQNvdjmith2ERnoDNUkbW8zhufbKNuCgaSoT8LUNpuQ==}
+
+  '@fontsource/silkscreen@5.3.0':
+    resolution: {integrity: sha512-M1NQ3LQH0LFNvyFPd/piHEGMImPPtpLglNnLC6Vdcq9kL0jNIOtTQmksAWCc4enbDnw1OnIpZtjNEfRqYm/QmA==}
+
+  '@fontsource/vt323@5.3.0':
+    resolution: {integrity: sha512-3w33Rg/0+R1587HQfz4t7Q7e0GGeCqr3wmzIwqdGInUnrGEwMA5eX39GP4Z9wpTQnwfhVOhYuxuRwRUeIcicbw==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -1768,11 +1792,19 @@ snapshots:
 
   '@fontsource-variable/jetbrains-mono@5.3.0': {}
 
+  '@fontsource-variable/roboto-condensed@5.3.0': {}
+
   '@fontsource-variable/space-grotesk@5.3.0': {}
 
   '@fontsource/fragment-mono@5.3.0': {}
 
   '@fontsource/ibm-plex-mono@5.3.0': {}
+
+  '@fontsource/share-tech-mono@5.3.0': {}
+
+  '@fontsource/silkscreen@5.3.0': {}
+
+  '@fontsource/vt323@5.3.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

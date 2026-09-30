@@ -18,6 +18,11 @@
  * product and which were the tooling.
  */
 
+/**
+ * Every built-in theme, in the order the number keys reach them: 1–9, then
+ * 0 for the tenth. New themes go on the end, so a key never changes what it
+ * picks.
+ */
 export const THEMES = [
   "terminal",
   "report",
@@ -25,6 +30,10 @@ export const THEMES = [
   "industrial",
   "termcn",
   "graphite",
+  "shell",
+  "index",
+  "council",
+  "vault",
 ] as const;
 
 export type Theme = (typeof THEMES)[number];
@@ -45,15 +54,6 @@ export const FAMILIES = ["modern", "retro"] as const;
 
 export type Family = (typeof FAMILIES)[number];
 
-export const THEME_FAMILY: Record<Theme, Family> = {
-  terminal: "retro",
-  report: "retro",
-  console: "retro",
-  industrial: "retro",
-  termcn: "retro",
-  graphite: "modern",
-};
-
 export const FAMILY_NOTES: Record<Family, string> = {
   modern: "A contemporary app: sans type, soft cards, rounded controls, no terminal glyphs.",
   retro: "An instrument from an alternate 1987: monospace system text, rules and boxes.",
@@ -65,15 +65,16 @@ export function themesIn(family: Family): Theme[] {
 }
 
 /**
- * Sections framed as a rule, a drawn box with an inlaid title, or a card —
- * the modern family's soft panel with its title inside.
+ * Sections framed as a rule, a drawn box with an inlaid title, a card — the
+ * modern family's soft panel with its title inside — or ascii: no box at all,
+ * the title in brackets and the rule typed out in line-drawing characters.
  */
-export const FRAMES = ["rule", "box", "card"] as const;
+export const FRAMES = ["rule", "box", "card", "ascii"] as const;
 
 export type Frame = (typeof FRAMES)[number];
 
 /** Monospace families available to compare. Exact choices are still open. */
-export const MONOS = ["geist", "fragment", "jetbrains", "plex"] as const;
+export const MONOS = ["geist", "fragment", "jetbrains", "plex", "vt323", "sharetech"] as const;
 
 export type Mono = (typeof MONOS)[number];
 
@@ -98,48 +99,113 @@ export const CASES = ["normal", "upper", "lower"] as const;
 
 export type LetterCase = (typeof CASES)[number];
 
-export const THEME_NOTES: Record<Theme, string> = {
-  terminal: "The default. Phosphor green, an instrument from an alternate 1987.",
-  report: "TR-100 machine report — monochrome, boxed, dithered. No accent at all.",
-  console: "conky — dense rows, and a hue ramp that makes the meters readable at a glance.",
-  industrial: "R-1 / LAB — hot orange as a brand colour, not a status accent.",
-  termcn: "termcn — pure black, saturated ANSI, heavy square boxes. The loudest of the five.",
-  graphite: "Neutral greys, white as the accent, soft cards and pill controls — shadcn-like.",
+/**
+ * What a theme is, besides its colours: its family, its framing, its type,
+ * and a line saying what it is for.
+ *
+ * Data, in one place, rather than four maps that had to agree. The colours
+ * and the few structural rules a theme needs stay in themes.css, where the
+ * cascade that lets the type axes override them is proven — moving them into
+ * script would have put their order against type.css and tokens.css at risk
+ * for nothing the user could see. Adjustments and, later, custom themes are
+ * data laid over a built-in, which is what the builder needs.
+ */
+export interface ThemeDef {
+  family: Family;
+  note: string;
+  frame: Frame;
+  type: { mono: Mono; role: TypeRole; case: LetterCase };
+}
+
+export const THEME_DEFS: Record<Theme, ThemeDef> = {
+  terminal: {
+    family: "retro",
+    note: "The default. Phosphor green, an instrument from an alternate 1987.",
+    frame: "rule",
+    // Today's default, unchanged.
+    type: { mono: "geist", role: "hybrid", case: "normal" },
+  },
+  report: {
+    family: "retro",
+    note: "TR-100 machine report — monochrome, boxed, dithered. No accent at all.",
+    frame: "box",
+    // A machine report is monospace all the way down — that is what makes it
+    // a report rather than a document about one — and the TR-100 shouts.
+    type: { mono: "plex", role: "mono", case: "upper" },
+  },
+  console: {
+    family: "retro",
+    note: "conky — dense rows, and a hue ramp that makes the meters readable at a glance.",
+    frame: "rule",
+    // conky is a readout: mono everywhere, tight, even, and quiet.
+    type: { mono: "jetbrains", role: "mono", case: "lower" },
+  },
+  industrial: {
+    family: "retro",
+    note: "R-1 / LAB — hot orange as a brand colour, not a status accent.",
+    frame: "box",
+    // Industrial signage is a grotesque, with mono for the data.
+    type: { mono: "fragment", role: "hybrid", case: "upper" },
+  },
+  termcn: {
+    family: "retro",
+    note: "termcn — pure black, saturated ANSI, heavy square boxes. The loudest of the five.",
+    frame: "box",
+    // Their shots are bold Title Case, not caps — weight does the shouting.
+    type: { mono: "jetbrains", role: "mono", case: "normal" },
+  },
+  graphite: {
+    family: "modern",
+    note: "Neutral greys, white as the accent, soft cards and pill controls — shadcn-like.",
+    frame: "card",
+    // Proportional throughout: system text in mono is exactly the terminal
+    // voice this family leaves behind. Timestamps keep tabular figures.
+    type: { mono: "geist", role: "sans", case: "normal" },
+  },
+  shell: {
+    family: "retro",
+    note: "GRiD Compass and a terminal session: amber VT323, no boxes, headings in brackets.",
+    frame: "ascii",
+    type: { mono: "vt323", role: "mono", case: "normal" },
+  },
+  index: {
+    family: "retro",
+    note: "A studio index: pixel capitals, dense rows, a row lit up in full as you pass it.",
+    frame: "rule",
+    type: { mono: "sharetech", role: "mono", case: "upper" },
+  },
+  council: {
+    family: "retro",
+    note: "A conference badge: green on slate, a ruled grid, pixel labels in solid blocks.",
+    frame: "box",
+    type: { mono: "sharetech", role: "hybrid", case: "upper" },
+  },
+  vault: {
+    family: "retro",
+    note: "A wrist computer from a bunker: phosphor green, condensed type, bracketed tabs.",
+    frame: "rule",
+    type: { mono: "sharetech", role: "sans", case: "upper" },
+  },
 };
 
-/** Each look's own framing. The gallery may override it to explore combinations. */
-export const THEME_FRAME: Record<Theme, Frame> = {
-  terminal: "rule",
-  report: "box",
-  console: "rule",
-  industrial: "box",
-  termcn: "box",
-  graphite: "card",
-};
+export const THEME_FAMILY = mapThemes((d) => d.family);
+export const THEME_NOTES = mapThemes((d) => d.note);
+/** Each theme's own framing. Adjustments may override it. */
+export const THEME_FRAME = mapThemes((d) => d.frame);
+/** Each theme's starting typeface pairing. Adjustments may override any of it. */
+export const THEME_TYPE = mapThemes((d) => d.type);
 
-/** Each look's starting typeface pairing. All of it is overridable in the gallery. */
-export const THEME_TYPE: Record<Theme, { mono: Mono; role: TypeRole; case: LetterCase }> = {
-  // Today's default, unchanged.
-  terminal: { mono: "geist", role: "hybrid", case: "normal" },
-  // A machine report is monospace all the way down — that is what makes it
-  // a report rather than a document about one — and the TR-100 shouts.
-  report: { mono: "plex", role: "mono", case: "upper" },
-  // conky is a readout: mono everywhere, tight, even, and quiet.
-  console: { mono: "jetbrains", role: "mono", case: "lower" },
-  // Industrial signage is a grotesque, with mono for the data.
-  industrial: { mono: "fragment", role: "hybrid", case: "upper" },
-  // Their shots are bold Title Case, not caps — weight does the shouting.
-  termcn: { mono: "jetbrains", role: "mono", case: "normal" },
-  // Proportional throughout: system text in mono is exactly the terminal
-  // voice this family leaves behind. Timestamps keep tabular figures.
-  graphite: { mono: "geist", role: "sans", case: "normal" },
-};
+function mapThemes<T>(pick: (d: ThemeDef) => T): Record<Theme, T> {
+  return Object.fromEntries(THEMES.map((t) => [t, pick(THEME_DEFS[t])])) as Record<Theme, T>;
+}
 
 export const MONO_NOTES: Record<Mono, string> = {
   geist: "Geist Mono — the current default.",
   fragment: "Fragment Mono — single weight, wide, quite characterful.",
   jetbrains: "JetBrains Mono — tall x-height, built for long reading.",
   plex: "IBM Plex Mono — the most document-like of the four.",
+  vt323: "VT323 — a DEC terminal's bitmap face, drawn large.",
+  sharetech: "Share Tech Mono — narrow and technical, a readout's face.",
 };
 
 export const CASE_NOTES: Record<LetterCase, string> = {
@@ -245,6 +311,7 @@ export function themeForKey(
   modified: boolean,
 ): Theme | null {
   if (modified || isTypingTarget(target)) return null;
-  if (!/^[1-9]$/.test(key)) return null;
-  return THEMES[Number(key) - 1] ?? null;
+  if (!/^[0-9]$/.test(key)) return null;
+  // 1 is the first theme and 0 the tenth, as on the keyboard's own row.
+  return THEMES[key === "0" ? 9 : Number(key) - 1] ?? null;
 }

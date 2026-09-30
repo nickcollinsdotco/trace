@@ -69,19 +69,22 @@ const LEGACY_FILTER: Record<string, Preset> = {
 };
 
 /**
- * The look as a whole: a theme plus any axis the user has overridden.
+ * The look as a whole: a theme, the adjustments made to each theme, and what
+ * each family remembers.
  *
- * The axes were gallery-only until the Appearance page. Living with a theme
- * for a few days is the test that decides the design (docs/11-PLAN.md, Phase
- * C), and that test is only fair if the variations worth trying survive a
- * restart instead of living in a dev harness.
+ * Adjustments belong to their theme (CONTEXT.md, docs/13 Q22). They were one
+ * global set at first, so Plex set on `terminal` followed you into
+ * `industrial` and no theme looked as designed once anything was touched.
+ * Now each theme keeps its own and Reset takes it back as it shipped.
  */
 export interface Appearance {
   theme: Theme;
-  overrides: Overrides;
+  adjustments: Partial<Record<Theme, Overrides>>;
   families: Record<Family, FamilySettings>;
 }
 
+const ADJUSTMENTS_KEY = "trace.appearance.adjustments";
+/** Read once, to move the old global overrides onto the theme they were made on. */
 const OVERRIDES_KEY = "trace.appearance.overrides";
 const FAMILIES_KEY = "trace.appearance.families";
 /** Read once, to carry a CRT-mode choice over into the filter that replaced it. */
@@ -89,7 +92,7 @@ const LEGACY_CRT_KEY = "trace.appearance.crt";
 
 export function loadAppearance(): Appearance {
   const theme = loadTheme();
-  return { theme, overrides: loadOverrides(), families: loadFamilies(theme) };
+  return { theme, adjustments: loadAdjustments(theme), families: loadFamilies(theme) };
 }
 
 function loadFamilies(theme: Theme): Record<Family, FamilySettings> {
@@ -122,26 +125,61 @@ function loadFamilies(theme: Theme): Record<Family, FamilySettings> {
   return families;
 }
 
-function loadOverrides(): Overrides {
+function loadAdjustments(theme: Theme): Partial<Record<Theme, Overrides>> {
   try {
-    const raw = JSON.parse(localStorage.getItem(OVERRIDES_KEY) ?? "{}") as Record<string, unknown>;
-    // Each field validated on its own, so one stale value from an older
-    // build drops that axis rather than the whole look.
-    return {
-      frame: isFrame(raw.frame) ? raw.frame : undefined,
-      mono: isMono(raw.mono) ? raw.mono : undefined,
-      role: isTypeRole(raw.role) ? raw.role : undefined,
-      case: isLetterCase(raw.case) ? raw.case : undefined,
-    };
+    const saved = localStorage.getItem(ADJUSTMENTS_KEY);
+    if (saved !== null) {
+      const raw = JSON.parse(saved) as Record<string, unknown>;
+      const out: Partial<Record<Theme, Overrides>> = {};
+      for (const [t, o] of Object.entries(raw)) {
+        const overrides = readOverrides(o);
+        if (isTheme(t) && hasAny(overrides)) out[t] = overrides;
+      }
+      return out;
+    }
+    // Before adjustments were per theme: whatever was set becomes the
+    // current theme's, and only its — nothing on screen changes by updating.
+    const old = readOverrides(JSON.parse(localStorage.getItem(OVERRIDES_KEY) ?? "{}"));
+    return hasAny(old) ? { [theme]: old } : {};
   } catch {
     return {};
   }
 }
 
+/**
+ * One theme's adjustments, read back. Each field validated on its own, so one
+ * stale value from an older build drops that axis rather than the lot.
+ */
+function readOverrides(raw: unknown): Overrides {
+  if (!raw || typeof raw !== "object") return {};
+  const o = raw as Record<string, unknown>;
+  return {
+    frame: isFrame(o.frame) ? o.frame : undefined,
+    mono: isMono(o.mono) ? o.mono : undefined,
+    role: isTypeRole(o.role) ? o.role : undefined,
+    case: isLetterCase(o.case) ? o.case : undefined,
+  };
+}
+
+function hasAny(o: Overrides): boolean {
+  return Object.values(o).some((v) => v !== undefined);
+}
+
+/** The adjustments in force: the current theme's own. */
+export function currentAdjustments(a: Appearance): Overrides {
+  return a.adjustments[a.theme] ?? {};
+}
+
+/** Whether a theme has been changed from how it shipped. */
+export function isAdjusted(a: Appearance, theme: Theme): boolean {
+  return hasAny(a.adjustments[theme] ?? {});
+}
+
 export function saveAppearance(a: Appearance): void {
   saveTheme(a.theme);
   try {
-    localStorage.setItem(OVERRIDES_KEY, JSON.stringify(a.overrides));
+    localStorage.setItem(ADJUSTMENTS_KEY, JSON.stringify(a.adjustments));
+    localStorage.removeItem(OVERRIDES_KEY);
     localStorage.setItem(FAMILIES_KEY, JSON.stringify(a.families));
     localStorage.removeItem(LEGACY_CRT_KEY);
   } catch {
@@ -189,7 +227,7 @@ export function useAppearanceControl(): AppearanceControl {
   return control;
 }
 
-/** Apply one axis change to a look. Pure, so it can be tested. */
+/** Adjust one axis of the current theme. Pure, so it can be tested. */
 export function withAxis(a: Appearance, axis: Axis, value: string | undefined): Appearance {
   const valid =
     value === undefined ||
@@ -198,7 +236,14 @@ export function withAxis(a: Appearance, axis: Axis, value: string | undefined): 
     (axis === "mono" && isMono(value)) ||
     (axis === "case" && isLetterCase(value));
   if (!valid) return a;
-  return { ...a, overrides: { ...a.overrides, [axis]: value } };
+  const next = { ...currentAdjustments(a), [axis]: value };
+  return { ...a, adjustments: { ...a.adjustments, [a.theme]: next } };
+}
+
+/** Put the current theme back as it shipped. */
+export function withReset(a: Appearance): Appearance {
+  const { [a.theme]: _, ...rest } = a.adjustments;
+  return { ...a, adjustments: rest };
 }
 
 /** Choose a theme, and remember it as its family's latest. */

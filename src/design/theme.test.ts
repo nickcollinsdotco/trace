@@ -158,9 +158,10 @@ describe("themes", () => {
       expect(themeForKey("5", null, false)).toBe(THEMES[4]);
     });
 
-    it("ignores digits with no theme behind them", () => {
-      expect(themeForKey(String(THEMES.length + 1), null, false)).toBeNull();
-      expect(themeForKey("0", null, false)).toBeNull();
+    it("reaches the tenth theme on 0, as the keyboard's own row runs", () => {
+      expect(themeForKey("0", null, false)).toBe(THEMES[9]);
+      // Two digits are never a key, however many themes there are.
+      expect(themeForKey("10", null, false)).toBeNull();
     });
 
     it("never fires while the user is typing", () => {

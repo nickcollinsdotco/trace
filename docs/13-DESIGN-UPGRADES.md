@@ -341,6 +341,21 @@ daily. `with:` autofill carries the one Rust change in this stage.
   JSON files in `~/Documents/TRACE/themes/`, so they are easy to back up,
   share, and edit by hand.
 
+**2a built 2026-09-30 (v0.9.0), with a change of plan.** The built-ins
+did not move their colours into script. Their tokens stay in themes.css,
+because the type and case axes override a theme's fonts only by coming
+later in the cascade (type.css after themes.css), and field and fill
+defaults sit in unlayered `:root` rules; moving the values out would have
+put that order at risk for nothing on screen. What became data is
+everything else — one `THEME_DEFS` record of family, note, frame and type —
+and the adjustments laid over a built-in, which is what the builder will
+save. Checked: the six existing themes on four screens are pixel-identical
+before and after, bar the signal panel's sweeping playhead.
+
+- **Adjustments are per theme** (Q22): Reset per theme, an "adjusted" mark
+  on its card, and the old global overrides moved onto the theme in use.
+- **Number keys** run 1–9 then 0; new themes join the end so no key moves.
+
 ### Stage 3 — new themes
 
 Written in the Stage 2 format.
@@ -357,6 +372,11 @@ Written in the Stage 2 format.
 
 `shell` needs a new frame value, `ascii`. A value, not a switch — nothing new
 forks, which keeps within the budget `themes.css` sets out.
+
+**Rough cuts built 2026-09-30 (v0.9.0)**, to be judged before polishing.
+Keys 7, 8, 9, 0. Fonts bundled: VT323, Silkscreen, Share Tech Mono, Roboto
+Condensed (all OFL). `vault` borrows the device's look and nothing of its
+branding.
 
 ### Stage 4 — command palette
 

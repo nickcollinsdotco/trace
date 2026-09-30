@@ -25,19 +25,15 @@ import {
   type Appearance,
   AppearanceContext,
   type AppearanceControl,
-  applyFilter,
-  currentFilter,
-  currentStrength,
-  FAMILY_DEFAULTS,
-  FILTER_NOTES,
-  FILTERS,
-  STRENGTHS,
+  currentScreen,
+  defaultFamilies,
   withAxis,
+  withEffect,
   withFamily,
-  withFilter,
-  withStrength,
+  withPreset,
   withTheme,
 } from "../design/appearance";
+import { applyScreen, PRESET_NOTES, PRESETS, presetOf } from "../design/screen";
 import {
   applyTheme,
   CASE_NOTES,
@@ -119,7 +115,7 @@ export function Gallery() {
   const [look, setLook] = useState<Appearance>(() => ({
     theme: loadGalleryTheme(),
     overrides: {},
-    families: { retro: { ...FAMILY_DEFAULTS.retro }, modern: { ...FAMILY_DEFAULTS.modern } },
+    families: defaultFamilies(),
   }));
   const [width, setWidth] = useState<(typeof WIDTHS)[number]["id"]>("1200");
   const [align, setAlign] = useState<(typeof ALIGNS)[number]["id"]>("focus");
@@ -129,8 +125,7 @@ export function Gallery() {
 
   const scenario = scenarioById(scenarioId) ?? SCENARIOS[0];
   const { theme, overrides } = look;
-  const filter = currentFilter(look);
-  const strength = currentStrength(look);
+  const screen = currentScreen(look);
 
   /*
    * Installed during render, deliberately.
@@ -171,8 +166,8 @@ export function Gallery() {
     appearance: look,
     setTheme: (t) => setLook((a) => withTheme(a, t)),
     setFamily: (f) => setLook((a) => withFamily(a, f)),
-    setFilter: (f) => setLook((a) => withFilter(a, f)),
-    setStrength: (v) => setLook((a) => withStrength(a, v)),
+    setPreset: (p) => setLook((a) => withPreset(a, p)),
+    setEffect: (e, patch) => setLook((a) => withEffect(a, e, patch)),
     setAxis: (axis, value) => setLook((a) => withAxis(a, axis, value)),
     reset: () => setLook((a) => ({ ...a, overrides: {} })),
   };
@@ -181,14 +176,14 @@ export function Gallery() {
   useEffect(() => {
     if (preview.current) {
       applyTheme(theme, preview.current, overrides);
-      applyFilter(filter, strength, preview.current);
+      applyScreen(screen, preview.current);
     }
     try {
       localStorage.setItem(THEME_KEY, theme);
     } catch {
       // Not worth surfacing.
     }
-  }, [theme, overrides, filter, strength]);
+  }, [theme, overrides, screen]);
 
   useEffect(() => {
     if (scenario) location.hash = `gallery/${scenario.id}`;
@@ -261,17 +256,18 @@ export function Gallery() {
               value={theme}
               onChange={(v) => appearance.setTheme(v as Theme)}
             />
+            {/* Presets only: the per-effect sliders are on the Appearance
+                page, which the gallery renders as the Appearance scenario. */}
             <Switcher
               label="Screen"
-              options={FILTERS.map((f) => ({ id: f, label: f, title: FILTER_NOTES[f] }))}
-              value={filter}
-              onChange={(v) => appearance.setFilter(v as typeof filter)}
-            />
-            <Switcher
-              label="Strength"
-              options={STRENGTHS.map((v) => ({ id: v, label: v }))}
-              value={strength}
-              onChange={(v) => appearance.setStrength(v as typeof strength)}
+              options={[
+                ...PRESETS.map((p) => ({ id: p, label: p, title: PRESET_NOTES[p] })),
+                ...(presetOf(screen) ? [] : [{ id: "custom", label: "custom" }]),
+              ]}
+              value={presetOf(screen) ?? "custom"}
+              onChange={(v) => {
+                if (v !== "custom") appearance.setPreset(v as (typeof PRESETS)[number]);
+              }}
             />
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

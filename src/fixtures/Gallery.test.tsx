@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Gallery } from "./Gallery";
@@ -352,27 +352,42 @@ describe("Gallery", () => {
     });
   });
 
-  it("keeps a screen filter per family", async () => {
+  it("keeps a screen per family, and mixes it effect by effect", async () => {
     localStorage.clear();
     const user = userEvent.setup();
     const { container } = render(<Gallery />);
     await openScenario(user, "Appearance");
     const main = await screen.findByRole("main");
 
-    // Retro starts on faint scanlines; Modern on clean glass.
+    // Retro starts on soft lines; Modern on clean glass.
     await waitFor(() =>
-      expect(container.querySelector('[data-filter="scanlines"]')).not.toBeNull(),
+      expect(container.querySelector('[data-fx-scanlines="over"]')).not.toBeNull(),
     );
     await user.click(within(main).getByRole("button", { name: "crt" }));
-    await waitFor(() => expect(container.querySelector('[data-filter="crt"]')).not.toBeNull());
+    await waitFor(() =>
+      expect(container.querySelector('[data-screen-preset="crt"][data-fx-flicker]')).not.toBeNull(),
+    );
 
     await user.click(within(main).getByRole("button", { name: "modern" }));
-    await waitFor(() => expect(container.querySelector("[data-filter]")).toBeNull());
-
+    await waitFor(() => expect(container.querySelector("[data-fx-scanlines]")).toBeNull());
     await user.click(within(main).getByRole("button", { name: "retro" }));
-    await waitFor(() => expect(container.querySelector('[data-filter="crt"]')).not.toBeNull());
-    // The monitor hardware CRT mode drew is gone for good.
-    expect(container.querySelector(".trace-bezel")).toBeNull();
+    await waitFor(() =>
+      expect(container.querySelector('[data-screen-preset="crt"]')).not.toBeNull(),
+    );
+
+    // One effect moved by hand: the mix is custom, and grain goes behind.
+    const grain = within(main).getByRole("slider", { name: "Grain" });
+    fireEvent.change(grain, { target: { value: "60" } });
+    const placement = within(main).getByRole("group", { name: "Grain placement" });
+    await user.click(within(placement).getByRole("button", { name: "behind" }));
+    await waitFor(() => expect(container.querySelector('[data-fx-grain="behind"]')).not.toBeNull());
+    expect(container.querySelector("[data-screen-preset]")).toBeNull();
+    expect(within(main).getByText("custom")).toBeInTheDocument();
+
+    // The effects are layers on the page, never on the sidebar.
+    const nav = screen.getByRole("navigation", { name: "App" });
+    expect(nav.closest(".trace-canvas")).toBeNull();
+    expect(container.querySelector(".trace-canvas .trace-fx-grain")).not.toBeNull();
   });
 
   it("tests the microphone only when asked, and stops when asked", async () => {

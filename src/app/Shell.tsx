@@ -92,7 +92,7 @@ export function Shell({
       {/* Inside the shell, so the dialog inherits whichever theme the shell
           is wearing — the app's, or a gallery preview's. */}
       <ConfirmProvider>
-        <div className="trace-screen flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="relative flex min-h-0 flex-1">
             {docked && (
               <Sidebar
@@ -115,13 +115,28 @@ export function Shell({
                   onRecording={() => go("capture")}
                 />
               )}
-              <main className="relative min-h-0 min-w-0 flex-1">
+              {/* The canvas: the one part of the window the screen effects
+                  are drawn on. The sidebar, its strip and the status bar are
+                  the instrument's chrome and sit above the glass, untouched —
+                  so the canvas is its own stacking context, and effects
+                  inside it can never reach them. */}
+              <main className="trace-canvas relative min-h-0 min-w-0 flex-1 bg-surface-0">
                 {children}
+                {/* The screen effects' layers (screen.css), in painting order.
+                    Always rendered, drawn only when their effect is on, so
+                    changing the screen changes attributes, not the tree. */}
+                <span aria-hidden className="trace-fx trace-fx-dots" />
+                <span aria-hidden className="trace-fx trace-fx-scanlines" />
+                <span aria-hidden className="trace-fx trace-fx-grain" />
+                <span aria-hidden className="trace-fx trace-fx-vignette" />
+                <span aria-hidden className="trace-fx trace-fx-roll" />
+                <span aria-hidden className="trace-fx trace-fx-flicker" />
                 {/* Always present, so a toast appearing inside it is announced:
-                a live region created with its content often is not. */}
+                a live region created with its content often is not. Above the
+                effects: news should be read, not seen through the glass. */}
                 <div
                   aria-live="polite"
-                  className="pointer-events-none absolute right-4 bottom-3 z-20 flex justify-end"
+                  className="pointer-events-none absolute right-4 bottom-3 z-60 flex justify-end"
                 >
                   <ActivityToast jobs={jobs} openNote={openNote} onOpenNote={onOpenNote} />
                 </div>
@@ -154,14 +169,6 @@ export function Shell({
             onManageModels={() => onNavigate("models")}
             onOpenNote={onOpenNote}
           />
-          {/* The screen filter's layers (screen.css). Always rendered, shown
-              only under `data-filter`, so choosing one changes an attribute
-              rather than remounting the app. */}
-          <div aria-hidden className="trace-glass">
-            <span className="trace-glass-lines" />
-            <span className="trace-glass-grain" />
-            <span className="trace-glass-band" />
-          </div>
         </div>
       </ConfirmProvider>
     </div>

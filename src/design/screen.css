@@ -1,269 +1,276 @@
 /*
- * TRACE — screen filters
+ * TRACE — screen effects
  *
- * The glass the app is shown through, set by `data-filter` (and
- * `data-filter-strength`) on the element that carries the look. Each family
- * remembers its own (appearance.ts). The layers are elements the shell always
- * renders (`.trace-glass`), shown only under a filter.
+ * The glass the app is shown through: a mix of effects, each with its own
+ * amount (`--fx-<effect>`, 0–1) and, for textures, a place
+ * (`data-fx-<effect>="over" | "behind"`). Set by screen.ts on the element
+ * that carries the theme; drawn by layers the shell always renders on its
+ * canvas — the page area, never the sidebar or status bar.
  *
- * WHY THE FIRST VERSION WAS INVISIBLE
+ * WHAT WENT WRONG BEFORE, AND THE RULES IT LEFT
  *
- * It drew every texture in black at 10–20% over a ground that is already
- * #0a0b0d. Darkening near-black does nothing, so the only place a filter
- * showed was inside the letters. Every layer below therefore *lightens* the
- * gaps as well as darkening the lines — a scanline is a dark line with a
- * faintly lit band beside it — which is what makes it read on a dark UI.
- * lofi.cafe was the reference: a line texture at 40%, a heavy phosphor glow
- * on every letter, and a power-on animation.
+ * The first two versions drew flat black lines, dots and checkerboards over
+ * everything. Over the near-black ground they were invisible, and turned up
+ * enough to show, they cut every letter into strips. lofi.cafe does the same
+ * effects well, and measuring its files showed why:
  *
- * COST
+ *   1. Lines are a soft texture blended in `overlay`, which shades what is
+ *      under it — darker under a dark band, lighter under a light one —
+ *      instead of painting black over it. A letter is shaded, never cut.
+ *   2. The vignette is a lit centre falling to dark corners, also overlaid,
+ *      so the middle of the screen glows rather than only the edges dimming.
+ *   3. The glow is big.
  *
- * Everything that moves animates only `transform` and `opacity`, on layers
- * of their own, so the compositor does it without repainting the page. That
- * matters in an app that is transcribing on the same machine. Glows are
- * static; a text-shadow that animated would repaint every letter every frame.
+ * "Behind" blends to `lighten`: the texture shows only where the screen is
+ * darker than it, which is the ground and the surfaces, and never where a
+ * letter is brighter. See PLACEABLE in screen.ts.
  *
- * SAFETY
+ * COST AND SAFETY
  *
- * Flicker stays well under the flash threshold (WCAG 2.3.1): the layers that
- * pulse change the screen's luminance by a few per cent, never ten. Reduced
- * motion stops every animation (tokens.css), and more contrast removes the
- * glass entirely.
+ * Only `transform` and `opacity` animate, so the compositor moves the layers
+ * without repainting the page while a meeting is being transcribed. The
+ * flicker changes the screen's luminance by at most ~3%, far below the
+ * flash threshold (WCAG 2.3.1). Reduced motion stops every animation
+ * (tokens.css); more contrast removes the effects entirely.
  */
 
-.trace-screen {
-  position: relative;
+/*
+ * The canvas — the page area — is where the glass is. The sidebar and status
+ * bar are chrome and stay above it (Shell.tsx). Isolated, so the blends
+ * below mix only with the page, and the layers cannot stack over the
+ * sidebar when it opens as an overlay. Opaque, because a blend over nothing
+ * shows its raw texture.
+ */
+.trace-canvas {
+  isolation: isolate;
 }
 
-/* ---------------------------------------------------------------------
- * Strength — one number every layer is scaled by.
- * ------------------------------------------------------------------ */
-[data-filter] {
-  --glass: 0.75;
-}
-
-[data-filter-strength="soft"] {
-  --glass: 0.45;
-}
-
-[data-filter-strength="strong"] {
-  --glass: 1;
-}
-
-/* ---------------------------------------------------------------------
- * The layers. Hidden until a filter asks for one.
- * ------------------------------------------------------------------ */
-.trace-glass {
+.trace-fx {
   display: none;
   position: absolute;
   inset: 0;
   z-index: 50;
   pointer-events: none;
-  overflow: hidden;
-}
-
-[data-filter] .trace-glass {
-  display: block;
-}
-
-.trace-glass > span {
-  display: none;
-  position: absolute;
-  inset: 0;
-  opacity: var(--glass);
-}
-
-/*
- * The textures, defined once so crt and vhs can stack them. Declared on the
- * element carrying the filter, not `:root`: a custom property that uses
- * var() resolves where it is declared, and the filter and the theme are
- * always set on the same element.
- */
-[data-filter] {
-  /* A dark line and a lit band, three pixels to the pair. */
-  --glass-scanlines: repeating-linear-gradient(
-    to bottom,
-    rgb(0 0 0 / 55%) 0 1px,
-    rgb(255 255 255 / 4%) 1px 3px
-  );
-  /* The aperture grille: red, green and blue phosphor stripes. */
-  --glass-grille: repeating-linear-gradient(
-    to right,
-    rgb(255 0 0 / 10%) 0 1px,
-    rgb(0 255 0 / 6%) 1px 2px,
-    rgb(0 0 255 / 10%) 2px 3px
-  );
-  --glass-vignette: radial-gradient(ellipse at center, transparent 45%, rgb(0 0 0 / 70%) 100%);
-  /* Grain, drawn by the browser rather than shipped as an image. */
-  --glass-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* ---------------------------------------------------------------------
- * scanlines
+ * Grain — boils ten times a second, and breathes stronger and weaker over
+ * a few seconds so it never settles into a pattern.
+ *
+ * Over, it is screened: it can only lighten, so it adds specks to the dark
+ * and next to nothing to a bright letter. Oversized, so jumping it about
+ * never shows an edge.
  * ------------------------------------------------------------------ */
-[data-filter="scanlines"] .trace-glass-lines {
+[data-fx-grain] .trace-fx-grain {
+  --grain-k: 0.5;
   display: block;
-  background: var(--glass-scanlines);
+  inset: -160px;
+  background: var(--fx-grain-tex) 0 0 / 160px 160px;
+  mix-blend-mode: screen;
+  opacity: calc(var(--fx-grain) * var(--grain-k));
+  animation:
+    trace-grain-boil 1s steps(10) infinite,
+    trace-grain-breathe 4.6s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+
+[data-fx-grain="behind"] .trace-fx-grain {
+  --grain-k: 0.75;
+  mix-blend-mode: lighten;
 }
 
 /* ---------------------------------------------------------------------
- * glow — lofi.cafe's bloom: a tight bright core and a wide soft halo on
- * every letter, in the theme's own accent.
+ * Scanlines — lofi.cafe's recipe: a soft line texture in overlay, drifting
+ * slowly down. Three pixels to a line, drawn at twice that and scaled down
+ * so no edge is hard.
  * ------------------------------------------------------------------ */
-[data-filter="glow"] .trace-screen,
-[data-filter="crt"] .trace-screen {
-  text-shadow:
-    0 0 1px color-mix(in srgb, var(--color-phosphor-bright) calc(var(--glass) * 80%), transparent),
-    0 0 7px color-mix(in srgb, var(--color-phosphor) calc(var(--glass) * 70%), transparent),
-    0 0 22px color-mix(in srgb, var(--color-phosphor) calc(var(--glass) * 45%), transparent);
+[data-fx-scanlines] .trace-fx-scanlines {
+  display: block;
+  inset: -18px 0 0;
+  background: var(--fx-lines-tex) 0 0 / 64px 18px;
+  mix-blend-mode: overlay;
+  opacity: var(--fx-scanlines);
+  animation: trace-lines-drift 12s linear infinite;
+  will-change: transform;
 }
 
-[data-filter="glow"] .trace-glass-lines {
+/* Lit bands on the ground only: faint, since lighten adds rather than shades. */
+[data-fx-scanlines="behind"] .trace-fx-scanlines {
+  mix-blend-mode: lighten;
+  opacity: calc(var(--fx-scanlines) * 0.28);
+}
+
+/* ---------------------------------------------------------------------
+ * Dot grid — the ground of a punch card or an LED panel. Behind, the dots
+ * sit on the ground and surfaces and vanish under letters; over, they sit
+ * on everything.
+ * ------------------------------------------------------------------ */
+[data-fx-dots] .trace-fx-dots {
+  display: block;
+  background:
+    radial-gradient(circle at center, var(--color-ink) 0 0.8px, transparent 1.3px) 0 0 / 8px 8px;
+  opacity: calc(var(--fx-dots) * 0.35);
+}
+
+[data-fx-dots="behind"] .trace-fx-dots {
+  mix-blend-mode: lighten;
+}
+
+/* ---------------------------------------------------------------------
+ * Vignette — a lit centre falling to dark corners, overlaid. Shaped like
+ * lofi.cafe's: bright in the middle, still light a quarter of the way out,
+ * nearly black only at the very corners.
+ * ------------------------------------------------------------------ */
+[data-fx-vignette] .trace-fx-vignette {
   display: block;
   background: radial-gradient(
-    ellipse at center,
-    color-mix(in srgb, var(--color-phosphor) 7%, transparent) 0%,
-    transparent 70%
+    ellipse 125% 115% at 50% 42%,
+    rgb(235 235 235) 0%,
+    rgb(190 190 190) 32%,
+    rgb(128 128 128) 58%,
+    rgb(45 45 45) 86%,
+    rgb(10 10 10) 100%
   );
+  mix-blend-mode: overlay;
+  opacity: calc(var(--fx-vignette) * 0.85);
 }
 
 /* ---------------------------------------------------------------------
- * dots — a dot grid you can see: every four-pixel cell has a lit dot and
- * dark surroundings, so the ground is dotted and the letters are broken
- * into dots, like an LED sign.
+ * Glow — lofi.cafe's bloom: a bright core, a halo, and a wide haze, in the
+ * theme's own accent. Static; an animated shadow would repaint every
+ * letter every frame.
  * ------------------------------------------------------------------ */
-[data-filter="dots"] .trace-glass-lines {
-  display: block;
-  background:
-    radial-gradient(circle at center, rgb(255 255 255 / 11%) 0 0.9px, rgb(0 0 0 / 45%) 1.5px) 0 0 /
-    4px 4px;
-}
-
-/* ---------------------------------------------------------------------
- * dither
- * ------------------------------------------------------------------ */
-[data-filter="dither"] .trace-glass-lines {
-  display: block;
-  background:
-    repeating-conic-gradient(rgb(0 0 0 / 40%) 0% 25%, rgb(255 255 255 / 5%) 0% 50%) 0 0 / 2px 2px;
-}
-
-/* ---------------------------------------------------------------------
- * vignette
- * ------------------------------------------------------------------ */
-[data-filter="vignette"] .trace-glass-lines {
-  display: block;
-  background: var(--glass-vignette);
-  box-shadow: inset 0 0 6rem rgb(0 0 0 / 60%);
-}
-
-/* ---------------------------------------------------------------------
- * crt — a tube, without the plastic around it.
- *
- * Scanlines over an RGB grille, flickering faintly; a refresh bar rolling
- * down; rounded glass, its corners filled black by the layer's own outer
- * shadow; and a power-on as the filter is chosen or the app opens.
- * ------------------------------------------------------------------ */
-[data-filter="crt"] .trace-glass {
-  border-radius: 1.1rem;
-  box-shadow:
-    0 0 0 3rem #000,
-    inset 0 0 5rem rgb(0 0 0 / 65%),
-    inset 0 0 0.75rem rgb(0 0 0 / 80%);
-}
-
-[data-filter="crt"] .trace-glass-lines {
-  display: block;
-  background: var(--glass-scanlines), var(--glass-grille), var(--glass-vignette);
-  animation: trace-flicker 0.15s infinite;
-}
-
-[data-filter="crt"] .trace-glass-band {
-  display: block;
-  inset: 0 0 auto;
-  height: 22%;
-  background: linear-gradient(to bottom, transparent, rgb(255 255 255 / 5%) 50%, transparent);
-  animation: trace-roll 7s linear infinite;
-  will-change: transform;
-}
-
-[data-filter="crt"] .trace-screen {
-  animation: trace-power-on 0.9s 0.1s cubic-bezier(0.2, -0.1, 0, 1) backwards;
-}
-
-/* ---------------------------------------------------------------------
- * vhs — a worn tape.
- *
- * Colour fringing on every letter; grain that boils; a light veil that
- * flickers; faint lines; and a tracking band drifting down the picture.
- * ------------------------------------------------------------------ */
-[data-filter="vhs"] .trace-screen {
+[data-fx-glow] .trace-canvas {
   text-shadow:
-    -1px 0 rgb(255 40 90 / calc(var(--glass) * 50%)),
-    1px 0 rgb(40 210 255 / calc(var(--glass) * 50%));
+    0 0 1px color-mix(in srgb, var(--color-phosphor-bright) calc(var(--fx-glow) * 85%), transparent),
+    0 0 calc(2px + var(--fx-glow) * 9px)
+    color-mix(in srgb, var(--color-phosphor) calc(var(--fx-glow) * 75%), transparent),
+    0 0 calc(4px + var(--fx-glow) * 34px)
+    color-mix(in srgb, var(--color-phosphor) calc(var(--fx-glow) * 40%), transparent);
 }
 
-[data-filter="vhs"] .trace-glass-lines {
+/* ---------------------------------------------------------------------
+ * Flicker — a white veil pulsing unevenly, at most ~3% of full brightness.
+ * ------------------------------------------------------------------ */
+[data-fx-flicker] .trace-fx-flicker {
   display: block;
-  background:
-    repeating-linear-gradient(to bottom, rgb(0 0 0 / 30%) 0 1px, transparent 1px 4px),
-    radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 55%) 100%),
-    rgb(255 255 255 / 2.5%);
-  animation: trace-flicker 0.12s infinite;
+  background: #fff;
+  opacity: 0;
+  animation: trace-flicker 1.7s linear infinite;
+  will-change: opacity;
 }
 
-/* Oversized, so shifting it never shows an edge. */
-[data-filter="vhs"] .trace-glass-grain {
-  display: block;
-  inset: -50%;
-  background: var(--glass-noise) 0 0 / 220px 220px;
-  opacity: calc(var(--glass) * 0.16);
-  animation: trace-grain 0.6s steps(6) infinite;
-  will-change: transform;
-}
-
-/* Thin and half-seen: a band that hid what it crossed read as a bug. */
-[data-filter="vhs"] .trace-glass-band {
+/* ---------------------------------------------------------------------
+ * Refresh bar — a soft band of light rolling down, as a camera sees a tube.
+ * ------------------------------------------------------------------ */
+[data-fx-roll] .trace-fx-roll {
   display: block;
   inset: 0 0 auto;
-  height: 4%;
-  opacity: calc(var(--glass) * 0.45);
-  background:
-    var(--glass-noise) 0 0 / 180px 180px,
-    linear-gradient(
-      to bottom,
-      transparent,
-      rgb(255 255 255 / 10%) 45%,
-      rgb(255 255 255 / 16%) 55%,
-      transparent
-    );
-  animation: trace-track 9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  height: 35%;
+  background: linear-gradient(to bottom, transparent, rgb(255 255 255 / 50%) 50%, transparent);
+  opacity: calc(var(--fx-roll) * 0.14);
+  animation: trace-roll 9s linear infinite;
   will-change: transform;
+}
+
+/* A tube warming up — a bright line, then the picture — when a preset that
+   is a tube is chosen, and when the app opens on one. */
+[data-screen-preset="crt"] .trace-canvas,
+[data-screen-preset="lofi"] .trace-canvas {
+  animation: trace-power-on 0.9s 0.1s cubic-bezier(0.2, -0.1, 0, 1) backwards;
 }
 
 /* ---------------------------------------------------------------------
  * Motion
  * ------------------------------------------------------------------ */
-
-/* Irregular on purpose; a regular pulse reads as a bug, not a tube. */
-@keyframes trace-flicker {
+@keyframes trace-grain-boil {
   0% {
-    opacity: calc(var(--glass) * 0.94);
+    transform: translate(0, 0);
+  }
+  10% {
+    transform: translate(-37px, 22px);
   }
   20% {
-    opacity: var(--glass);
+    transform: translate(51px, -64px);
   }
-  35% {
-    opacity: calc(var(--glass) * 0.9);
+  30% {
+    transform: translate(-83px, 45px);
+  }
+  40% {
+    transform: translate(12px, 97px);
+  }
+  50% {
+    transform: translate(-106px, -18px);
   }
   60% {
-    opacity: calc(var(--glass) * 0.98);
+    transform: translate(74px, 33px);
+  }
+  70% {
+    transform: translate(-29px, -88px);
   }
   80% {
-    opacity: calc(var(--glass) * 0.92);
+    transform: translate(95px, 71px);
+  }
+  90% {
+    transform: translate(-58px, -41px);
   }
   100% {
-    opacity: var(--glass);
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes trace-grain-breathe {
+  from {
+    opacity: calc(var(--fx-grain) * var(--grain-k) * 0.7);
+  }
+  to {
+    opacity: calc(var(--fx-grain) * var(--grain-k) * 1.15);
+  }
+}
+
+@keyframes trace-lines-drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(18px);
+  }
+}
+
+/* Irregular on purpose; a regular pulse reads as a fault, not a tube. */
+@keyframes trace-flicker {
+  0% {
+    opacity: calc(var(--fx-flicker) * 0.012);
+  }
+  7% {
+    opacity: calc(var(--fx-flicker) * 0.03);
+  }
+  11% {
+    opacity: calc(var(--fx-flicker) * 0.008);
+  }
+  23% {
+    opacity: calc(var(--fx-flicker) * 0.022);
+  }
+  31% {
+    opacity: calc(var(--fx-flicker) * 0.01);
+  }
+  47% {
+    opacity: calc(var(--fx-flicker) * 0.028);
+  }
+  52% {
+    opacity: calc(var(--fx-flicker) * 0.006);
+  }
+  68% {
+    opacity: calc(var(--fx-flicker) * 0.02);
+  }
+  79% {
+    opacity: calc(var(--fx-flicker) * 0.014);
+  }
+  88% {
+    opacity: calc(var(--fx-flicker) * 0.032);
+  }
+  100% {
+    opacity: calc(var(--fx-flicker) * 0.012);
   }
 }
 
@@ -272,48 +279,10 @@
     transform: translateY(-100%);
   }
   to {
-    transform: translateY(560%);
+    transform: translateY(300%);
   }
 }
 
-/* Drifts down, lingering low where a real tape's tracking error sits. */
-@keyframes trace-track {
-  0% {
-    transform: translateY(-100%);
-  }
-  70% {
-    transform: translateY(2200%);
-  }
-  100% {
-    transform: translateY(2600%);
-  }
-}
-
-@keyframes trace-grain {
-  0% {
-    transform: translate(0, 0);
-  }
-  17% {
-    transform: translate(-7%, 4%);
-  }
-  33% {
-    transform: translate(5%, -9%);
-  }
-  50% {
-    transform: translate(-3%, 8%);
-  }
-  67% {
-    transform: translate(9%, 2%);
-  }
-  83% {
-    transform: translate(-6%, -5%);
-  }
-  100% {
-    transform: translate(0, 0);
-  }
-}
-
-/* A tube warming up: a bright dot, a line, then the picture. */
 @keyframes trace-power-on {
   0% {
     transform: scale(0, 0.002);
@@ -333,12 +302,12 @@
   }
 }
 
-/* More contrast asked for: nothing sits over the text, whatever was chosen. */
+/* More contrast asked for: nothing over the text, and no halo around it. */
 @media (prefers-contrast: more) {
-  [data-filter] .trace-screen {
-    text-shadow: none;
+  .trace-fx {
+    display: none !important;
   }
-  [data-filter] .trace-glass {
-    display: none;
+  [data-fx-glow] .trace-canvas {
+    text-shadow: none;
   }
 }

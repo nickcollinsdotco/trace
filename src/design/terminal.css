@@ -503,3 +503,44 @@ select.trace-field option {
 .trace-field-pill {
   border-radius: var(--radius-pill);
 }
+
+/* ---------------------------------------------------------------------
+ * Range sliders (the screen effects' amounts).
+ *
+ * A hairline track, filled up to the thumb in the accent, and a small
+ * upright block for a thumb — an instrument's fader rather than a browser's
+ * blue pill. The fill is a background sized by `--range-fill`, which the
+ * slider carries from its own value; there is no pseudo-element for the
+ * lower part of the track in Chromium.
+ * ------------------------------------------------------------------ */
+.trace-range {
+  appearance: none;
+  width: 100%;
+  height: 1.25rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+.trace-range::-webkit-slider-runnable-track {
+  height: 2px;
+  background:
+    linear-gradient(var(--color-phosphor), var(--color-phosphor)) 0 0 / var(--range-fill, 0%) 100%
+    no-repeat,
+    var(--color-line-strong);
+  border-radius: var(--radius-xs);
+}
+
+.trace-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.5rem;
+  height: 1rem;
+  margin-top: calc(-0.5rem + 1px);
+  background: var(--color-ink);
+  border-radius: var(--radius-xs);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.trace-range:hover::-webkit-slider-thumb,
+.trace-range:focus-visible::-webkit-slider-thumb {
+  background: var(--color-phosphor);
+}

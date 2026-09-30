@@ -1,5 +1,14 @@
 import { createContext, useContext } from "react";
 import {
+  type Effect,
+  type EffectSetting,
+  type Preset,
+  presetScreen,
+  readScreen,
+  type Screen,
+  withEffectSetting,
+} from "./screen";
+import {
   CASES,
   FAMILIES,
   type Family,
@@ -20,56 +29,6 @@ import {
 } from "./theme";
 
 /**
- * A treatment of the glass the app is shown through (CONTEXT.md).
- *
- * These replaced CRT mode, which drew a whole monitor — screws, lights, a
- * vent — around the app. The bezel was the part that aged badly; what was
- * worth keeping was the glass, and the glass is a filter.
- */
-export const FILTERS = [
-  "none",
-  "scanlines",
-  "glow",
-  "dots",
-  "dither",
-  "vignette",
-  "crt",
-  "vhs",
-] as const;
-
-export type Filter = (typeof FILTERS)[number];
-
-export const FILTER_NOTES: Record<Filter, string> = {
-  none: "Clean glass.",
-  scanlines: "Horizontal lines, as a raster display draws them.",
-  glow: "Phosphor bloom around every letter.",
-  dots: "A dot grid over everything, like an LED sign up close.",
-  dither: "A fine checkerboard, as a one-bit screen fakes a grey.",
-  vignette: "The corners fall into shadow.",
-  crt: "A tube: scanlines, an RGB grille, glow, a rolling refresh bar, rounded glass. It switches on.",
-  vhs: "A worn tape: colour fringing, grain, flicker and a tracking band drifting down.",
-};
-
-export function isFilter(value: unknown): value is Filter {
-  return typeof value === "string" && (FILTERS as readonly string[]).includes(value);
-}
-
-/**
- * How hard the filter is laid on.
- *
- * Taste varies more here than anywhere else in the app, and so does the
- * screen: what reads as texture on one monitor is invisible on another. The
- * first version shipped a single, faint setting and nobody could see it.
- */
-export const STRENGTHS = ["soft", "medium", "strong"] as const;
-
-export type Strength = (typeof STRENGTHS)[number];
-
-export function isStrength(value: unknown): value is Strength {
-  return typeof value === "string" && (STRENGTHS as readonly string[]).includes(value);
-}
-
-/**
  * What each family remembers.
  *
  * Per family rather than app-wide, so flipping between Modern and Retro
@@ -77,15 +36,36 @@ export function isStrength(value: unknown): value is Strength {
  * through. Motion, sound and density join this as they are built.
  */
 export interface FamilySettings {
-  filter: Filter;
-  strength: Strength;
+  screen: Screen;
   /** The theme last chosen in this family, restored when flipping back to it. */
   theme?: Theme | undefined;
 }
 
+/*
+ * Retro starts on lofi.cafe's lines alone, at the strength it uses them —
+ * texture that shades the letters without cutting them. Modern starts clean.
+ */
 export const FAMILY_DEFAULTS: Record<Family, FamilySettings> = {
-  retro: { filter: "scanlines", strength: "medium" },
-  modern: { filter: "none", strength: "medium" },
+  retro: { screen: presetScreen("lines") },
+  modern: { screen: presetScreen("none") },
+};
+
+/** Fresh family settings, so no two looks ever share a mutable default. */
+export function defaultFamilies(): Record<Family, FamilySettings> {
+  return { retro: { ...FAMILY_DEFAULTS.retro }, modern: { ...FAMILY_DEFAULTS.modern } };
+}
+
+/*
+ * The single filters of 0.7.0–0.7.1, and CRT mode before them, carried over
+ * to the nearest mix. None of the old ones survives as it was: the effects
+ * were rebuilt because they made text unreadable.
+ */
+const LEGACY_FILTER: Record<string, Preset> = {
+  crt: "crt",
+  vhs: "film",
+  dots: "grid",
+  glow: "lofi",
+  scanlines: "lines",
 };
 
 /**
@@ -113,7 +93,7 @@ export function loadAppearance(): Appearance {
 }
 
 function loadFamilies(theme: Theme): Record<Family, FamilySettings> {
-  const families = { retro: { ...FAMILY_DEFAULTS.retro }, modern: { ...FAMILY_DEFAULTS.modern } };
+  const families = defaultFamilies();
   try {
     const raw = JSON.parse(localStorage.getItem(FAMILIES_KEY) ?? "null") as Record<
       string,
@@ -122,18 +102,19 @@ function loadFamilies(theme: Theme): Record<Family, FamilySettings> {
     if (raw) {
       for (const f of FAMILIES) {
         const saved = raw[f];
-        if (isFilter(saved?.filter)) families[f].filter = saved.filter;
-        if (isStrength(saved?.strength)) families[f].strength = saved.strength;
-        if (isTheme(saved?.theme) && THEME_FAMILY[saved.theme] === f)
-          families[f] = {
-            ...families[f],
-            theme: saved.theme,
-          };
+        const legacy = typeof saved?.filter === "string" ? LEGACY_FILTER[saved.filter] : undefined;
+        const screen = legacy
+          ? presetScreen(legacy)
+          : readScreen(saved?.screen, families[f].screen);
+        families[f] = { screen };
+        if (isTheme(saved?.theme) && THEME_FAMILY[saved.theme] === f) {
+          families[f].theme = saved.theme;
+        }
       }
     } else if (localStorage.getItem(LEGACY_CRT_KEY) === "on") {
       // Someone who turned CRT mode on should not lose it to an update. It
       // lands on the family they were using, which is where they saw it.
-      families[THEME_FAMILY[theme]].filter = "crt";
+      families[THEME_FAMILY[theme]] = { screen: presetScreen("crt") };
     }
   } catch {
     // Unreadable storage: the defaults are a fine answer.
@@ -168,25 +149,9 @@ export function saveAppearance(a: Appearance): void {
   }
 }
 
-/** The filter in force: the one the current theme's family remembers. */
-export function currentFilter(a: Appearance): Filter {
-  return a.families[THEME_FAMILY[a.theme]].filter;
-}
-
-/** How hard the filter in force is laid on. */
-export function currentStrength(a: Appearance): Strength {
-  return a.families[THEME_FAMILY[a.theme]].strength;
-}
-
-/** Set or clear the screen filter on the element that carries the look. */
-export function applyFilter(filter: Filter, strength: Strength, target: HTMLElement): void {
-  if (filter === "none") {
-    target.removeAttribute("data-filter");
-    target.removeAttribute("data-filter-strength");
-    return;
-  }
-  target.setAttribute("data-filter", filter);
-  target.setAttribute("data-filter-strength", strength);
+/** The screen in force: the one the current theme's family remembers. */
+export function currentScreen(a: Appearance): Screen {
+  return a.families[THEME_FAMILY[a.theme]].screen;
 }
 
 export const AXES = {
@@ -203,9 +168,10 @@ export interface AppearanceControl {
   setTheme: (theme: Theme) => void;
   /** Switch family, restoring the theme last used in it. */
   setFamily: (family: Family) => void;
-  /** Set the filter for the current theme's family. */
-  setFilter: (filter: Filter) => void;
-  setStrength: (strength: Strength) => void;
+  /** Replace the current family's screen with a preset. */
+  setPreset: (preset: Preset) => void;
+  /** Change one effect of the current family's screen. */
+  setEffect: (effect: Effect, patch: Partial<EffectSetting>) => void;
   setAxis: (axis: Axis, value: string | undefined) => void;
   reset: () => void;
 }
@@ -253,14 +219,24 @@ export function withFamily(a: Appearance, family: Family): Appearance {
   return withTheme(a, remembered ?? themesIn(family)[0] ?? "terminal");
 }
 
-export function withFilter(a: Appearance, filter: string): Appearance {
-  if (!isFilter(filter)) return a;
+/** The current family's screen, replaced or changed. Pure, so it can be tested. */
+function withScreen(a: Appearance, change: (screen: Screen) => Screen): Appearance {
   const family = THEME_FAMILY[a.theme];
-  return { ...a, families: { ...a.families, [family]: { ...a.families[family], filter } } };
+  const settings = a.families[family];
+  return {
+    ...a,
+    families: { ...a.families, [family]: { ...settings, screen: change(settings.screen) } },
+  };
 }
 
-export function withStrength(a: Appearance, strength: string): Appearance {
-  if (!isStrength(strength)) return a;
-  const family = THEME_FAMILY[a.theme];
-  return { ...a, families: { ...a.families, [family]: { ...a.families[family], strength } } };
+export function withPreset(a: Appearance, preset: Preset): Appearance {
+  return withScreen(a, () => presetScreen(preset));
+}
+
+export function withEffect(
+  a: Appearance,
+  effect: Effect,
+  patch: Partial<EffectSetting>,
+): Appearance {
+  return withScreen(a, (screen) => withEffectSetting(screen, effect, patch));
 }

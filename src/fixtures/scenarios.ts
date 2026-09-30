@@ -829,7 +829,7 @@ export const SCENARIOS: Scenario[] = [
     id: "appearance",
     name: "Appearance",
     group: "Pages",
-    note: "Modern or Terminal, then a theme within it, and CRT mode over either. Picking here re-themes this preview.",
+    note: "Modern or Retro, a theme within it, and each family's screen — effects mixed by slider, over or behind the letters. Picking here re-themes this preview.",
     screen: "appearance",
     state: POPULATED,
   },

@@ -43,10 +43,20 @@ The centred area every page's content sits in. The same width in every theme
 and family, so switching never moves it.
 _Avoid_: Measure (for the page width)
 
-**Screen filter**:
-A treatment of the glass the app is shown through — scanlines, glow, dither
-and the like. Each family has a default, which the user can change.
-_Avoid_: CRT mode
+**Screen**:
+The glass the page is shown through: a mix of screen effects. Each family
+keeps its own. Drawn on the page only — the sidebar and status bar sit
+above it, untouched.
+_Avoid_: Screen filter, CRT mode
+
+**Screen effect**:
+One part of a screen — grain, scanlines, a dot grid, a vignette, glow,
+flicker, a refresh bar — with its own amount. Textures can sit **over** the
+content or **behind** the letters, where they never touch one.
+
+**Screen preset**:
+A named mix of screen effects to start from. Moving any effect makes the
+screen the user's own.
 
 **Density**:
 How much space the interface leaves between things. Each family has a

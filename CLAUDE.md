@@ -113,7 +113,7 @@ events and counts only, never transcript text or notes (`diagnostics.rs`).
 in a plain browser). Its own window because it fakes the backend for the whole
 page it runs in. Renders the real screens against fixtures — every state,
 including the failures, with no recording needed. Themes switch on the number
-keys; the header also varies screen filter, width, and the layout prototypes.
+keys; the header also varies the screen preset, width, and the layout prototypes.
 
 Add a scenario for any state you build. A state nobody can look at is a state
 that rots.

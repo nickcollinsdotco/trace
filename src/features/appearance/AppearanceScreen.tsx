@@ -1,16 +1,19 @@
 import { useEffect, useRef } from "react";
 import { Page } from "../../components/ui/Page";
 import { Prompt, Section, SystemLabel } from "../../components/ui/terminal";
+import { AXES, type Axis, currentScreen, useAppearanceControl } from "../../design/appearance";
 import {
-  AXES,
-  type Axis,
-  currentFilter,
-  currentStrength,
-  FILTER_NOTES,
-  FILTERS,
-  STRENGTHS,
-  useAppearanceControl,
-} from "../../design/appearance";
+  EFFECT_LABELS,
+  EFFECT_NOTES,
+  EFFECTS,
+  type Effect,
+  type EffectSetting,
+  PLACEABLE,
+  PLACES,
+  PRESET_NOTES,
+  PRESETS,
+  presetOf,
+} from "../../design/screen";
 import {
   applyTheme,
   CASE_NOTES,
@@ -38,12 +41,12 @@ import {
  * C). They were gallery-only, which made that test depend on a dev harness.
  */
 export function AppearanceScreen() {
-  const { appearance, setTheme, setFamily, setFilter, setStrength, setAxis, reset } =
+  const { appearance, setTheme, setFamily, setPreset, setEffect, setAxis, reset } =
     useAppearanceControl();
   const overridden = Object.values(appearance.overrides).some((v) => v !== undefined);
   const family = THEME_FAMILY[appearance.theme];
-  const filter = currentFilter(appearance);
-  const strength = currentStrength(appearance);
+  const screen = currentScreen(appearance);
+  const preset = presetOf(screen);
 
   return (
     <Page className="gap-10">
@@ -68,35 +71,6 @@ export function AppearanceScreen() {
         </fieldset>
         <p className="text-2xs text-ink-faint">{FAMILY_NOTES[family]}</p>
 
-        {/* Under the switch because it belongs to the family: each one
-            remembers its own, so flipping brings back the whole of it. */}
-        <div className="grid grid-cols-[8rem_1fr] items-start gap-x-4 gap-y-1">
-          <span className="pt-1.5 font-mono text-2xs uppercase tracking-system text-ink-faint">
-            Screen
-          </span>
-          <div className="flex flex-col gap-1">
-            <fieldset className="m-0 flex flex-wrap gap-1 border-0 p-0">
-              <legend className="sr-only">Screen filter</legend>
-              {FILTERS.map((f) => (
-                <Choice key={f} selected={filter === f} onClick={() => setFilter(f)}>
-                  {f}
-                </Choice>
-              ))}
-            </fieldset>
-            <p className="text-2xs text-ink-faint">{FILTER_NOTES[filter]}</p>
-            {filter !== "none" && (
-              <fieldset className="m-0 mt-1 flex flex-wrap gap-1 border-0 p-0">
-                <legend className="sr-only">Filter strength</legend>
-                {STRENGTHS.map((v) => (
-                  <Choice key={v} selected={strength === v} onClick={() => setStrength(v)}>
-                    {v}
-                  </Choice>
-                ))}
-              </fieldset>
-            )}
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {themesIn(family).map((theme) => (
             <ThemeCard
@@ -106,6 +80,43 @@ export function AppearanceScreen() {
               selected={appearance.theme === theme}
               overrides={appearance.overrides}
               onSelect={() => setTheme(theme)}
+            />
+          ))}
+        </div>
+      </Section>
+
+      {/* Its own section, but still the family's: each family remembers its
+          screen, so flipping to Modern and back brings this one back. */}
+      <Section title={`Screen · ${family}`}>
+        <p className="text-sm text-ink-muted">
+          Effects on the glass, each as strong as you like. Textures can sit over everything or
+          behind it — behind, they show on the ground and never touch a letter.
+        </p>
+
+        <div className="flex flex-col gap-1">
+          <fieldset className="m-0 flex flex-wrap items-center gap-1 border-0 p-0">
+            <legend className="sr-only">Screen preset</legend>
+            {PRESETS.map((p) => (
+              <Choice key={p} selected={preset === p} onClick={() => setPreset(p)}>
+                {p}
+              </Choice>
+            ))}
+            {preset === null && (
+              <span className="px-2 font-mono text-2xs text-phosphor">custom</span>
+            )}
+          </fieldset>
+          <p className="text-2xs text-ink-faint">
+            {preset ? PRESET_NOTES[preset] : "Your own mix. Pick a preset to start again."}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {EFFECTS.map((effect) => (
+            <EffectRow
+              key={effect}
+              effect={effect}
+              setting={screen[effect]}
+              onChange={(patch) => setEffect(effect, patch)}
             />
           ))}
         </div>
@@ -233,6 +244,75 @@ function FamilyChoice({
     >
       {family}
     </button>
+  );
+}
+
+/**
+ * One effect: how much, and for textures, over or behind the content.
+ *
+ * A slider rather than steps, because the right amount is a matter of the
+ * monitor as much as of taste; arrow keys still step it by five.
+ */
+function EffectRow({
+  effect,
+  setting,
+  onChange,
+}: {
+  effect: Effect;
+  setting: EffectSetting;
+  onChange: (patch: Partial<EffectSetting>) => void;
+}) {
+  const id = `trace-effect-${effect}`;
+  const on = setting.amount > 0;
+
+  return (
+    <div
+      className="grid grid-cols-[8rem_1fr_3ch_8.5rem] items-center gap-x-4"
+      title={EFFECT_NOTES[effect]}
+    >
+      <label
+        htmlFor={id}
+        className={`font-mono text-2xs uppercase tracking-system ${on ? "text-ink" : "text-ink-faint"}`}
+      >
+        {EFFECT_LABELS[effect]}
+      </label>
+      <input
+        id={id}
+        type="range"
+        min={0}
+        max={100}
+        step={5}
+        value={setting.amount}
+        onChange={(e) => onChange({ amount: Number(e.target.value) })}
+        aria-describedby={`${id}-note`}
+        className="trace-range"
+        style={{ "--range-fill": `${setting.amount}%` } as React.CSSProperties}
+      />
+      <span className="text-right font-mono text-2xs tabular-nums text-ink-muted">
+        {setting.amount}
+      </span>
+      {PLACEABLE.includes(effect) ? (
+        <fieldset
+          className={`m-0 flex gap-1 border-0 p-0 transition-opacity ${on ? "" : "opacity-40"}`}
+        >
+          <legend className="sr-only">{`${EFFECT_LABELS[effect]} placement`}</legend>
+          {PLACES.map((place) => (
+            <Choice
+              key={place}
+              selected={setting.place === place}
+              onClick={() => onChange({ place })}
+            >
+              {place}
+            </Choice>
+          ))}
+        </fieldset>
+      ) : (
+        <span />
+      )}
+      <span id={`${id}-note`} className="sr-only">
+        {EFFECT_NOTES[effect]}
+      </span>
+    </div>
   );
 }
 

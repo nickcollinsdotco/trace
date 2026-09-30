@@ -1,24 +1,21 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type Appearance,
-  currentFilter,
-  FAMILY_DEFAULTS,
+  currentScreen,
+  defaultFamilies,
   loadAppearance,
   saveAppearance,
+  withEffect,
   withFamily,
-  withFilter,
-  withStrength,
+  withPreset,
   withTheme,
 } from "./appearance";
+import { presetOf } from "./screen";
 
 afterEach(() => localStorage.clear());
 
 function fresh(): Appearance {
-  return {
-    theme: "terminal",
-    overrides: {},
-    families: { retro: { ...FAMILY_DEFAULTS.retro }, modern: { ...FAMILY_DEFAULTS.modern } },
-  };
+  return { theme: "terminal", overrides: {}, families: defaultFamilies() };
 }
 
 describe("families", () => {
@@ -34,55 +31,60 @@ describe("families", () => {
     const a = withTheme(fresh(), "console");
     expect(withFamily(a, "retro")).toBe(a);
   });
+
+  it("start Retro on soft lines and Modern on clean glass", () => {
+    const a = fresh();
+    expect(presetOf(currentScreen(a))).toBe("lines");
+    expect(presetOf(currentScreen(withFamily(a, "modern")))).toBe("none");
+  });
 });
 
-describe("screen filters", () => {
+describe("screens", () => {
   it("belong to the family, so flipping brings each one's back", () => {
-    let a = withFilter(fresh(), "crt");
-    expect(currentFilter(a)).toBe("crt");
+    let a = withPreset(fresh(), "crt");
     a = withFamily(a, "modern");
-    expect(currentFilter(a)).toBe("none");
+    expect(presetOf(currentScreen(a))).toBe("none");
     a = withFamily(a, "retro");
-    expect(currentFilter(a)).toBe("crt");
+    expect(presetOf(currentScreen(a))).toBe("crt");
   });
 
-  it("keep their strength per family too", () => {
-    let a = withStrength(fresh(), "strong");
+  it("keep a hand-set effect on its own family only", () => {
+    let a = withEffect(fresh(), "grain", { amount: 70, place: "behind" });
+    expect(currentScreen(a).grain).toEqual({ amount: 70, place: "behind" });
     a = withFamily(a, "modern");
-    expect(a.families.modern.strength).toBe("medium");
-    a = withFamily(a, "retro");
-    expect(a.families.retro.strength).toBe("strong");
-    expect(withStrength(a, "blinding")).toBe(a);
-  });
-
-  it("ignore a filter that does not exist", () => {
-    const a = fresh();
-    expect(withFilter(a, "bezel")).toBe(a);
+    expect(currentScreen(a).grain.amount).toBe(0);
   });
 });
 
 describe("storage", () => {
-  it("carries CRT mode over into the crt filter, on the family it was used in", () => {
+  it("carries CRT mode over into the crt preset, on the family it was used in", () => {
     localStorage.setItem("trace.theme", "graphite");
     localStorage.setItem("trace.appearance.crt", "on");
     const a = loadAppearance();
-    expect(a.families.modern.filter).toBe("crt");
-    expect(a.families.retro.filter).toBe(FAMILY_DEFAULTS.retro.filter);
+    expect(presetOf(a.families.modern.screen)).toBe("crt");
+    expect(presetOf(a.families.retro.screen)).toBe("lines");
   });
 
-  it("forgets the CRT key once the new shape is saved", () => {
-    localStorage.setItem("trace.appearance.crt", "on");
-    saveAppearance(loadAppearance());
+  it("carries a 0.7 single filter over to the nearest preset", () => {
+    localStorage.setItem(
+      "trace.appearance.families",
+      JSON.stringify({ retro: { filter: "vhs", strength: "strong" } }),
+    );
+    expect(presetOf(loadAppearance().families.retro.screen)).toBe("film");
+  });
+
+  it("round-trips a mixed screen", () => {
+    const a = withEffect(withPreset(fresh(), "lofi"), "dots", { amount: 35 });
+    saveAppearance(a);
+    expect(currentScreen(loadAppearance())).toEqual(currentScreen(a));
     expect(localStorage.getItem("trace.appearance.crt")).toBeNull();
-    expect(currentFilter(loadAppearance())).toBe("crt");
   });
 
   it("drops a remembered theme that belongs to the other family", () => {
     localStorage.setItem(
       "trace.appearance.families",
-      JSON.stringify({ modern: { filter: "glow", theme: "termcn" } }),
+      JSON.stringify({ modern: { theme: "termcn" } }),
     );
-    const a = loadAppearance();
-    expect(a.families.modern).toEqual({ filter: "glow", strength: "medium" });
+    expect(loadAppearance().families.modern.theme).toBeUndefined();
   });
 });

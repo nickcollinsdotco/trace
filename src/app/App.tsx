@@ -3,17 +3,16 @@ import {
   type Appearance,
   AppearanceContext,
   type AppearanceControl,
-  applyFilter,
-  currentFilter,
-  currentStrength,
+  currentScreen,
   loadAppearance,
   saveAppearance,
   withAxis,
+  withEffect,
   withFamily,
-  withFilter,
-  withStrength,
+  withPreset,
   withTheme,
 } from "../design/appearance";
+import { applyScreen } from "../design/screen";
 import { applyTheme, THEMES, themeForKey } from "../design/theme";
 import { AboutScreen } from "../features/about/AboutScreen";
 import { AppearanceScreen } from "../features/appearance/AppearanceScreen";
@@ -154,7 +153,7 @@ function useAppearance(): AppearanceControl {
 
   useEffect(() => {
     applyTheme(appearance.theme, document.documentElement, appearance.overrides);
-    applyFilter(currentFilter(appearance), currentStrength(appearance), document.documentElement);
+    applyScreen(currentScreen(appearance), document.documentElement);
     saveAppearance(appearance);
   }, [appearance]);
 
@@ -183,8 +182,8 @@ function useAppearance(): AppearanceControl {
     appearance,
     setTheme: (theme) => setAppearance((a) => withTheme(a, theme)),
     setFamily: (family) => setAppearance((a) => withFamily(a, family)),
-    setFilter: (filter) => setAppearance((a) => withFilter(a, filter)),
-    setStrength: (strength) => setAppearance((a) => withStrength(a, strength)),
+    setPreset: (preset) => setAppearance((a) => withPreset(a, preset)),
+    setEffect: (effect, patch) => setAppearance((a) => withEffect(a, effect, patch)),
     setAxis: (axis, value) => setAppearance((a) => withAxis(a, axis, value)),
     reset: () => setAppearance((a) => ({ ...a, overrides: {} })),
   };

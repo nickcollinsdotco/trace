@@ -259,6 +259,27 @@ Everything after depends on these, so they go first.
   **Reading** in its header, and the sidebar breakpoint at widths 860 and
   1000. Defaults until then: `focus`, 52rem, 42rem, 960px.
 
+**Screen effects, third attempt (v0.7.2).** Two single-choice filter sets
+were rejected — the first invisible, the second unreadable — and the reason
+was the same both times: flat black drawn over the letters. Rebuilt after
+measuring lofi.cafe's own textures:
+
+- A screen is a **mix**, not a choice: grain, scanlines, dot grid, vignette,
+  glow, flicker, refresh bar, each with a 0–100 slider (`screen.ts`), and
+  presets to start from (none, lines, lofi, crt, film, grid). Per family.
+- Lines are a soft generated texture in `overlay`, as lofi.cafe's are: they
+  shade a letter, never cut it. The vignette lifts the centre as well as
+  dimming the corners. The glow is three layers, up to a 38px haze.
+- Grain, scanlines and dots can go **behind the letters**: blended to
+  `lighten`, they show on the ground and dark surfaces and nowhere a letter
+  is brighter. A layer truly underneath was rejected — every surface would
+  hide it, leaving a bare band under each top bar.
+- Effects are drawn on the **page canvas only**; the sidebar and status bar
+  sit above the glass, untouched.
+- VHS and dither were cut rather than shipped a third time.
+- Checked in headless screenshots at 2× on real screens before shipping,
+  since both earlier versions passed every test and were still wrong.
+
 ### Stage 1 — quick wins
 
 Items 1–3 and 5–9. Independent of one another, small, and all things touched

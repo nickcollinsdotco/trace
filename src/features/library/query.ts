@@ -2,7 +2,7 @@
  * The library's search line, as data.
  *
  * Everything the filter controls do is written into the query as a word —
- * `tag:interview`, `len:>30m`, `sort:oldest`, `has:summary` — so the line is
+ * `tag:interview`, `with:sarah`, `len:>30m`, `sort:oldest`, `has:summary` — so the line is
  * the single source of truth. Any control can be driven by typing, any typed
  * filter shows up as the control's state, and there is no second copy of
  * the filter to fall out of step with the first.
@@ -29,6 +29,8 @@ export interface Query {
   /** Words to search for. */
   terms: string[];
   tags: string[];
+  /** People asked for with `with:`, as written — matched against names. */
+  people: string[];
   /** The length filter as written, e.g. ">30m", or null. */
   length: string | null;
   sort: Sort | null;
@@ -36,14 +38,14 @@ export interface Query {
   type: string | null;
 }
 
-const KEYS = ["tag", "len", "sort", "has", "type"] as const;
-type Key = (typeof KEYS)[number];
+export const KEYS = ["tag", "with", "len", "sort", "has", "type"] as const;
+export type Key = (typeof KEYS)[number];
 
 function split(q: string): string[] {
   return q.split(/\s+/).filter(Boolean);
 }
 
-function keyOf(word: string): Key | null {
+export function keyOf(word: string): Key | null {
   const i = word.indexOf(":");
   if (i <= 0 || i === word.length - 1) return null;
   const key = word.slice(0, i).toLowerCase();
@@ -54,15 +56,25 @@ export function parseQuery(q: string): Query {
   const out: Query = {
     terms: [],
     tags: [],
+    people: [],
     length: null,
     sort: null,
     hasSummary: false,
     type: null,
   };
   for (const word of split(q)) {
+    // A filter's name with nothing after it yet — "tag:" while autofill
+    // offers the tags — is a word half-typed, not a word to search for.
+    if (
+      word.endsWith(":") &&
+      (KEYS as readonly string[]).includes(word.slice(0, -1).toLowerCase())
+    ) {
+      continue;
+    }
     const key = keyOf(word);
     const value = word.slice(word.indexOf(":") + 1);
     if (key === "tag") out.tags.push(value.toLowerCase());
+    else if (key === "with") out.people.push(value.toLowerCase());
     else if (key === "len" && lengthRange(value)) out.length = value;
     else if (key === "sort" && (SORTS as string[]).includes(value)) out.sort = value as Sort;
     else if (key === "has" && value === "summary") out.hasSummary = true;
@@ -125,6 +137,7 @@ export function applyFilters(notes: NoteSummary[], query: Query): NoteSummary[] 
   const kept = notes.filter(
     (n) =>
       query.tags.every((t) => n.tags.includes(t)) &&
+      query.people.every((p) => n.participants.some((name) => personSlug(name).includes(p))) &&
       (!query.hasSummary || n.gist !== null) &&
       (!query.type || n.type === query.type) &&
       // A meeting with no recorded length cannot be said to be in a range.
@@ -158,4 +171,29 @@ export function tagCounts(notes: NoteSummary[]): Array<{ tag: string; count: num
   return [...counts]
     .map(([tag, count]) => ({ tag, count }))
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+}
+
+/**
+ * A name as a search word: lower case, spaces as hyphens.
+ *
+ * The search line splits on spaces, so "Sarah Chen" cannot be one word as
+ * written. `with:sarah-chen` is what autofill writes, and `with:sarah` still
+ * finds her, since a `with:` word matches any part of the slug.
+ */
+export function personSlug(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+/** Everyone named in the library, with how many meetings they were in. */
+export function peopleCounts(notes: NoteSummary[]): Array<{ name: string; count: number }> {
+  const byslug = new Map<string, { name: string; count: number }>();
+  for (const n of notes) {
+    // Once per meeting, however a name was spelt in it.
+    for (const slug of new Set(n.participants.map(personSlug))) {
+      const name = n.participants.find((p) => personSlug(p) === slug) ?? slug;
+      const seen = byslug.get(slug);
+      byslug.set(slug, { name: seen?.name ?? name, count: (seen?.count ?? 0) + 1 });
+    }
+  }
+  return [...byslug.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }

@@ -389,7 +389,13 @@ function Preview({ scenario }: { scenario: Scenario }) {
       openNote={scenario.screen === "note" ? (scenario.notePath ?? null) : null}
       onOpenNote={noop}
     >
-      {scenario.screen === "library" && <LibraryScreen onNewMeeting={noop} onOpenNote={noop} />}
+      {scenario.screen === "library" && (
+        <LibraryScreen
+          initialSearch={scenario.search ?? ""}
+          onNewMeeting={noop}
+          onOpenNote={noop}
+        />
+      )}
       {scenario.screen === "capture" && <CaptureScreen onFinish={noop} />}
       {scenario.screen === "note" && <NoteScreen path={scenario.notePath ?? ""} onBack={noop} />}
       {scenario.screen === "models" && <ModelsScreen />}

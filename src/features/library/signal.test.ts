@@ -10,6 +10,7 @@ function note(date: string, durationMs: number | null, title = date): NoteSummar
     type: "general",
     gist: null,
     tags: [],
+    participants: [],
     startedAt: null,
     durationMs,
     signal: null,

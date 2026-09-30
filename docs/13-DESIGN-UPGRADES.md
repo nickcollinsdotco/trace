@@ -308,6 +308,25 @@ off the pixel grid.
 Items 1–3 and 5–9. Independent of one another, small, and all things touched
 daily. `with:` autofill carries the one Rust change in this stage.
 
+**Built 2026-09-30 (v0.8.0).** Items 5 and 8 were done in Stage 0.
+
+- **Select chevron** drawn in CSS with the same gutter as the text, in the
+  theme's muted ink; a focused select keeps it.
+- **Start meeting** is the full-width primary button, with its Enter hint.
+- **The title** is a `>` prompt with a blinking block cursor while empty;
+  the Modern family drops the field's box so it floats.
+- **Rename is inline**: the row's menu or F2 in the library, double-click on
+  a note's title. Not double-click in the list, where a click opens the
+  meeting and telling the two apart would make every open wait.
+- **Tags** complete from the library's own, most used first; Tab takes the
+  first once something is typed.
+- **Search autofill**: a bare word offers people, tags and filters; a `key:`
+  word offers that key's values. `with:` matches any part of a name, and a
+  filter name with no value yet is ignored rather than searched for.
+  `NoteSummary` now carries `participants`.
+- Found on the way: the gallery's fake `rename_note` edited the shared
+  fixture, so a rename in one scenario leaked into every later one.
+
 ### Stage 2 — themes as data, then the builder
 
 - A theme schema: palette, fonts, type role, case, frame, fill style, radius,

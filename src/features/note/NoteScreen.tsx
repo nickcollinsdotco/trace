@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Page } from "../../components/ui/Page";
+import { RenameInput } from "../../components/ui/RenameInput";
+import {
+  type Suggestion,
+  SuggestionList,
+  useSuggestionKeys,
+} from "../../components/ui/Suggestions";
 import { TopBar, useScrolledPast } from "../../components/ui/TopBar";
 import { Collapsible, Prompt, SectionHead } from "../../components/ui/terminal";
 import { hasBackend, ipc, type LlmStatus, type NoteContext } from "../../lib/ipc";
+import { tagCounts } from "../library/query";
 import { LlmNotice } from "../llm/LlmNotice";
 import { useLlmStatus } from "../llm/useLlmStatus";
 import { RefinementNotice } from "./RefinementNotice";
@@ -33,14 +40,26 @@ export function NoteScreen({
   path,
   onBack,
   onSearchTag,
+  onRenamed,
 }: {
   path: string;
   onBack: () => void;
   /** Optional: clicking a tag searches for it back in the library. */
   onSearchTag?: ((tag: string) => void) | undefined;
+  /** Renaming moves the file, so whoever holds the path needs the new one. */
+  onRenamed?: ((path: string) => void) | undefined;
 }) {
+  const [renaming, setRenaming] = useState(false);
+  // Shown until the note is read again from its new path, so the title does
+  // not flick back to the old one in between.
+  const [renamedTo, setRenamedTo] = useState<string | null>(null);
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // A fresh read carries the title itself — the new one, after a rename that
+  // moved the file, or another note's entirely.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on every read of the text
+  useEffect(() => setRenamedTo(null), [text]);
   const [view, setView] = useState<View | null>(null);
   // Set once the user picks a half, after which nothing switches it for them.
   const [picked, setPicked] = useState(false);
@@ -168,11 +187,39 @@ export function NoteScreen({
         </TopBar>
       }
     >
-      {head?.title && (
-        <h1 ref={titleRef} className="trace-title text-2xl text-ink">
-          {head.title}
-        </h1>
-      )}
+      {head?.title &&
+        (renaming ? (
+          <RenameInput
+            initial={renamedTo ?? head.title}
+            label={`Rename ${renamedTo ?? head.title}`}
+            onCommit={(title) => {
+              setRenaming(false);
+              setRenamedTo(title);
+              void ipc
+                .renameNote(path, title)
+                .then((moved) => {
+                  if (moved !== path) onRenamed?.(moved);
+                })
+                .catch(() => setRenamedTo(null));
+            }}
+            onCancel={() => setRenaming(false)}
+            className="trace-title text-2xl text-ink"
+          />
+        ) : (
+          // Double-click, as a title is renamed in Explorer or Finder. Here,
+          // unlike a library row, the title is not a link, so nothing else
+          // wants the click. The library's menu and F2 are the keyboard way.
+          <h1
+            ref={titleRef}
+            onDoubleClick={() => {
+              if (hasBackend()) setRenaming(true);
+            }}
+            title={hasBackend() ? "Double-click to rename" : undefined}
+            className="trace-title text-2xl text-ink"
+          >
+            {renamedTo ?? head.title}
+          </h1>
+        ))}
 
       {error && (
         <p className="font-mono text-xs text-error">
@@ -804,6 +851,37 @@ function Tags({
   const [tags, setTags] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
+  // Every tag in the library, most used first — read when the field opens,
+  // since that is the only time it is needed.
+  const [known, setKnown] = useState<Array<{ tag: string; count: number }>>([]);
+
+  useEffect(() => {
+    if (!adding || !hasBackend()) return;
+    void ipc
+      .listNotes()
+      .then((notes) => setKnown(tagCounts(notes)))
+      .catch(() => setKnown([]));
+  }, [adding]);
+
+  /*
+   * Tags already in use that fit what is typed, so the library keeps one
+   * "client" rather than "client", "clients" and "Client". Starts-with before
+   * contains, then the most used. With nothing typed, the most used — so a
+   * familiar tag is one arrow and Enter away.
+   */
+  const typed = draft.trim().toLowerCase();
+  const suggestions: Suggestion[] = known
+    .filter(({ tag }) => !tags.includes(tag) && tag.includes(typed) && tag !== typed)
+    .sort((a, b) => Number(b.tag.startsWith(typed)) - Number(a.tag.startsWith(typed)))
+    .slice(0, 6)
+    .map(({ tag, count }) => ({ value: tag, label: tag, hint: String(count) }));
+
+  const add = (tag: string) => {
+    if (tag.trim()) save([...tags, tag]);
+    setDraft("");
+    setAdding(false);
+  };
+  const keys = useSuggestionKeys(suggestions, (s) => add(s.value), typed !== "");
 
   useEffect(() => {
     if (!hasBackend()) return;
@@ -847,33 +925,42 @@ function Tags({
       ))}
 
       {adding ? (
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => {
-            if (draft.trim()) save([...tags, draft]);
-            setDraft("");
-            setAdding(false);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              if (draft.trim()) save([...tags, draft]);
-              setDraft("");
-              setAdding(false);
+        <span className="relative">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => add(draft)}
+            onKeyDown={(e) => {
+              if (keys.onKeyDown(e)) return;
+              if (e.key === "Enter") add(draft);
+              if (e.key === "Escape") {
+                setDraft("");
+                setAdding(false);
+              }
+            }}
+            placeholder="tag…"
+            aria-label="New tag"
+            name="tag"
+            autoComplete="off"
+            role="combobox"
+            aria-expanded={suggestions.length > 0}
+            aria-controls="trace-tag-suggestions"
+            aria-activedescendant={
+              keys.active >= 0 ? `trace-tag-suggestions-${keys.active}` : undefined
             }
-            if (e.key === "Escape") {
-              setDraft("");
-              setAdding(false);
-            }
-          }}
-          placeholder="tag…"
-          aria-label="New tag"
-          name="tag"
-          autoComplete="off"
-          // biome-ignore lint/a11y/noAutofocus: opened by an explicit click
-          autoFocus
-          className="trace-field w-28 px-2 py-1 font-mono text-2xs"
-        />
+            // biome-ignore lint/a11y/noAutofocus: opened by an explicit click
+            autoFocus
+            className="trace-field w-36 px-2 py-1 font-mono text-2xs"
+          />
+          <SuggestionList
+            id="trace-tag-suggestions"
+            label="Tags already in use"
+            items={suggestions}
+            active={keys.active}
+            onHover={keys.setActive}
+            onPick={(s) => add(s.value)}
+          />
+        </span>
       ) : (
         <button
           type="button"

@@ -360,7 +360,9 @@
 .trace-field:focus,
 .trace-field:focus-visible {
   outline: none;
-  background: var(--field-bg-focus);
+  /* The colour, not the shorthand: the shorthand also cleared a select's
+     chevron, which is a background image. */
+  background-color: var(--field-bg-focus);
   border-color: var(--field-border-focus);
   box-shadow: var(--field-focus-shadow);
 }
@@ -421,6 +423,20 @@
 }
 
 /* ---------------------------------------------------------------------
+ * The new-meeting title (CaptureScreen). The hint sits exactly where the
+ * input's text will start, so it takes the field's own padding; the real
+ * placeholder is kept for screen readers and hidden under it.
+ * ------------------------------------------------------------------ */
+.trace-title-hint {
+  padding: var(--field-padding);
+  border: 1px solid transparent;
+}
+
+.trace-title-input::placeholder {
+  color: transparent;
+}
+
+/* ---------------------------------------------------------------------
  * Native select.
  *
  * The control inherits `.trace-field`, but its dropdown list is drawn by the
@@ -428,6 +444,35 @@
  * system-coloured list. Both the control and its options need a real colour.
  * ------------------------------------------------------------------ */
 select.trace-field {
+  background-color: var(--color-surface-2);
+}
+
+/*
+ * The chevron is drawn here rather than left to the system, which set it
+ * hard against the right edge, closer than the text sits to the left. Two
+ * small triangles in the theme's muted ink make a chevron that re-skins with
+ * everything else; the right padding gives it the same gutter as the text
+ * has on the left, and keeps a long device name from running under it.
+ */
+select.trace-field {
+  --chevron-gap: 0.85rem;
+  appearance: none;
+  padding-right: calc(var(--chevron-gap) * 2 + 0.7rem);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-ink-muted) 50%),
+    linear-gradient(135deg, var(--color-ink-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - var(--chevron-gap) - 0.3rem) 55%,
+    calc(100% - var(--chevron-gap)) 55%;
+  background-size: 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+/* A select keeps its solid fill when focused; the translucent focus ground
+   of a text field would let the page show through its closed face. */
+select.trace-field:focus,
+select.trace-field:focus-visible {
   background-color: var(--color-surface-2);
 }
 

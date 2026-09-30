@@ -63,3 +63,22 @@
   border-color: transparent;
   color: var(--color-surface-0);
 }
+
+/*
+ * The new-meeting title floats: no box, no ground, no focus ring. The prompt
+ * and the blinking cursor say where to type, and focus stays visible as the
+ * cursor, the caret and the accent prompt.
+ */
+[data-family="modern"] .trace-title-input,
+[data-family="modern"] .trace-title-input:focus,
+[data-family="modern"] .trace-title-input:focus-visible {
+  border-color: transparent;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  padding-inline: 0;
+}
+
+[data-family="modern"] .trace-title-hint {
+  padding-inline: 0;
+}

@@ -101,6 +101,7 @@ export function App() {
             onBack={() => toLibrary()}
             // Clicking a tag goes back to the library with it already searched.
             onSearchTag={(tag) => toLibrary(`tag:${tag}`)}
+            onRenamed={(path) => setRoute({ name: "note", path })}
           />
         )}
 

@@ -144,6 +144,8 @@ export interface NoteSummary {
   /** One line on what the meeting was about. Null until notes are generated. */
   gist: string | null;
   tags: string[];
+  /** Who was on the other end, as the user named them. */
+  participants: string[];
   /** RFC 3339. Orders meetings within a day. */
   startedAt: string | null;
   /** Null when the meeting never recorded an end, e.g. one recovered after a crash. */

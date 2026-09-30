@@ -266,6 +266,9 @@ pub struct NoteSummary {
     /// generated, and on notes written before the gist existed.
     pub gist: Option<String>,
     pub tags: Vec<String>,
+    /// Who was on the other end, as the user named them. What the library's
+    /// `with:` search matches.
+    pub participants: Vec<String>,
     /// RFC 3339, when recording began. What orders meetings on one day.
     pub started_at: Option<String>,
     /// How long it ran. Absent for a meeting that never recorded an end —
@@ -348,6 +351,7 @@ fn collect_notes(dir: &std::path::Path, out: &mut Vec<NoteSummary>) {
             meeting_type: store::markdown::parse_meeting_type(&text).unwrap_or_default(),
             gist: frontmatter_field(&text, "gist"),
             tags: store::tags::read(&text),
+            participants: store::context::read(&text).participants,
             duration_ms: duration_between(
                 frontmatter_field(&text, "started_at").as_deref(),
                 frontmatter_field(&text, "ended_at").as_deref(),
@@ -458,10 +462,46 @@ mod tests {
             meeting_type: MeetingType::General,
             gist: None,
             tags: Vec::new(),
+            participants: Vec::new(),
             started_at: started.map(str::to_string),
             duration_ms: None,
             signal: None,
         }
+    }
+
+    #[test]
+    fn a_summary_carries_who_was_in_the_meeting() {
+        // What the library's `with:` search matches; empty when no one was
+        // named, never missing.
+        let dir = std::env::temp_dir().join(format!("trace-people-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("named.md"),
+            "---
+title: Named
+participants:
+  - Sarah Chen
+  - Dev
+---
+",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("nobody.md"),
+            "---
+title: Nobody
+---
+",
+        )
+        .unwrap();
+
+        let mut notes = Vec::new();
+        collect_notes(&dir, &mut notes);
+        notes.sort_by(|a, b| a.title.cmp(&b.title));
+        std::fs::remove_dir_all(&dir).ok();
+
+        assert_eq!(notes[0].participants, vec!["Sarah Chen", "Dev"]);
+        assert!(notes[1].participants.is_empty());
     }
 
     #[test]

@@ -111,7 +111,7 @@ describe("screen.css", () => {
 
   it("fills boxes and fields while something is behind, so it stops at their edge", () => {
     expect(css).toMatch(/\[data-fx-behind\]\[data-frame="box"\] \.trace-section/);
-    expect(css).toMatch(/\[data-fx-behind\] \.trace-field/);
+    expect(css).toMatch(/\[data-fx-behind\] \.trace-field:not\(select\)/);
   });
 
   it("never animates grain by moving a picture of it", () => {

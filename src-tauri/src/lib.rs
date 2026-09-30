@@ -21,6 +21,7 @@ pub mod store;
 pub mod synthesis;
 pub mod system;
 pub mod transcribe;
+pub mod windows;
 
 use capture_manager::CaptureManager;
 
@@ -42,11 +43,21 @@ pub fn run() {
         // easy and confusing. Set here rather than in `tauri.conf.json`,
         // which has no per-profile title.
         .setup(|app| {
+            use tauri::Manager;
             if cfg!(debug_assertions) {
-                use tauri::Manager;
                 for window in app.webview_windows().values() {
                     window.set_title("TRACE (dev)")?;
                 }
+            }
+            // The main window is created hidden, so it can be sized to the
+            // screen before anyone sees it at the wrong size. It is shown
+            // whether or not the sizing worked: a window that never appears
+            // is far worse than one that opens too large.
+            if let Some(main) = app.get_webview_window("main") {
+                if let Err(e) = windows::fit_and_centre(&main, (1200.0, 840.0)) {
+                    diagnostics::log(format!("could not size the main window: {e}"));
+                }
+                main.show()?;
             }
             Ok(())
         })
@@ -96,6 +107,7 @@ pub fn run() {
             commands::llm_status,
             commands::start_ollama,
             commands::app_info,
+            commands::open_gallery,
             commands::diagnostics_report,
         ])
         .run(tauri::generate_context!())

@@ -29,11 +29,11 @@ export function TopBar({
 
   return (
     <div
-      className={`sticky top-0 z-10 border-b bg-surface-0 transition-colors ${
+      className={`sticky top-0 z-10 shrink-0 border-b bg-surface-0 transition-colors ${
         showCurrent ? "border-line" : "border-transparent"
       }`}
     >
-      <div className="trace-measure flex h-12 items-center gap-3 px-6">
+      <div className="trace-column flex h-12 items-center gap-3">
         {back && (
           <button
             type="button"

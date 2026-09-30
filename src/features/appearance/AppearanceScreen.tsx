@@ -1,6 +1,14 @@
 import { useEffect, useRef } from "react";
+import { Page } from "../../components/ui/Page";
 import { Prompt, Section, SystemLabel } from "../../components/ui/terminal";
-import { AXES, type Axis, useAppearanceControl } from "../../design/appearance";
+import {
+  AXES,
+  type Axis,
+  currentFilter,
+  FILTER_NOTES,
+  FILTERS,
+  useAppearanceControl,
+} from "../../design/appearance";
 import {
   applyTheme,
   CASE_NOTES,
@@ -18,7 +26,7 @@ import {
 } from "../../design/theme";
 
 /**
- * The look, chosen by seeing it.
+ * The theme, chosen by seeing it.
  *
  * Each card is the real token set applied to a small sample, not a
  * screenshot, so a preview can never disagree with what selecting it does.
@@ -28,99 +36,97 @@ import {
  * C). They were gallery-only, which made that test depend on a dev harness.
  */
 export function AppearanceScreen() {
-  const { appearance, setTheme, setAxis, setCrt, reset } = useAppearanceControl();
+  const { appearance, setTheme, setFamily, setFilter, setAxis, reset } = useAppearanceControl();
   const overridden = Object.values(appearance.overrides).some((v) => v !== undefined);
   const family = THEME_FAMILY[appearance.theme];
+  const filter = currentFilter(appearance);
 
   return (
-    <div data-mode="reading" className="h-full overflow-y-auto">
-      <div className="trace-measure flex flex-col gap-10 px-6 py-10">
-        <Section title="Style">
-          <p className="text-sm text-ink-muted">
-            Two languages, each with its own themes. Pick one, then a theme within it — or press{" "}
-            <Key>1</Key>–<Key>{String(THEMES.length)}</Key> anywhere outside a text field. A look is
-            best judged over a few days of real meetings, not from a preview.
-          </p>
+    <Page className="gap-10">
+      <Section title="Theme">
+        <p className="text-sm text-ink-muted">
+          Two families, each with its own themes and its own screen. Pick one, then a theme within
+          it — or press <Key>1</Key>–<Key>{String(THEMES.length)}</Key> anywhere outside a text
+          field. A theme is best judged over a few days of real meetings, not from a preview.
+        </p>
 
-          <fieldset className="m-0 flex w-fit gap-1 rounded-pill border border-line p-1">
-            <legend className="sr-only">Style</legend>
-            {FAMILIES.map((f) => (
-              <FamilyChoice
-                key={f}
-                family={f}
-                selected={family === f}
-                // The family's first theme, unless the current one is already in it.
-                onSelect={() => {
-                  if (family !== f) setTheme(themesIn(f)[0] ?? "terminal");
-                }}
-              />
-            ))}
-          </fieldset>
-          <p className="text-2xs text-ink-faint">{FAMILY_NOTES[family]}</p>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {themesIn(family).map((theme) => (
-              <ThemeCard
-                key={theme}
-                theme={theme}
-                shortcut={THEMES.indexOf(theme) + 1}
-                selected={appearance.theme === theme}
-                overrides={appearance.overrides}
-                onSelect={() => setTheme(theme)}
-              />
-            ))}
-          </div>
-        </Section>
-
-        <Section title="CRT mode">
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="checkbox"
-              checked={appearance.crt}
-              onChange={(e) => setCrt(e.target.checked)}
-              className="mt-1 accent-(--color-phosphor)"
+        <fieldset className="m-0 flex w-fit gap-1 rounded-pill border border-line p-1">
+          <legend className="sr-only">Family</legend>
+          {FAMILIES.map((f) => (
+            <FamilyChoice
+              key={f}
+              family={f}
+              selected={family === f}
+              // Back to the theme last used in that family, not its first.
+              onSelect={() => setFamily(f)}
             />
-            <span className="flex flex-col gap-1">
-              <span className="text-sm text-ink">Show TRACE on an old monitor</span>
-              <span className="text-2xs text-ink-faint">
-                A bezel, scanlines and a little phosphor glow, over whichever theme is chosen.
-                Purely for fun — it never flickers, and it is off by default.
-              </span>
-            </span>
-          </label>
-        </Section>
+          ))}
+        </fieldset>
+        <p className="text-2xs text-ink-faint">{FAMILY_NOTES[family]}</p>
 
-        <Section
-          title="Fine-tuning"
-          actions={
-            overridden ? (
-              <button
-                type="button"
-                onClick={reset}
-                className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
-              >
-                Reset to theme
-              </button>
-            ) : undefined
-          }
-        >
-          <p className="text-sm text-ink-muted">
-            Each theme has its own choices for these. “Theme” keeps them; anything else overrides
-            them on top of whichever theme is selected.
-          </p>
-          <div className="flex flex-col gap-4">
-            {(Object.keys(AXES) as Axis[]).map((axis) => (
-              <AxisControl
-                key={axis}
-                axis={axis}
-                value={appearance.overrides[axis]}
-                onChange={(v) => setAxis(axis, v)}
-              />
-            ))}
+        {/* Under the switch because it belongs to the family: each one
+            remembers its own, so flipping brings back the whole of it. */}
+        <div className="grid grid-cols-[8rem_1fr] items-start gap-x-4 gap-y-1">
+          <span className="pt-1.5 font-mono text-2xs uppercase tracking-system text-ink-faint">
+            Screen
+          </span>
+          <div className="flex flex-col gap-1">
+            <fieldset className="m-0 flex flex-wrap gap-1 border-0 p-0">
+              <legend className="sr-only">Screen filter</legend>
+              {FILTERS.map((f) => (
+                <Choice key={f} selected={filter === f} onClick={() => setFilter(f)}>
+                  {f}
+                </Choice>
+              ))}
+            </fieldset>
+            <p className="text-2xs text-ink-faint">{FILTER_NOTES[filter]}</p>
           </div>
-        </Section>
-      </div>
-    </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {themesIn(family).map((theme) => (
+            <ThemeCard
+              key={theme}
+              theme={theme}
+              shortcut={THEMES.indexOf(theme) + 1}
+              selected={appearance.theme === theme}
+              overrides={appearance.overrides}
+              onSelect={() => setTheme(theme)}
+            />
+          ))}
+        </div>
+      </Section>
+
+      <Section
+        title="Fine-tuning"
+        actions={
+          overridden ? (
+            <button
+              type="button"
+              onClick={reset}
+              className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
+            >
+              Reset to theme
+            </button>
+          ) : undefined
+        }
+      >
+        <p className="text-sm text-ink-muted">
+          Each theme has its own choices for these. “Theme” keeps them; anything else overrides them
+          on top of whichever theme is selected.
+        </p>
+        <div className="flex flex-col gap-4">
+          {(Object.keys(AXES) as Axis[]).map((axis) => (
+            <AxisControl
+              key={axis}
+              axis={axis}
+              value={appearance.overrides[axis]}
+              onChange={(v) => setAxis(axis, v)}
+            />
+          ))}
+        </div>
+      </Section>
+    </Page>
   );
 }
 

@@ -324,41 +324,55 @@ describe("Gallery", () => {
     expect(card).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("switches between the modern and terminal families", async () => {
+  it("flips families, and comes back to the theme last used in each", async () => {
     localStorage.clear();
     const user = userEvent.setup();
     const { container } = render(<Gallery />);
     await openScenario(user, "Appearance");
 
     const main = await screen.findByRole("main");
-    // Terminal's themes, and no modern one, until the family changes.
-    expect(within(main).getByRole("button", { name: /termcn/ })).toBeInTheDocument();
+    // Retro's themes, and no modern one, until the family changes.
+    await user.click(within(main).getByRole("button", { name: /industrial/ }));
     expect(within(main).queryByRole("button", { name: /graphite/ })).toBeNull();
 
     await user.click(within(main).getByRole("button", { name: "modern" }));
-
     await waitFor(() => {
       expect(
         container.querySelector('[data-family="modern"][data-theme="graphite"]'),
       ).not.toBeNull();
     });
-    expect(within(main).getByRole("button", { name: /graphite/ })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
     expect(within(main).queryByRole("button", { name: /termcn/ })).toBeNull();
+
+    // Back to industrial, not to the family's first theme.
+    await user.click(within(main).getByRole("button", { name: "retro" }));
+    await waitFor(() => {
+      expect(
+        container.querySelector('[data-family="retro"][data-theme="industrial"]'),
+      ).not.toBeNull();
+    });
   });
 
-  it("turns CRT mode on over whichever theme is chosen", async () => {
+  it("keeps a screen filter per family", async () => {
+    localStorage.clear();
     const user = userEvent.setup();
     const { container } = render(<Gallery />);
     await openScenario(user, "Appearance");
+    const main = await screen.findByRole("main");
 
-    await user.click(await screen.findByRole("checkbox", { name: /old monitor/ }));
+    // Retro starts on faint scanlines; Modern on clean glass.
+    await waitFor(() =>
+      expect(container.querySelector('[data-filter="scanlines"]')).not.toBeNull(),
+    );
+    await user.click(within(main).getByRole("button", { name: "crt" }));
+    await waitFor(() => expect(container.querySelector('[data-filter="crt"]')).not.toBeNull());
 
-    await waitFor(() => expect(container.querySelector('[data-screen="crt"]')).not.toBeNull());
-    // The hardware is in the shell already, and only shown under the switch.
-    expect(container.querySelectorAll(".trace-screw")).toHaveLength(4);
+    await user.click(within(main).getByRole("button", { name: "modern" }));
+    await waitFor(() => expect(container.querySelector("[data-filter]")).toBeNull());
+
+    await user.click(within(main).getByRole("button", { name: "retro" }));
+    await waitFor(() => expect(container.querySelector('[data-filter="crt"]')).not.toBeNull());
+    // The monitor hardware CRT mode drew is gone for good.
+    expect(container.querySelector(".trace-bezel")).toBeNull();
   });
 
   it("tests the microphone only when asked, and stops when asked", async () => {
@@ -621,7 +635,7 @@ describe("Gallery", () => {
 
   it("removes a meeting from the list when deleted", async () => {
     const user = userEvent.setup();
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const native = vi.spyOn(window, "confirm");
     render(<Gallery />);
     await openScenario(user, "Meetings");
     await waitFor(() =>
@@ -632,15 +646,21 @@ describe("Gallery", () => {
     await user.click(screen.getAllByRole("button", { name: "Meeting actions" })[1] as HTMLElement);
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
+    // Asked in the app's own dialog, never the browser's "tauri.localhost
+    // says" box, and it names the consequence.
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Delete “Pricing page rework”?");
+    expect(native).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Delete meeting" }));
+
     await waitFor(() =>
       expect(screen.queryByText("Pricing page rework", { selector: ROW })).toBeNull(),
     );
-    confirm.mockRestore();
+    native.mockRestore();
   });
 
   it("does not delete when the confirmation is declined", async () => {
     const user = userEvent.setup();
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<Gallery />);
     await openScenario(user, "Meetings");
     await waitFor(() =>
@@ -649,10 +669,34 @@ describe("Gallery", () => {
 
     await user.click(screen.getAllByRole("button", { name: "Meeting actions" })[1] as HTMLElement);
     await user.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("dialog");
+    // Focus starts on the safe answer, so Enter cannot delete by accident.
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
     // Still there. A destructive action that ignores "no" is worse than none.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument();
-    confirm.mockRestore();
+  });
+
+  it("hides the sidebar by hand and keeps the recording in view", async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Recording");
+    await screen.findByRole("navigation", { name: "App" });
+
+    await user.click(screen.getByRole("button", { name: "Hide sidebar" }));
+    expect(screen.queryByRole("navigation", { name: "App" })).toBeNull();
+    // The strip that replaces it still says a meeting is running.
+    // Named with its timer, which also tells it from the scenario called
+    // "Recording" in the gallery's own list.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Recording\s*\d/ })).toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Show sidebar" }));
+    expect(await screen.findByRole("navigation", { name: "App" })).toBeInTheDocument();
   });
 
   it("offers discarding a recording in progress", async () => {

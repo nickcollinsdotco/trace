@@ -433,8 +433,10 @@ panel and Granola-style rows; the scroll breadcrumb.
 
 **Not built yet:**
 
-1. **The collapsible sidebar.** The user is designing it. Its width is already
-   one variable (`--sidebar-width`), so collapsing it changes a value.
+1. ~~**The collapsible sidebar.**~~ Built in Stage 0 of
+   `docs/13-DESIGN-UPGRADES.md`: hidden by hand (Ctrl+\) or below 960px,
+   folding to a strip with the toggle and the recording timer. CRT mode went
+   the same week, replaced by screen filters.
 2. **More modern themes.** One exists so the family could be judged against a
    real screen. A light theme is the obvious second — nothing in the modern
    family assumes a dark ground, but no theme has tested that.

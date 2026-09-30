@@ -20,6 +20,7 @@ const LABEL_TONE = {
   faint: "text-ink-faint",
   muted: "text-ink-muted",
   phosphor: "text-phosphor",
+  error: "text-error",
 } as const;
 
 export function SystemLabel({

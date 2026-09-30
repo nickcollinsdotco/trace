@@ -1,6 +1,8 @@
 import { createContext, useContext } from "react";
 import {
   CASES,
+  FAMILIES,
+  type Family,
   FRAMES,
   isFrame,
   isLetterCase,
@@ -11,9 +13,54 @@ import {
   MONOS,
   type Overrides,
   saveTheme,
+  THEME_FAMILY,
   type Theme,
   TYPES,
+  themesIn,
 } from "./theme";
+
+/**
+ * A treatment of the glass the app is shown through (CONTEXT.md).
+ *
+ * These replaced CRT mode, which drew a whole monitor — screws, lights, a
+ * vent — around the app. The bezel was the part that aged badly; what was
+ * worth keeping was the glass, and the glass is a filter.
+ */
+export const FILTERS = ["none", "scanlines", "glow", "dots", "dither", "vignette", "crt"] as const;
+
+export type Filter = (typeof FILTERS)[number];
+
+export const FILTER_NOTES: Record<Filter, string> = {
+  none: "Clean glass.",
+  scanlines: "Faint horizontal lines, as a raster display draws them.",
+  glow: "Phosphor bloom around the text.",
+  dots: "A dot-matrix mesh, like an old LCD up close.",
+  dither: "A fine checkerboard, as a one-bit screen fakes a grey.",
+  vignette: "The corners fall into shadow.",
+  crt: "Scanlines, glow and vignette together.",
+};
+
+export function isFilter(value: unknown): value is Filter {
+  return typeof value === "string" && (FILTERS as readonly string[]).includes(value);
+}
+
+/**
+ * What each family remembers.
+ *
+ * Per family rather than app-wide, so flipping between Modern and Retro
+ * brings back the whole of each: its last theme and the glass it was shown
+ * through. Motion, sound and density join this as they are built.
+ */
+export interface FamilySettings {
+  filter: Filter;
+  /** The theme last chosen in this family, restored when flipping back to it. */
+  theme?: Theme | undefined;
+}
+
+export const FAMILY_DEFAULTS: Record<Family, FamilySettings> = {
+  retro: { filter: "scanlines" },
+  modern: { filter: "none" },
+};
 
 /**
  * The look as a whole: a theme plus any axis the user has overridden.
@@ -26,34 +73,45 @@ import {
 export interface Appearance {
   theme: Theme;
   overrides: Overrides;
-  /**
-   * CRT mode: a bezel, scanlines and phosphor glow over the whole app.
-   *
-   * A switch rather than a theme, because it is not a palette — it is the
-   * screen the palette is shown on, and it suits any theme, modern included.
-   */
-  crt: boolean;
+  families: Record<Family, FamilySettings>;
 }
 
 const OVERRIDES_KEY = "trace.appearance.overrides";
-const CRT_KEY = "trace.appearance.crt";
+const FAMILIES_KEY = "trace.appearance.families";
+/** Read once, to carry a CRT-mode choice over into the filter that replaced it. */
+const LEGACY_CRT_KEY = "trace.appearance.crt";
 
 export function loadAppearance(): Appearance {
-  return { theme: loadTheme(), overrides: loadOverrides(), crt: loadCrt() };
+  const theme = loadTheme();
+  return { theme, overrides: loadOverrides(), families: loadFamilies(theme) };
 }
 
-function loadCrt(): boolean {
+function loadFamilies(theme: Theme): Record<Family, FamilySettings> {
+  const families = { retro: { ...FAMILY_DEFAULTS.retro }, modern: { ...FAMILY_DEFAULTS.modern } };
   try {
-    return localStorage.getItem(CRT_KEY) === "on";
+    const raw = JSON.parse(localStorage.getItem(FAMILIES_KEY) ?? "null") as Record<
+      string,
+      Record<string, unknown> | undefined
+    > | null;
+    if (raw) {
+      for (const f of FAMILIES) {
+        const saved = raw[f];
+        if (isFilter(saved?.filter)) families[f].filter = saved.filter;
+        if (isTheme(saved?.theme) && THEME_FAMILY[saved.theme] === f)
+          families[f] = {
+            ...families[f],
+            theme: saved.theme,
+          };
+      }
+    } else if (localStorage.getItem(LEGACY_CRT_KEY) === "on") {
+      // Someone who turned CRT mode on should not lose it to an update. It
+      // lands on the family they were using, which is where they saw it.
+      families[THEME_FAMILY[theme]].filter = "crt";
+    }
   } catch {
-    return false;
+    // Unreadable storage: the defaults are a fine answer.
   }
-}
-
-/** Set or clear CRT mode on the element that carries the look. */
-export function applyCrt(on: boolean, target: HTMLElement): void {
-  if (on) target.setAttribute("data-screen", "crt");
-  else target.removeAttribute("data-screen");
+  return families;
 }
 
 function loadOverrides(): Overrides {
@@ -76,10 +134,22 @@ export function saveAppearance(a: Appearance): void {
   saveTheme(a.theme);
   try {
     localStorage.setItem(OVERRIDES_KEY, JSON.stringify(a.overrides));
-    localStorage.setItem(CRT_KEY, a.crt ? "on" : "off");
+    localStorage.setItem(FAMILIES_KEY, JSON.stringify(a.families));
+    localStorage.removeItem(LEGACY_CRT_KEY);
   } catch {
     // Not worth surfacing — the choice simply does not persist.
   }
+}
+
+/** The filter in force: the one the current theme's family remembers. */
+export function currentFilter(a: Appearance): Filter {
+  return a.families[THEME_FAMILY[a.theme]].filter;
+}
+
+/** Set or clear the screen filter on the element that carries the look. */
+export function applyFilter(filter: Filter, target: HTMLElement): void {
+  if (filter === "none") target.removeAttribute("data-filter");
+  else target.setAttribute("data-filter", filter);
 }
 
 export const AXES = {
@@ -94,8 +164,11 @@ export type Axis = keyof typeof AXES;
 export interface AppearanceControl {
   appearance: Appearance;
   setTheme: (theme: Theme) => void;
+  /** Switch family, restoring the theme last used in it. */
+  setFamily: (family: Family) => void;
+  /** Set the filter for the current theme's family. */
+  setFilter: (filter: Filter) => void;
   setAxis: (axis: Axis, value: string | undefined) => void;
-  setCrt: (on: boolean) => void;
   reset: () => void;
 }
 
@@ -124,6 +197,26 @@ export function withAxis(a: Appearance, axis: Axis, value: string | undefined): 
   return { ...a, overrides: { ...a.overrides, [axis]: value } };
 }
 
+/** Choose a theme, and remember it as its family's latest. */
 export function withTheme(a: Appearance, theme: string): Appearance {
-  return isTheme(theme) ? { ...a, theme } : a;
+  if (!isTheme(theme)) return a;
+  const family = THEME_FAMILY[theme];
+  return {
+    ...a,
+    theme,
+    families: { ...a.families, [family]: { ...a.families[family], theme } },
+  };
+}
+
+/** Flip to a family, landing on the theme last used in it. */
+export function withFamily(a: Appearance, family: Family): Appearance {
+  if (THEME_FAMILY[a.theme] === family) return a;
+  const remembered = a.families[family].theme;
+  return withTheme(a, remembered ?? themesIn(family)[0] ?? "terminal");
+}
+
+export function withFilter(a: Appearance, filter: string): Appearance {
+  if (!isFilter(filter)) return a;
+  const family = THEME_FAMILY[a.theme];
+  return { ...a, families: { ...a.families, [family]: { ...a.families[family], filter } } };
 }

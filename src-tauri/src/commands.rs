@@ -802,6 +802,15 @@ pub fn app_info(app: AppHandle) -> AppInfo {
     }
 }
 
+/// Open the screen gallery in its own window.
+///
+/// Async because creating a window from a synchronous command deadlocks on
+/// Windows: the command would hold the thread the new window needs.
+#[tauri::command]
+pub async fn open_gallery(app: AppHandle) -> CmdResult<()> {
+    crate::windows::open_gallery(&app).map_err(err)
+}
+
 /// Everything worth knowing when something has gone wrong.
 #[tauri::command]
 pub async fn diagnostics_report(

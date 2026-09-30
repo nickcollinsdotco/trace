@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Page } from "../../components/ui/Page";
 import { TopBar, useScrolledPast } from "../../components/ui/TopBar";
 import { Collapsible, Prompt, SectionHead } from "../../components/ui/terminal";
 import { hasBackend, ipc, type LlmStatus, type NoteContext } from "../../lib/ipc";
@@ -141,115 +142,117 @@ export function NoteScreen({
   }
 
   return (
-    <div ref={scroller} data-mode="reading" className="h-full overflow-y-auto">
-      <TopBar
-        back={{ label: "Back to meetings", onClick: onBack }}
-        trail={["Meetings"]}
-        current={head?.title}
-        showCurrent={titleGone}
-      >
-        {sections && (
-          <ViewToggle
-            view={active}
-            hasEnhanced={sections.hasEnhanced}
-            onChange={(v) => {
-              setPicked(true);
-              setView(v);
-            }}
-            onRegenerate={regenerate}
-            regenerating={busy}
-            replayable={replayable}
-          />
-        )}
-      </TopBar>
+    <Page
+      ref={scroller}
+      className="gap-6"
+      bar={
+        <TopBar
+          back={{ label: "Back to meetings", onClick: onBack }}
+          trail={["Meetings"]}
+          current={head?.title}
+          showCurrent={titleGone}
+        >
+          {sections && (
+            <ViewToggle
+              view={active}
+              hasEnhanced={sections.hasEnhanced}
+              onChange={(v) => {
+                setPicked(true);
+                setView(v);
+              }}
+              onRegenerate={regenerate}
+              regenerating={busy}
+              replayable={replayable}
+            />
+          )}
+        </TopBar>
+      }
+    >
+      {head?.title && (
+        <h1 ref={titleRef} className="trace-title text-2xl text-ink">
+          {head.title}
+        </h1>
+      )}
 
-      <div className="trace-measure flex flex-col gap-6 px-6 pt-8 pb-10">
-        {head?.title && (
-          <h1 ref={titleRef} className="trace-title text-2xl text-ink">
-            {head.title}
-          </h1>
-        )}
+      {error && (
+        <p className="font-mono text-xs text-error">
+          <Prompt />
+          {error}
+        </p>
+      )}
+      {text === null && !error && (
+        <p className="font-mono text-xs text-ink-faint">
+          <Prompt />
+          reading…
+        </p>
+      )}
 
-        {error && (
-          <p className="font-mono text-xs text-error">
-            <Prompt />
-            {error}
-          </p>
-        )}
-        {text === null && !error && (
-          <p className="font-mono text-xs text-ink-faint">
-            <Prompt />
-            reading…
-          </p>
-        )}
+      <RefinementNotice job={job} />
 
-        <RefinementNotice job={job} />
+      <Tags path={path} onSearchTag={onSearchTag} />
 
-        <Tags path={path} onSearchTag={onSearchTag} />
+      {hasBackend() && sections && (
+        <AboutMeeting
+          about={about}
+          onSave={saveAbout}
+          replayable={replayable}
+          busy={busy}
+          usable={llm.status === null || llm.status.state === "ready"}
+        />
+      )}
 
-        {hasBackend() && sections && (
-          <AboutMeeting
-            about={about}
-            onSave={saveAbout}
-            replayable={replayable}
-            busy={busy}
-            usable={llm.status === null || llm.status.state === "ready"}
-          />
-        )}
+      {sections && head && (
+        <>
+          {head.rest && <NoteBody markdown={head.rest} them={them} />}
 
-        {sections && head && (
-          <>
-            {head.rest && <NoteBody markdown={head.rest} them={them} />}
-
-            {active === "enhanced" ? (
-              sections.hasEnhanced ? (
-                busy ? (
-                  <Rewriting>
-                    <Parts markdown={sections.enhanced} them={them} />
-                  </Rewriting>
-                ) : (
+          {active === "enhanced" ? (
+            sections.hasEnhanced ? (
+              busy ? (
+                <Rewriting>
                   <Parts markdown={sections.enhanced} them={them} />
-                )
-              ) : busy ? (
-                <NotesPending />
+                </Rewriting>
               ) : (
-                <NotEnhancedYet
-                  llm={llm.status}
-                  onRecheck={llm.recheck}
-                  onRegenerate={regenerate}
-                  regenerating={busy}
-                  replayable={replayable}
-                />
+                <Parts markdown={sections.enhanced} them={them} />
               )
-            ) : sections.hasNotes ? (
-              <Parts markdown={sections.notes} them={them} />
+            ) : busy ? (
+              <NotesPending />
             ) : (
-              <p className="font-mono text-xs text-ink-faint">
-                <Prompt />
-                no notes were typed during this meeting.
-              </p>
-            )}
+              <NotEnhancedYet
+                llm={llm.status}
+                onRecheck={llm.recheck}
+                onRegenerate={regenerate}
+                regenerating={busy}
+                replayable={replayable}
+              />
+            )
+          ) : sections.hasNotes ? (
+            <Parts markdown={sections.notes} them={them} />
+          ) : (
+            <p className="font-mono text-xs text-ink-faint">
+              <Prompt />
+              no notes were typed during this meeting.
+            </p>
+          )}
 
-            {/* The transcript sits under both views: it is the evidence for
+          {/* The transcript sits under both views: it is the evidence for
                 the enhanced half and the context for the user's own. Closed
                 by default so it does not bury either. */}
-            {sections.transcript && (
-              <div className="mt-4">
-                <Parts markdown={sections.transcript} them={them} closed={["transcript"]} />
-              </div>
-            )}
+          {sections.transcript && (
+            <div className="mt-4">
+              <Parts markdown={sections.transcript} them={them} closed={["transcript"]} />
+            </div>
+          )}
 
-            {sections.footer && <NoteBody markdown={sections.footer} them={them} />}
-          </>
-        )}
+          {sections.footer && <NoteBody markdown={sections.footer} them={them} />}
+        </>
+      )}
 
-        {text !== null && (
-          <p className="pt-6 font-mono text-2xs text-ink-faint" data-selectable>
-            {path}
-          </p>
-        )}
-      </div>
-    </div>
+      {text !== null && (
+        <p className="pt-6 font-mono text-2xs text-ink-faint" data-selectable>
+          {path}
+        </p>
+      )}
+    </Page>
   );
 }
 

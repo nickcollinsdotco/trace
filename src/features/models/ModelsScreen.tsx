@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { useConfirm } from "../../components/ui/Confirm";
+import { Page } from "../../components/ui/Page";
 import { Prompt, Section } from "../../components/ui/terminal";
 import { formatBytes } from "../../lib/format";
 import {
@@ -22,16 +24,15 @@ import { useLlmStatus } from "../llm/useLlmStatus";
  */
 export function ModelsScreen() {
   return (
-    <div data-mode="reading" className="h-full overflow-y-auto">
-      <div className="trace-measure flex flex-col gap-10 px-6 py-10">
-        <SpeechModels />
-        <SummaryModelsSection />
-      </div>
-    </div>
+    <Page className="gap-10">
+      <SpeechModels />
+      <SummaryModelsSection />
+    </Page>
   );
 }
 
 function SpeechModels() {
+  const confirm = useConfirm();
   const [models, setModels] = useState<SpeechModel[] | null>(null);
   const [downloading, setDownloading] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
@@ -77,15 +78,15 @@ function SpeechModels() {
       );
   }
 
-  function remove(m: SpeechModel) {
-    const ok = window.confirm(
-      [
-        `Delete ${m.name}?`,
-        "",
+  async function remove(m: SpeechModel) {
+    const ok = await confirm({
+      title: `Delete ${m.name}?`,
+      body: [
         `This frees about ${formatBytes(m.downloadBytes)}. It can be downloaded again at any time.`,
         "Existing notes and transcripts are not affected.",
-      ].join("\n"),
-    );
+      ],
+      confirm: "Delete model",
+    });
     if (!ok) return;
     setError(null);
     void ipc

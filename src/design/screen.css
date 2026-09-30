@@ -1,0 +1,100 @@
+/*
+ * TRACE — screen filters
+ *
+ * The glass the app is shown through, set by `data-filter` on the element
+ * that carries the look. Each family remembers its own (appearance.ts).
+ *
+ * This replaced CRT mode, which built a monitor around the app — screws,
+ * status lights, a vent — from six spans the shell always rendered. The
+ * hardware is gone; the glass it framed survives as `crt`, one filter among
+ * several.
+ *
+ * Every filter is one overlay above the screen, invisible to the pointer, so
+ * switching costs no remount. Nothing animates: a flicker would be the most
+ * authentic touch and the least readable one. All of it is kept faint,
+ * because it sits over body text, which docs/05 forbids hurting.
+ */
+
+.trace-screen {
+  position: relative;
+}
+
+[data-filter] .trace-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------
+ * The layers, defined once so `crt` can stack them.
+ *
+ * On `[data-filter]`, not `:root`: a custom property that uses var()
+ * resolves where it is declared. On the root, the bloom took the root's
+ * phosphor, so a gallery preview themed on its own pane glowed in the wrong
+ * colour. The filter and the theme are always set on the same element.
+ * ------------------------------------------------------------------ */
+[data-filter] {
+  --filter-scanlines: repeating-linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 10%) 0 1px,
+    transparent 1px 3px
+  );
+  --filter-bloom: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--color-phosphor) 5%, transparent) 0%,
+    transparent 70%
+  );
+  --filter-vignette: radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 42%) 100%);
+  --filter-glow-text: 0 0 6px color-mix(in srgb, var(--color-phosphor) 26%, transparent);
+}
+
+[data-filter="scanlines"] .trace-screen::after {
+  background: var(--filter-scanlines);
+}
+
+/* Bloom is mostly the text itself; the overlay only lifts the middle. */
+[data-filter="glow"] .trace-screen {
+  text-shadow: var(--filter-glow-text);
+}
+
+[data-filter="glow"] .trace-screen::after {
+  background: var(--filter-bloom);
+}
+
+/* A screen-door mesh: dark between the cells, clear in them. */
+[data-filter="dots"] .trace-screen::after {
+  background:
+    radial-gradient(circle at center, transparent 0 0.8px, rgb(0 0 0 / 22%) 1.3px) 0 0 / 3px 3px;
+}
+
+[data-filter="dither"] .trace-screen::after {
+  background: repeating-conic-gradient(rgb(0 0 0 / 11%) 0% 25%, transparent 0% 50%) 0 0 / 2px 2px;
+}
+
+[data-filter="vignette"] .trace-screen::after {
+  background: var(--filter-vignette);
+  box-shadow: inset 0 0 3rem rgb(0 0 0 / 45%);
+}
+
+[data-filter="crt"] .trace-screen {
+  text-shadow: var(--filter-glow-text);
+}
+
+[data-filter="crt"] .trace-screen::after {
+  background: var(--filter-scanlines), var(--filter-bloom), var(--filter-vignette);
+  box-shadow:
+    inset 0 0 3rem rgb(0 0 0 / 50%),
+    inset 0 0 0.6rem rgb(0 0 0 / 60%);
+}
+
+/* More contrast asked for: nothing sits over the text, whatever was chosen. */
+@media (prefers-contrast: more) {
+  [data-filter] .trace-screen {
+    text-shadow: none;
+  }
+  [data-filter] .trace-screen::after {
+    content: none;
+  }
+}

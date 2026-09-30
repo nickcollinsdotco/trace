@@ -75,9 +75,13 @@
  * ------------------------------------------------------------------ */
 
 /*
- * Monospace is wider per character, so an unchanged character measure gets
- * physically wider and the line becomes tiring exactly where it matters most.
- * The measure comes in to compensate, and the type drops a notch.
+ * Monospace is wider per character, so the same line holds fewer words and
+ * reads denser; the leading opens up to compensate.
+ *
+ * It used to narrow the column too, to `62ch`. That made every mono theme's
+ * page a different width from every sans one, so flicking between themes
+ * moved the whole layout. Line length is the reading cap's job now
+ * (layout.css), and it is the same in every theme.
  */
 [data-type="mono"] {
   --font-sans: var(--font-mono);
@@ -85,26 +89,11 @@
 
 [data-type="mono"] [data-mode="reading"],
 [data-type="mono"][data-mode="reading"] {
-  --measure: 62ch;
   --content-leading: 1.7;
 }
 
 [data-type="sans"] {
   --font-mono: var(--font-sans);
-}
-
-/* ---------------------------------------------------------------------
- * The measure, finally connected.
- *
- * `--measure` and `--content-leading` were defined at M0 and never read by
- * anything — reading width was a hardcoded `max-w-2xl`. That made the
- * capture-vs-reading token split decorative. It is load-bearing now, which
- * is what lets the mono compensation above work at all.
- * ------------------------------------------------------------------ */
-.trace-measure {
-  width: 100%;
-  max-width: var(--measure, 42rem);
-  margin-inline: auto;
 }
 
 [data-mode="reading"] .trace-prose {

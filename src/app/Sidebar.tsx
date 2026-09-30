@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { formatElapsed, SystemLabel } from "../components/ui/terminal";
-import { hasBackend, ipc } from "../lib/ipc";
 import { Wordmark } from "./Wordmark";
 
 export type Page = "library" | "capture" | "models" | "appearance" | "settings" | "about";
@@ -23,28 +22,58 @@ const SECONDARY: Array<{ page: Page; label: string }> = [
  * A meeting keeps recording when you leave its screen — capture is owned by
  * the backend, not by a component — so "Record" turns into a live timer while
  * one is running. Leaving a recording must never feel like losing it.
+ *
+ * It can be hidden (Shell.tsx): by hand at any width, and automatically in a
+ * narrow window, where it comes back as an overlay rather than a column.
  */
 export function Sidebar({
   current,
   onNavigate,
+  recording,
+  onHide,
+  overlay = false,
 }: {
   current: Page | null;
   onNavigate: (page: Page) => void;
+  /** Elapsed milliseconds of the meeting being recorded, or null. */
+  recording: number | null;
+  onHide: () => void;
+  /** Shown over the content rather than beside it. */
+  overlay?: boolean;
 }) {
-  const recording = useRecordingElapsed();
+  const hide = useRef<HTMLButtonElement>(null);
+
+  // Opened as an overlay from the keyboard, focus has to land inside it, or
+  // the next Tab walks the page hidden underneath.
+  useEffect(() => {
+    if (overlay) hide.current?.focus();
+  }, [overlay]);
 
   return (
-    // Width from one variable, so the collapsible version planned for this
-    // sidebar changes a value rather than every class that assumes a size.
-    <aside className="flex w-(--sidebar-width) shrink-0 flex-col gap-6 border-r border-line bg-surface-1 px-3 py-4">
-      <button
-        type="button"
-        onClick={() => onNavigate("library")}
-        className="self-start rounded-xs px-2 transition-opacity duration-120 hover:opacity-80"
-        aria-label="TRACE — back to meetings"
-      >
-        <Wordmark />
-      </button>
+    <aside
+      aria-label="Sidebar"
+      className="flex w-(--sidebar-width) shrink-0 flex-col gap-6 border-r border-line bg-surface-1 px-3 py-4"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => onNavigate("library")}
+          className="rounded-xs px-2 transition-opacity duration-120 hover:opacity-80"
+          aria-label="TRACE — back to meetings"
+        >
+          <Wordmark />
+        </button>
+        <button
+          ref={hide}
+          type="button"
+          onClick={onHide}
+          aria-label={overlay ? "Close sidebar" : "Hide sidebar"}
+          title={overlay ? "Close sidebar (Esc)" : "Hide sidebar (Ctrl+)"}
+          className="flex size-7 shrink-0 items-center justify-center rounded-sm text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
+        >
+          <PanelIcon />
+        </button>
+      </div>
 
       <nav aria-label="App" className="flex flex-col gap-4">
         <NavGroup>
@@ -132,32 +161,25 @@ function NavItem({
 }
 
 /**
- * Elapsed time of the meeting being recorded, or null when there is none.
+ * A panel with its sidebar ruled off: the hide and show control.
  *
- * Polled, because the sidebar has to know about a recording started on a
- * screen it cannot see. Once a second is what the timer displays anyway.
+ * Drawn rather than a glyph, because no box-drawing character reads as
+ * "sidebar", and the mono fonts in use disagree about the ones that come
+ * close.
  */
-function useRecordingElapsed(): number | null {
-  const [elapsed, setElapsed] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!hasBackend()) return;
-    let cancelled = false;
-    const poll = () => {
-      void ipc
-        .captureStatus()
-        .then((s) => {
-          if (!cancelled) setElapsed(s ? s.elapsedMs : null);
-        })
-        .catch(() => {});
-    };
-    poll();
-    const id = window.setInterval(poll, 1_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, []);
-
-  return elapsed;
+export function PanelIcon() {
+  return (
+    <svg
+      aria-hidden
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+    >
+      <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1" />
+      <path d="M6.25 2.75v10.5" />
+    </svg>
+  );
 }

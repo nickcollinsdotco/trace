@@ -13,6 +13,7 @@
  * to design if you never see it.
  */
 
+import type { ConfirmOptions } from "../components/ui/Confirm";
 import { EVENT, type Job, type JobOutcome, type NoteSummary, type StepKind } from "../lib/ipc";
 import type { BackendState, ScriptedEvent } from "./backend";
 import {
@@ -43,6 +44,8 @@ export interface Scenario {
   screen: ScreenName;
   /** Which note to open, for reading-mode scenarios. */
   notePath?: string;
+  /** A confirmation already asked, for the states that only exist mid-question. */
+  dialog?: ConfirmOptions;
   state: Partial<BackendState>;
 }
 
@@ -352,6 +355,20 @@ export const SCENARIOS: Scenario[] = [
     group: "Library",
     note: "Several meetings across every date group.",
     screen: "library",
+    state: POPULATED,
+  },
+  {
+    id: "library-confirm-delete",
+    name: "Delete, confirming",
+    group: "Library",
+    note: "The app's own confirmation, which replaced the browser's. Esc or Cancel dismisses it.",
+    screen: "library",
+    dialog: {
+      title: "Delete “Pricing page rework”?",
+      body: ["The note and its transcript are both deleted.", "This cannot be undone."],
+      confirm: "Delete meeting",
+      danger: true,
+    },
     state: POPULATED,
   },
   {
@@ -812,7 +829,7 @@ export const SCENARIOS: Scenario[] = [
     id: "appearance",
     name: "Appearance",
     group: "Pages",
-    note: "Modern or Terminal, then a theme within it, and CRT mode over either. Picking here re-themes this preview.",
+    note: "Modern or Retro, a theme within it, and each family's screen — effects mixed by slider, over or behind the letters. Picking here re-themes this preview.",
     screen: "appearance",
     state: POPULATED,
   },

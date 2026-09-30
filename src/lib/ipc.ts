@@ -401,6 +401,8 @@ export const ipc = {
   startOllama: () => call<void>("start_ollama"),
 
   appInfo: () => call<AppInfo>("app_info"),
+  /** Opens the screen gallery in its own window, or focuses it. */
+  openGallery: () => call<void>("open_gallery"),
   diagnosticsReport: () => call<DiagnosticsReport>("diagnostics_report"),
 };
 
@@ -442,6 +444,11 @@ export function onModelProgress(handler: (progress: ModelProgress) => void): Pro
  */
 export function hasBackend(): boolean {
   if (fake) return true;
+  return isDesktop();
+}
+
+/** Whether this page is running inside the Tauri app, fake backend or not. */
+export function isDesktop(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 

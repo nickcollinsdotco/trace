@@ -109,9 +109,11 @@ events and counts only, never transcript text or notes (`diagnostics.rs`).
 
 ## The gallery
 
-`#gallery` in dev, or **Ctrl+Shift+G**. Renders the real screens against
-fixtures — every state, including the failures, with no recording needed.
-Themes switch on `1`–`5`.
+**Ctrl+Shift+G** opens it in a window of its own, in every build (`#gallery`
+in a plain browser). Its own window because it fakes the backend for the whole
+page it runs in. Renders the real screens against fixtures — every state,
+including the failures, with no recording needed. Themes switch on the number
+keys; the header also varies the screen preset, width, and the layout prototypes.
 
 Add a scenario for any state you build. A state nobody can look at is a state
 that rots.

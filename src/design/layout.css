@@ -1,0 +1,119 @@
+/*
+ * TRACE — page layout
+ *
+ * The content column, and where it sits vertically. Owned here rather than
+ * by any theme, so switching theme or family can never move it — the width
+ * jump that prompted this was the mono role redefining the column in `ch`,
+ * which is a different length in every font (docs/13-DESIGN-UPGRADES.md).
+ *
+ * Everything is in `rem` for the same reason. Granola is the reference: the
+ * column fills a narrow window with fixed gutters and stops growing in a wide
+ * one, sitting centred with empty space either side.
+ *
+ * `--column`, `--reading-measure` and `data-align` are also the Stage 0
+ * prototypes: the gallery varies them on its preview so each can be judged on
+ * real screens before one value is chosen and the others deleted.
+ */
+
+:root {
+  /* The column every page's content sits in. */
+  --column: 52rem;
+  /* Long reading text — a note's body — capped inside it, left-aligned, so
+     lines stay readable while no edge moves. */
+  --reading-measure: 42rem;
+  --page-gutter: 1.5rem;
+  /* Space between the top bar and a page's first line. The bar is always
+     there (Page.tsx), so every page starts at the same height. */
+  --page-top: 1.5rem;
+  --page-bottom: 2.5rem;
+}
+
+/* A page: its bar, then the scroller (Page.tsx). */
+.trace-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* A column flexbox, so auto margins on the column can centre it when the
+   alignment rule asks for that. */
+.trace-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.trace-column {
+  width: 100%;
+  max-width: var(--column);
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+
+.trace-scroll > .trace-column {
+  flex: none;
+  padding-top: var(--page-top);
+  padding-bottom: var(--page-bottom);
+}
+
+[data-mode="reading"] .trace-prose {
+  max-width: var(--reading-measure);
+}
+
+/* ---------------------------------------------------------------------
+ * Vertical alignment — three candidates, prototyped in the gallery.
+ *
+ *   (default)   pages start at the top; a page with one job, like starting
+ *               a meeting, sits centred
+ *   fit         any page short enough to fit is centred; longer ones start
+ *               at the top
+ *   top         everything starts at the top
+ *
+ * Auto block margins do the work: in a column flexbox they centre a child
+ * that is shorter than its container and collapse to nothing when it is
+ * taller, which is exactly "centre if it fits".
+ * ------------------------------------------------------------------ */
+[data-page="focus"] .trace-scroll > .trace-column {
+  margin-block: auto;
+}
+
+[data-align="fit"] .trace-scroll > .trace-column {
+  margin-block: auto;
+}
+
+[data-align="top"] .trace-scroll > .trace-column {
+  margin-block: 0;
+}
+
+/* ---------------------------------------------------------------------
+ * The sidebar as an overlay, in a narrow window or when hidden by hand.
+ * Reduced motion needs nothing here: tokens.css cuts every animation to
+ * nothing, and the panel simply appears.
+ * ------------------------------------------------------------------ */
+@keyframes trace-slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes trace-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.trace-slide-in {
+  animation: trace-slide-in 180ms var(--ease-out);
+}
+
+.trace-scrim {
+  animation: trace-fade-in 180ms var(--ease-out);
+}
+
+/* The confirmation dialog's shade over the page. */
+.trace-dialog::backdrop {
+  background: rgb(0 0 0 / 55%);
+  animation: trace-fade-in 180ms var(--ease-out);
+}

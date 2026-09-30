@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Page } from "../../components/ui/Page";
 import { Prompt, Section } from "../../components/ui/terminal";
 import { type DeviceInfo, hasBackend, ipc, type Settings, type SummaryMemory } from "../../lib/ipc";
 import { AudioRetentionField } from "./AudioRetentionField";
@@ -42,80 +43,76 @@ export function SettingsScreen() {
   const save = (p: Promise<Settings>) => void p.then(setSettings).catch((e) => setError(String(e)));
 
   return (
-    <div data-mode="reading" className="h-full overflow-y-auto">
-      <div className="trace-measure flex flex-col gap-10 px-6 py-10">
-        {error && (
-          <p className="font-mono text-2xs text-error">
-            <Prompt />
-            {error}
-          </p>
-        )}
-        {!hasBackend() && (
-          <p className="font-mono text-xs text-ink-faint">
-            <Prompt />
-            no backend — run the desktop app.
-          </p>
-        )}
+    <Page className="gap-10">
+      {error && (
+        <p className="font-mono text-2xs text-error">
+          <Prompt />
+          {error}
+        </p>
+      )}
+      {!hasBackend() && (
+        <p className="font-mono text-xs text-ink-faint">
+          <Prompt />
+          no backend — run the desktop app.
+        </p>
+      )}
 
-        {settings && (
-          <>
-            <Section title="Recording">
-              <Field label="Microphone" note="Selected first when you start a meeting.">
-                <select
-                  aria-label="Default microphone"
-                  value={settings.defaultMic ?? ""}
-                  onChange={(e) => save(ipc.setDefaultMic(e.target.value || null))}
-                  className="trace-field w-auto py-1.5 text-sm"
-                >
-                  <option value="">System default</option>
-                  {devices.map((d) => (
-                    <option key={d.name} value={d.name}>
-                      {d.name}
-                    </option>
-                  ))}
-                  {/* A remembered device that is unplugged stays visible,
-                      rather than the choice silently reading as the default. */}
-                  {settings.defaultMic && !devices.some((d) => d.name === settings.defaultMic) && (
-                    <option value={settings.defaultMic}>
-                      {settings.defaultMic} (not connected)
-                    </option>
-                  )}
-                </select>
-              </Field>
-              <Field label="Audio">
-                <AudioRetentionField />
-              </Field>
-            </Section>
+      {settings && (
+        <>
+          <Section title="Recording">
+            <Field label="Microphone" note="Selected first when you start a meeting.">
+              <select
+                aria-label="Default microphone"
+                value={settings.defaultMic ?? ""}
+                onChange={(e) => save(ipc.setDefaultMic(e.target.value || null))}
+                className="trace-field w-auto py-1.5 text-sm"
+              >
+                <option value="">System default</option>
+                {devices.map((d) => (
+                  <option key={d.name} value={d.name}>
+                    {d.name}
+                  </option>
+                ))}
+                {/* A remembered device that is unplugged stays visible,
+                    rather than the choice silently reading as the default. */}
+                {settings.defaultMic && !devices.some((d) => d.name === settings.defaultMic) && (
+                  <option value={settings.defaultMic}>{settings.defaultMic} (not connected)</option>
+                )}
+              </select>
+            </Field>
+            <Field label="Audio">
+              <AudioRetentionField />
+            </Field>
+          </Section>
 
-            <Section title="Summaries">
-              <Field label="Model memory">
-                <div
-                  role="radiogroup"
-                  aria-label="Summary model memory"
-                  className="flex flex-col gap-2"
-                >
-                  {MEMORY_OPTIONS.map((o) => (
-                    <label key={o.value} className="flex cursor-pointer items-start gap-3">
-                      <input
-                        type="radio"
-                        name="summary-memory"
-                        checked={settings.summaryMemory === o.value}
-                        onChange={() => save(ipc.setSummaryMemory(o.value))}
-                        className="mt-1 size-3.5 shrink-0 accent-phosphor"
-                      />
-                      <span className="flex flex-col gap-0.5">
-                        <span className="text-sm text-ink">{o.label}</span>
-                        <span className="text-2xs text-ink-faint">{o.note}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </Field>
-            </Section>
-          </>
-        )}
-      </div>
-    </div>
+          <Section title="Summaries">
+            <Field label="Model memory">
+              <div
+                role="radiogroup"
+                aria-label="Summary model memory"
+                className="flex flex-col gap-2"
+              >
+                {MEMORY_OPTIONS.map((o) => (
+                  <label key={o.value} className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="radio"
+                      name="summary-memory"
+                      checked={settings.summaryMemory === o.value}
+                      onChange={() => save(ipc.setSummaryMemory(o.value))}
+                      className="mt-1 size-3.5 shrink-0 accent-phosphor"
+                    />
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-sm text-ink">{o.label}</span>
+                      <span className="text-2xs text-ink-faint">{o.note}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </Field>
+          </Section>
+        </>
+      )}
+    </Page>
   );
 }
 

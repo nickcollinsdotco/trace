@@ -30,7 +30,10 @@ export const THEMES = [
 export type Theme = (typeof THEMES)[number];
 
 /**
- * Two design languages, each with its own themes.
+ * Two families, Modern and Retro, each with its own themes.
+ *
+ * Retro rather than "terminal", which was also the name of a theme inside it
+ * — "switch to terminal" meant two things (CONTEXT.md).
  *
  * A family is not a theme: it decides whether the app speaks terminal at all
  * — prompts, box-drawing corners, caps — where a theme only re-skins the one
@@ -38,22 +41,22 @@ export type Theme = (typeof THEMES)[number];
  * in themes.css always said themes should not make; so it is an attribute of
  * its own, `data-family`, read by `family.css`, and no component forks on it.
  */
-export const FAMILIES = ["modern", "terminal"] as const;
+export const FAMILIES = ["modern", "retro"] as const;
 
 export type Family = (typeof FAMILIES)[number];
 
 export const THEME_FAMILY: Record<Theme, Family> = {
-  terminal: "terminal",
-  report: "terminal",
-  console: "terminal",
-  industrial: "terminal",
-  termcn: "terminal",
+  terminal: "retro",
+  report: "retro",
+  console: "retro",
+  industrial: "retro",
+  termcn: "retro",
   graphite: "modern",
 };
 
 export const FAMILY_NOTES: Record<Family, string> = {
   modern: "A contemporary app: sans type, soft cards, rounded controls, no terminal glyphs.",
-  terminal: "An instrument from an alternate 1987: monospace system text, rules and boxes.",
+  retro: "An instrument from an alternate 1987: monospace system text, rules and boxes.",
 };
 
 /** The themes in a family, in switcher order. */

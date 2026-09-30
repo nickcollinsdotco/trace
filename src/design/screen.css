@@ -1,0 +1,321 @@
+/*
+ * TRACE — screen effects
+ *
+ * The glass the app is shown through: a mix of effects, each with its own
+ * amount (`--fx-<effect>`, 0–1) and, for textures, a place
+ * (`data-fx-<effect>="over" | "behind"`). Set by screen.ts on the element
+ * that carries the theme; drawn by layers the shell always renders on its
+ * canvas — the page area, never the sidebar or status bar.
+ *
+ * WHAT WENT WRONG BEFORE, AND THE RULES IT LEFT
+ *
+ * The first two versions drew flat black lines, dots and checkerboards over
+ * everything. Over the near-black ground they were invisible, and turned up
+ * enough to show, they cut every letter into strips. lofi.cafe does the same
+ * effects well, and measuring its files showed why:
+ *
+ *   1. Lines are a soft texture blended in `overlay`, which shades what is
+ *      under it — darker under a dark band, lighter under a light one —
+ *      instead of painting black over it. A letter is shaded, never cut.
+ *   2. The vignette is a lit centre falling to dark corners, also overlaid,
+ *      so the middle of the screen glows rather than only the edges dimming.
+ *   3. The glow is big.
+ *
+ * "Behind" means underneath. The canvas is its own stacking context, so a
+ * layer at `z-index: -1` is painted over the canvas's ground and under
+ * everything on the page: letters, cards, boxes and fields sit on top of it,
+ * untouched. The first "behind" was a lighten blend over everything, which
+ * still covered every dark card — and looked the same as "over".
+ *
+ * COST AND SAFETY
+ *
+ * Only `transform` and `opacity` animate, so the compositor moves the layers
+ * without repainting the page while a meeting is being transcribed. The
+ * flicker changes the screen's luminance by at most ~3%, far below the
+ * flash threshold (WCAG 2.3.1). Reduced motion stops every animation
+ * (tokens.css); more contrast removes the effects entirely.
+ */
+
+/*
+ * The canvas — the page area — is where the glass is. The sidebar and status
+ * bar are chrome and stay above it (Shell.tsx). Isolated, so the blends
+ * below mix only with the page, and the layers cannot stack over the
+ * sidebar when it opens as an overlay. Opaque, because a blend over nothing
+ * shows its raw texture.
+ */
+.trace-canvas {
+  isolation: isolate;
+}
+
+.trace-fx {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+[data-fx-grain="behind"] .trace-fx-grain,
+[data-fx-scanlines="behind"] .trace-fx-scanlines,
+[data-fx-dots="behind"] .trace-fx-dots {
+  z-index: -1;
+}
+
+/*
+ * With something behind the content, boxes and fields take the ground's
+ * colour as a fill, so the texture stops at their edge and what they hold
+ * stays clean. Cards already have a fill. Without, they stay transparent —
+ * nothing looks different until there is something to keep out.
+ */
+[data-fx-behind][data-frame="box"] .trace-section,
+[data-fx-behind] [data-frame="box"] .trace-section {
+  background-color: var(--color-surface-0);
+}
+
+[data-fx-behind] .trace-field,
+[data-fx-behind] .trace-field:focus,
+[data-fx-behind] .trace-field:focus-visible {
+  background-color: var(--color-surface-0);
+  background-image: linear-gradient(var(--field-bg), var(--field-bg));
+}
+
+[data-fx-behind] .trace-field:focus,
+[data-fx-behind] .trace-field:focus-visible {
+  background-image: linear-gradient(var(--field-bg-focus), var(--field-bg-focus));
+}
+
+/* ---------------------------------------------------------------------
+ * Grain — a canvas that Grain.tsx fills with fresh noise every frame. Only
+ * its look lives here.
+ *
+ * Screened: it can only lighten, so it adds specks to the dark and next to
+ * nothing to a bright letter. Coarser sizes are drawn at lower resolution
+ * and scaled up smoothly, which softens them into clumps, as film's are.
+ * ------------------------------------------------------------------ */
+[data-fx-grain] .trace-fx-grain {
+  display: block;
+  width: 100%;
+  height: 100%;
+  mix-blend-mode: screen;
+  opacity: calc(var(--fx-grain) * 0.5);
+}
+
+/* No stronger than over: turned right up on the ground alone, it washed out
+   the faint text that sits there — tags, dates, counts. */
+[data-fx-grain="behind"] .trace-fx-grain {
+  opacity: calc(var(--fx-grain) * 0.45);
+}
+
+/* ---------------------------------------------------------------------
+ * Scanlines — lofi.cafe's recipe: a soft line texture in overlay, drifting
+ * slowly down. The texture is six lines tall, drawn at twice its shown size
+ * so no edge is hard; `--fx-scanlines-size` is the pitch of one line.
+ * ------------------------------------------------------------------ */
+[data-fx-scanlines] .trace-fx-scanlines {
+  --pitch: calc(var(--fx-scanlines-size, 3) * 1px);
+  display: block;
+  inset: calc(var(--pitch) * -6) 0 0;
+  background: var(--fx-lines-tex) 0 0 / calc(var(--pitch) * 21.333) calc(var(--pitch) * 6);
+  mix-blend-mode: overlay;
+  opacity: var(--fx-scanlines);
+  animation: trace-lines-drift 12s linear infinite;
+  will-change: transform;
+}
+
+/* Overlay shades what is under it, and the ground is too dark to shade, so
+   behind, the lines are lit bands on it instead. */
+[data-fx-scanlines="behind"] .trace-fx-scanlines {
+  mix-blend-mode: lighten;
+  opacity: calc(var(--fx-scanlines) * 0.3);
+}
+
+/* ---------------------------------------------------------------------
+ * Dot grid — the ground of a punch card or an LED panel. Behind, the dots
+ * are the ground and everything sits on them; over, they sit on everything.
+ * The dot grows a little with the pitch, so a wide grid still reads.
+ * ------------------------------------------------------------------ */
+[data-fx-dots] .trace-fx-dots {
+  --pitch: calc(var(--fx-dots-size, 8) * 1px);
+  --dot: calc(0.3px + var(--fx-dots-size, 8) * 0.07px);
+  display: block;
+  background:
+    radial-gradient(
+      circle at center,
+      var(--color-ink) 0 var(--dot),
+      transparent calc(var(--dot) + 0.5px)
+    )
+    0 0 / var(--pitch) var(--pitch);
+  opacity: calc(var(--fx-dots) * 0.35);
+}
+
+/* ---------------------------------------------------------------------
+ * Vignette — a lit centre falling to dark corners, overlaid. Shaped like
+ * lofi.cafe's: bright in the middle, still light a quarter of the way out,
+ * nearly black only at the very corners.
+ * ------------------------------------------------------------------ */
+[data-fx-vignette] .trace-fx-vignette {
+  display: block;
+  background: radial-gradient(
+    ellipse 125% 115% at 50% 42%,
+    rgb(235 235 235) 0%,
+    rgb(190 190 190) 32%,
+    rgb(128 128 128) 58%,
+    rgb(45 45 45) 86%,
+    rgb(10 10 10) 100%
+  );
+  mix-blend-mode: overlay;
+  opacity: calc(var(--fx-vignette) * 0.85);
+}
+
+/* ---------------------------------------------------------------------
+ * Glass — the sheen on the face of a tube: a soft highlight top left and a
+ * broad diagonal glare, as vault66-crt-effect draws them. It only lightens,
+ * and faintly, so it costs no letter anything.
+ * ------------------------------------------------------------------ */
+[data-fx-glass] .trace-fx-glass {
+  display: block;
+  background:
+    radial-gradient(ellipse 70% 60% at 22% 12%, rgb(255 255 255 / 9%) 0%, transparent 60%),
+    linear-gradient(
+      115deg,
+      transparent 18%,
+      rgb(255 255 255 / 2%) 30%,
+      rgb(255 255 255 / 5%) 42%,
+      rgb(255 255 255 / 2%) 54%,
+      transparent 66%
+    );
+  opacity: var(--fx-glass);
+}
+
+/* ---------------------------------------------------------------------
+ * Glow — lofi.cafe's bloom: a bright core, a halo, and a wide haze, in the
+ * theme's own accent. Static; an animated shadow would repaint every
+ * letter every frame.
+ * ------------------------------------------------------------------ */
+[data-fx-glow] .trace-canvas {
+  text-shadow:
+    0 0 1px color-mix(in srgb, var(--color-phosphor-bright) calc(var(--fx-glow) * 85%), transparent),
+    0 0 calc(2px + var(--fx-glow) * 9px)
+    color-mix(in srgb, var(--color-phosphor) calc(var(--fx-glow) * 75%), transparent),
+    0 0 calc(4px + var(--fx-glow) * 34px)
+    color-mix(in srgb, var(--color-phosphor) calc(var(--fx-glow) * 40%), transparent);
+}
+
+/* ---------------------------------------------------------------------
+ * Flicker — a white veil pulsing unevenly, at most ~3% of full brightness.
+ * ------------------------------------------------------------------ */
+[data-fx-flicker] .trace-fx-flicker {
+  display: block;
+  background: #fff;
+  opacity: 0;
+  animation: trace-flicker 1.7s linear infinite;
+  will-change: opacity;
+}
+
+/* ---------------------------------------------------------------------
+ * Refresh bar — a soft band of light rolling down, as a camera sees a tube.
+ * ------------------------------------------------------------------ */
+[data-fx-roll] .trace-fx-roll {
+  display: block;
+  inset: 0 0 auto;
+  height: 35%;
+  background: linear-gradient(to bottom, transparent, rgb(255 255 255 / 50%) 50%, transparent);
+  opacity: calc(var(--fx-roll) * 0.14);
+  animation: trace-roll 9s linear infinite;
+  will-change: transform;
+}
+
+/* A tube warming up — a bright line, then the picture — when a preset that
+   is a tube is chosen, and when the app opens on one. */
+[data-screen-preset="crt"] .trace-canvas,
+[data-screen-preset="lofi"] .trace-canvas {
+  animation: trace-power-on 0.9s 0.1s cubic-bezier(0.2, -0.1, 0, 1) backwards;
+}
+
+/* ---------------------------------------------------------------------
+ * Motion
+ * ------------------------------------------------------------------ */
+/* One texture's height, so the loop has no seam at any size. */
+@keyframes trace-lines-drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(calc(var(--fx-scanlines-size, 3) * 6px));
+  }
+}
+
+/* Irregular on purpose; a regular pulse reads as a fault, not a tube. */
+@keyframes trace-flicker {
+  0% {
+    opacity: calc(var(--fx-flicker) * 0.012);
+  }
+  7% {
+    opacity: calc(var(--fx-flicker) * 0.03);
+  }
+  11% {
+    opacity: calc(var(--fx-flicker) * 0.008);
+  }
+  23% {
+    opacity: calc(var(--fx-flicker) * 0.022);
+  }
+  31% {
+    opacity: calc(var(--fx-flicker) * 0.01);
+  }
+  47% {
+    opacity: calc(var(--fx-flicker) * 0.028);
+  }
+  52% {
+    opacity: calc(var(--fx-flicker) * 0.006);
+  }
+  68% {
+    opacity: calc(var(--fx-flicker) * 0.02);
+  }
+  79% {
+    opacity: calc(var(--fx-flicker) * 0.014);
+  }
+  88% {
+    opacity: calc(var(--fx-flicker) * 0.032);
+  }
+  100% {
+    opacity: calc(var(--fx-flicker) * 0.012);
+  }
+}
+
+@keyframes trace-roll {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(300%);
+  }
+}
+
+@keyframes trace-power-on {
+  0% {
+    transform: scale(0, 0.002);
+    filter: brightness(12);
+  }
+  25% {
+    transform: scale(0.85, 0.01);
+    filter: brightness(12);
+  }
+  60% {
+    transform: scale(1, 1);
+    filter: brightness(1.8);
+  }
+  100% {
+    transform: none;
+    filter: none;
+  }
+}
+
+/* More contrast asked for: nothing over the text, and no halo around it. */
+@media (prefers-contrast: more) {
+  .trace-fx {
+    display: none !important;
+  }
+  [data-fx-glow] .trace-canvas {
+    text-shadow: none;
+  }
+}

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useConfirm } from "../../components/ui/Confirm";
+import { Page } from "../../components/ui/Page";
 import { ProcessingLine } from "../../components/ui/Processing";
 import {
   type CaptureState,
@@ -24,6 +26,7 @@ import { useCapture } from "./useCapture";
  */
 export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => void }) {
   const capture = useCapture();
+  const confirm = useConfirm();
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
@@ -62,16 +65,15 @@ export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => v
   async function handleDiscard() {
     // Confirmed, because it cannot be undone and the audio goes with it.
     const elapsed = formatElapsed(capture.status?.elapsedMs ?? 0);
-    const ok = window.confirm(
-      [
-        "Discard this meeting?",
-        "",
-        `${elapsed} of audio and ${capture.segments.length} transcript segments will be deleted.`,
-        "No note will be written.",
-        "",
+    const ok = await confirm({
+      title: "Discard this meeting?",
+      body: [
+        `${elapsed} of audio and ${capture.segments.length} transcript segments will be deleted, and no note will be written.`,
         "This cannot be undone.",
-      ].join("\n"),
-    );
+      ],
+      confirm: "Discard meeting",
+      danger: true,
+    });
     if (!ok) return;
 
     await ipc.abortCapture().catch(() => {});
@@ -219,8 +221,8 @@ function SetupPanel({
   onCancel: () => void;
 }) {
   return (
-    <div data-mode="reading" className="flex h-full items-center justify-center px-6">
-      <div className="flex w-full max-w-md flex-col gap-6">
+    <Page kind="focus">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <SystemLabel tone="muted">New meeting</SystemLabel>
 
         <input
@@ -294,7 +296,7 @@ function SetupPanel({
           </button>
         </div>
       </div>
-    </div>
+    </Page>
   );
 }
 

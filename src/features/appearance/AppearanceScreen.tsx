@@ -1,6 +1,21 @@
 import { useEffect, useRef } from "react";
+import { Page } from "../../components/ui/Page";
 import { Prompt, Section, SystemLabel } from "../../components/ui/terminal";
-import { AXES, type Axis, useAppearanceControl } from "../../design/appearance";
+import { AXES, type Axis, currentScreen, useAppearanceControl } from "../../design/appearance";
+import {
+  EFFECT_LABELS,
+  EFFECT_NOTES,
+  EFFECTS,
+  type Effect,
+  type EffectSetting,
+  PLACEABLE,
+  PLACES,
+  PRESET_NOTES,
+  PRESETS,
+  presetOf,
+  SIZES,
+  sizeLabel,
+} from "../../design/screen";
 import {
   applyTheme,
   CASE_NOTES,
@@ -18,7 +33,7 @@ import {
 } from "../../design/theme";
 
 /**
- * The look, chosen by seeing it.
+ * The theme, chosen by seeing it.
  *
  * Each card is the real token set applied to a small sample, not a
  * screenshot, so a preview can never disagree with what selecting it does.
@@ -28,99 +43,117 @@ import {
  * C). They were gallery-only, which made that test depend on a dev harness.
  */
 export function AppearanceScreen() {
-  const { appearance, setTheme, setAxis, setCrt, reset } = useAppearanceControl();
+  const { appearance, setTheme, setFamily, setPreset, setEffect, setAxis, reset } =
+    useAppearanceControl();
   const overridden = Object.values(appearance.overrides).some((v) => v !== undefined);
   const family = THEME_FAMILY[appearance.theme];
+  const screen = currentScreen(appearance);
+  const preset = presetOf(screen);
 
   return (
-    <div data-mode="reading" className="h-full overflow-y-auto">
-      <div className="trace-measure flex flex-col gap-10 px-6 py-10">
-        <Section title="Style">
-          <p className="text-sm text-ink-muted">
-            Two languages, each with its own themes. Pick one, then a theme within it — or press{" "}
-            <Key>1</Key>–<Key>{String(THEMES.length)}</Key> anywhere outside a text field. A look is
-            best judged over a few days of real meetings, not from a preview.
-          </p>
+    <Page className="gap-10">
+      <Section title="Theme">
+        <p className="text-sm text-ink-muted">
+          Two families, each with its own themes and its own screen. Pick one, then a theme within
+          it — or press <Key>1</Key>–<Key>{String(THEMES.length)}</Key> anywhere outside a text
+          field. A theme is best judged over a few days of real meetings, not from a preview.
+        </p>
 
-          <fieldset className="m-0 flex w-fit gap-1 rounded-pill border border-line p-1">
-            <legend className="sr-only">Style</legend>
-            {FAMILIES.map((f) => (
-              <FamilyChoice
-                key={f}
-                family={f}
-                selected={family === f}
-                // The family's first theme, unless the current one is already in it.
-                onSelect={() => {
-                  if (family !== f) setTheme(themesIn(f)[0] ?? "terminal");
-                }}
-              />
-            ))}
-          </fieldset>
-          <p className="text-2xs text-ink-faint">{FAMILY_NOTES[family]}</p>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {themesIn(family).map((theme) => (
-              <ThemeCard
-                key={theme}
-                theme={theme}
-                shortcut={THEMES.indexOf(theme) + 1}
-                selected={appearance.theme === theme}
-                overrides={appearance.overrides}
-                onSelect={() => setTheme(theme)}
-              />
-            ))}
-          </div>
-        </Section>
-
-        <Section title="CRT mode">
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="checkbox"
-              checked={appearance.crt}
-              onChange={(e) => setCrt(e.target.checked)}
-              className="mt-1 accent-(--color-phosphor)"
+        <fieldset className="m-0 flex w-fit gap-1 rounded-pill border border-line p-1">
+          <legend className="sr-only">Family</legend>
+          {FAMILIES.map((f) => (
+            <FamilyChoice
+              key={f}
+              family={f}
+              selected={family === f}
+              // Back to the theme last used in that family, not its first.
+              onSelect={() => setFamily(f)}
             />
-            <span className="flex flex-col gap-1">
-              <span className="text-sm text-ink">Show TRACE on an old monitor</span>
-              <span className="text-2xs text-ink-faint">
-                A bezel, scanlines and a little phosphor glow, over whichever theme is chosen.
-                Purely for fun — it never flickers, and it is off by default.
-              </span>
-            </span>
-          </label>
-        </Section>
+          ))}
+        </fieldset>
+        <p className="text-2xs text-ink-faint">{FAMILY_NOTES[family]}</p>
 
-        <Section
-          title="Fine-tuning"
-          actions={
-            overridden ? (
-              <button
-                type="button"
-                onClick={reset}
-                className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
-              >
-                Reset to theme
-              </button>
-            ) : undefined
-          }
-        >
-          <p className="text-sm text-ink-muted">
-            Each theme has its own choices for these. “Theme” keeps them; anything else overrides
-            them on top of whichever theme is selected.
-          </p>
-          <div className="flex flex-col gap-4">
-            {(Object.keys(AXES) as Axis[]).map((axis) => (
-              <AxisControl
-                key={axis}
-                axis={axis}
-                value={appearance.overrides[axis]}
-                onChange={(v) => setAxis(axis, v)}
-              />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {themesIn(family).map((theme) => (
+            <ThemeCard
+              key={theme}
+              theme={theme}
+              shortcut={THEMES.indexOf(theme) + 1}
+              selected={appearance.theme === theme}
+              overrides={appearance.overrides}
+              onSelect={() => setTheme(theme)}
+            />
+          ))}
+        </div>
+      </Section>
+
+      {/* Its own section, but still the family's: each family remembers its
+          screen, so flipping to Modern and back brings this one back. */}
+      <Section title={`Screen · ${family}`}>
+        <p className="text-sm text-ink-muted">
+          Effects on the glass, each as strong as you like. Textures can sit over everything, or
+          behind it — on the ground only, under every letter, card, box and field.
+        </p>
+
+        <div className="flex flex-col gap-1">
+          <fieldset className="m-0 flex flex-wrap items-center gap-1 border-0 p-0">
+            <legend className="sr-only">Screen preset</legend>
+            {PRESETS.map((p) => (
+              <Choice key={p} selected={preset === p} onClick={() => setPreset(p)}>
+                {p}
+              </Choice>
             ))}
-          </div>
-        </Section>
-      </div>
-    </div>
+            {preset === null && (
+              <span className="px-2 font-mono text-2xs text-phosphor">custom</span>
+            )}
+          </fieldset>
+          <p className="text-2xs text-ink-faint">
+            {preset ? PRESET_NOTES[preset] : "Your own mix. Pick a preset to start again."}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {EFFECTS.map((effect) => (
+            <EffectRow
+              key={effect}
+              effect={effect}
+              setting={screen[effect]}
+              onChange={(patch) => setEffect(effect, patch)}
+            />
+          ))}
+        </div>
+      </Section>
+
+      <Section
+        title="Fine-tuning"
+        actions={
+          overridden ? (
+            <button
+              type="button"
+              onClick={reset}
+              className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
+            >
+              Reset to theme
+            </button>
+          ) : undefined
+        }
+      >
+        <p className="text-sm text-ink-muted">
+          Each theme has its own choices for these. “Theme” keeps them; anything else overrides them
+          on top of whichever theme is selected.
+        </p>
+        <div className="flex flex-col gap-4">
+          {(Object.keys(AXES) as Axis[]).map((axis) => (
+            <AxisControl
+              key={axis}
+              axis={axis}
+              value={appearance.overrides[axis]}
+              onChange={(v) => setAxis(axis, v)}
+            />
+          ))}
+        </div>
+      </Section>
+    </Page>
   );
 }
 
@@ -213,6 +246,105 @@ function FamilyChoice({
     >
       {family}
     </button>
+  );
+}
+
+/**
+ * One effect: how much, and for textures, how big and where.
+ *
+ * A slider for the amount, because the right amount is a matter of the
+ * monitor as much as of taste; arrow keys still step it by five. Size and
+ * place sit on a line of their own beneath, so every slider is the same
+ * length whether or not its effect has them.
+ */
+function EffectRow({
+  effect,
+  setting,
+  onChange,
+}: {
+  effect: Effect;
+  setting: EffectSetting;
+  onChange: (patch: Partial<EffectSetting>) => void;
+}) {
+  const id = `trace-effect-${effect}`;
+  const on = setting.amount > 0;
+  const sizes = SIZES[effect];
+  const placeable = PLACEABLE.includes(effect);
+
+  return (
+    <div
+      className="grid grid-cols-[8rem_1fr_3ch] items-center gap-x-4 gap-y-1.5"
+      title={EFFECT_NOTES[effect]}
+    >
+      <label
+        htmlFor={id}
+        className={`font-mono text-2xs uppercase tracking-system ${on ? "text-ink" : "text-ink-faint"}`}
+      >
+        {EFFECT_LABELS[effect]}
+      </label>
+      <input
+        id={id}
+        type="range"
+        min={0}
+        max={100}
+        step={5}
+        value={setting.amount}
+        onChange={(e) => onChange({ amount: Number(e.target.value) })}
+        aria-describedby={`${id}-note`}
+        className="trace-range"
+        style={{ "--range-fill": `${setting.amount}%` } as React.CSSProperties}
+      />
+      <span className="text-right font-mono text-2xs tabular-nums text-ink-muted">
+        {setting.amount}
+      </span>
+      {(sizes || placeable) && (
+        // Dimmed, not hidden, while the effect is off: its size and place
+        // are still worth setting before turning it up.
+        <div
+          className={`col-start-2 col-end-4 flex flex-wrap items-center gap-x-5 gap-y-1 transition-opacity ${
+            on ? "" : "opacity-40"
+          }`}
+        >
+          {sizes && (
+            <fieldset className="m-0 flex items-center gap-1 border-0 p-0">
+              <legend className="sr-only">{`${EFFECT_LABELS[effect]} size`}</legend>
+              <span aria-hidden className="pr-1 font-mono text-2xs text-ink-faint">
+                size
+              </span>
+              {sizes.map((size) => (
+                <Choice
+                  key={size}
+                  selected={setting.size === size}
+                  onClick={() => onChange({ size })}
+                >
+                  {sizeLabel(effect, size)}
+                </Choice>
+              ))}
+            </fieldset>
+          )}
+          {placeable && (
+            <fieldset className="m-0 flex items-center gap-1 border-0 p-0">
+              <legend className="sr-only">{`${EFFECT_LABELS[effect]} placement`}</legend>
+              <span aria-hidden className="pr-1 font-mono text-2xs text-ink-faint">
+                place
+              </span>
+              {PLACES.map((place) => (
+                <Choice
+                  key={place}
+                  selected={setting.place === place}
+                  onClick={() => onChange({ place })}
+                >
+                  {place}
+                </Choice>
+              ))}
+            </fieldset>
+          )}
+        </div>
+      )}
+      <span id={`${id}-note`} className="sr-only">
+        {EFFECT_NOTES[effect]}
+      </span>
+    </div>
   );
 }
 

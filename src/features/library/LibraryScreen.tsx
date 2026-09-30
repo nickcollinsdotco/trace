@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useConfirm } from "../../components/ui/Confirm";
+import { Page } from "../../components/ui/Page";
 import { Popover, PopoverItem } from "../../components/ui/Popover";
 import { TopBar, useScrolledPast } from "../../components/ui/TopBar";
 import { Prompt, SystemLabel } from "../../components/ui/terminal";
@@ -172,99 +174,101 @@ export function LibraryScreen({
   const onTag = (tag: string) => setQuery((q) => setToken(q, "tag", tag));
 
   return (
-    <div ref={scroller} data-mode="reading" className="h-full overflow-y-auto">
-      <TopBar current="Meetings" showCurrent={titleGone}>
-        <button
-          type="button"
-          onClick={onNewMeeting}
-          className="flex shrink-0 items-center gap-2 rounded-pill border border-line-strong bg-surface-2 px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor"
-        >
-          <span aria-hidden>+</span>
-          New meeting
-        </button>
-      </TopBar>
+    <Page
+      ref={scroller}
+      className="gap-8"
+      bar={
+        <TopBar current="Meetings" showCurrent={titleGone}>
+          <button
+            type="button"
+            onClick={onNewMeeting}
+            className="flex shrink-0 items-center gap-2 rounded-pill border border-line-strong bg-surface-2 px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor"
+          >
+            <span aria-hidden>+</span>
+            New meeting
+          </button>
+        </TopBar>
+      }
+    >
+      <h1 ref={titleRef} className="trace-title text-2xl text-ink">
+        Meetings
+      </h1>
 
-      <div className="trace-measure flex flex-col gap-8 px-6 pt-6 pb-10">
-        <h1 ref={titleRef} className="trace-title text-2xl text-ink">
-          Meetings
-        </h1>
+      {hasBackend() && !loading && <SignalPanel notes={notes} />}
 
-        {hasBackend() && !loading && <SignalPanel notes={notes} />}
-
-        {/* Interrupted meetings come first: there is unsaved work here and it
+      {/* Interrupted meetings come first: there is unsaved work here and it
             is the only thing on this screen that can still be lost. */}
-        {recoverable.map((session) => (
-          <RecoveryCard key={session.sessionDir} session={session} onDone={refresh} />
-        ))}
+      {recoverable.map((session) => (
+        <RecoveryCard key={session.sessionDir} session={session} onDone={refresh} />
+      ))}
 
-        <LlmNotice status={llm.status} onRecheck={llm.recheck} context="library" />
+      <LlmNotice status={llm.status} onRecheck={llm.recheck} context="library" />
 
-        {hasBackend() && notes.length > 0 && (
-          <SearchBar
-            query={query}
-            parsed={parsed}
-            onChange={setQuery}
-            notes={notes}
-            shown={shownHits ? shownHits.length : filtered.length}
-            view={view}
-            onView={pickView}
-            inputRef={searchRef}
-            searching={shownHits !== null}
-          />
-        )}
+      {hasBackend() && notes.length > 0 && (
+        <SearchBar
+          query={query}
+          parsed={parsed}
+          onChange={setQuery}
+          notes={notes}
+          shown={shownHits ? shownHits.length : filtered.length}
+          view={view}
+          onView={pickView}
+          inputRef={searchRef}
+          searching={shownHits !== null}
+        />
+      )}
 
-        {shownHits !== null ? (
-          <SearchResults hits={shownHits} query={parsed.terms.join(" ")} onOpen={onOpenNote} />
-        ) : loading ? (
-          <p className="font-mono text-xs text-ink-faint">
-            <Prompt />
-            reading notes…
-          </p>
-        ) : !hasBackend() ? (
-          <BrowserNotice />
-        ) : notes.length === 0 ? (
-          <EmptyState root={root} />
-        ) : filtered.length === 0 ? (
-          <NoMatch onClear={() => setQuery(parsed.terms.join(" "))} />
-        ) : groups ? (
-          <div className="flex flex-col gap-8">
-            {groups.map(({ group, items }) => (
-              <section key={group} aria-label={group} className="flex flex-col gap-1">
-                {/* Quiet, like Granola's dates: a label, not a heading rule. */}
-                <h2 className="px-3 pb-1">
-                  <SystemLabel>{group}</SystemLabel>
-                </h2>
-                {items.map((note) => (
-                  <NoteRow
-                    key={note.path}
-                    note={note}
-                    view={view}
-                    activeTags={parsed.tags}
-                    onOpen={onOpenNote}
-                    onTag={onTag}
-                    onChanged={refresh}
-                  />
-                ))}
-              </section>
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1">
-            {filtered.map((note) => (
-              <NoteRow
-                key={note.path}
-                note={note}
-                view={view}
-                activeTags={parsed.tags}
-                onOpen={onOpenNote}
-                onTag={onTag}
-                onChanged={refresh}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+      {shownHits !== null ? (
+        <SearchResults hits={shownHits} query={parsed.terms.join(" ")} onOpen={onOpenNote} />
+      ) : loading ? (
+        <p className="font-mono text-xs text-ink-faint">
+          <Prompt />
+          reading notes…
+        </p>
+      ) : !hasBackend() ? (
+        <BrowserNotice />
+      ) : notes.length === 0 ? (
+        <EmptyState root={root} />
+      ) : filtered.length === 0 ? (
+        <NoMatch onClear={() => setQuery(parsed.terms.join(" "))} />
+      ) : groups ? (
+        <div className="flex flex-col gap-8">
+          {groups.map(({ group, items }) => (
+            <section key={group} aria-label={group} className="flex flex-col gap-1">
+              {/* Quiet, like Granola's dates: a label, not a heading rule. */}
+              <h2 className="px-3 pb-1">
+                <SystemLabel>{group}</SystemLabel>
+              </h2>
+              {items.map((note) => (
+                <NoteRow
+                  key={note.path}
+                  note={note}
+                  view={view}
+                  activeTags={parsed.tags}
+                  onOpen={onOpenNote}
+                  onTag={onTag}
+                  onChanged={refresh}
+                />
+              ))}
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {filtered.map((note) => (
+            <NoteRow
+              key={note.path}
+              note={note}
+              view={view}
+              activeTags={parsed.tags}
+              onOpen={onOpenNote}
+              onTag={onTag}
+              onChanged={refresh}
+            />
+          ))}
+        </div>
+      )}
+    </Page>
   );
 }
 
@@ -408,6 +412,7 @@ function NoteRow({
   onTag: (tag: string) => void;
   onChanged: () => void;
 }) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
 
   async function rename() {
@@ -421,15 +426,12 @@ function NoteRow({
   }
 
   async function remove() {
-    const ok = window.confirm(
-      [
-        `Delete “${note.title}”?`,
-        "",
-        "The note and its transcript are both deleted.",
-        "",
-        "This cannot be undone.",
-      ].join("\n"),
-    );
+    const ok = await confirm({
+      title: `Delete “${note.title}”?`,
+      body: ["The note and its transcript are both deleted.", "This cannot be undone."],
+      confirm: "Delete meeting",
+      danger: true,
+    });
     if (!ok) return;
 
     setBusy(true);

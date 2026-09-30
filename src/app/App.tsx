@@ -3,12 +3,16 @@ import {
   type Appearance,
   AppearanceContext,
   type AppearanceControl,
-  applyCrt,
+  currentScreen,
   loadAppearance,
   saveAppearance,
   withAxis,
+  withEffect,
+  withFamily,
+  withPreset,
   withTheme,
 } from "../design/appearance";
+import { applyScreen } from "../design/screen";
 import { applyTheme, THEMES, themeForKey } from "../design/theme";
 import { AboutScreen } from "../features/about/AboutScreen";
 import { AppearanceScreen } from "../features/appearance/AppearanceScreen";
@@ -149,7 +153,7 @@ function useAppearance(): AppearanceControl {
 
   useEffect(() => {
     applyTheme(appearance.theme, document.documentElement, appearance.overrides);
-    applyCrt(appearance.crt, document.documentElement);
+    applyScreen(currentScreen(appearance), document.documentElement);
     saveAppearance(appearance);
   }, [appearance]);
 
@@ -160,16 +164,15 @@ function useAppearance(): AppearanceControl {
       const picked = themeForKey(e.key, e.target, e.ctrlKey || e.metaKey || e.altKey);
       if (picked) {
         e.preventDefault();
-        setAppearance((a) => ({ ...a, theme: picked }));
+        setAppearance((a) => withTheme(a, picked));
         return;
       }
 
       if (!e.ctrlKey || !e.shiftKey || e.key.toLowerCase() !== "t") return;
       e.preventDefault();
-      setAppearance((a) => ({
-        ...a,
-        theme: THEMES[(THEMES.indexOf(a.theme) + 1) % THEMES.length] ?? "terminal",
-      }));
+      setAppearance((a) =>
+        withTheme(a, THEMES[(THEMES.indexOf(a.theme) + 1) % THEMES.length] ?? "terminal"),
+      );
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -178,8 +181,10 @@ function useAppearance(): AppearanceControl {
   return {
     appearance,
     setTheme: (theme) => setAppearance((a) => withTheme(a, theme)),
+    setFamily: (family) => setAppearance((a) => withFamily(a, family)),
+    setPreset: (preset) => setAppearance((a) => withPreset(a, preset)),
+    setEffect: (effect, patch) => setAppearance((a) => withEffect(a, effect, patch)),
     setAxis: (axis, value) => setAppearance((a) => withAxis(a, axis, value)),
-    setCrt: (crt) => setAppearance((a) => ({ ...a, crt })),
     reset: () => setAppearance((a) => ({ ...a, overrides: {} })),
   };
 }

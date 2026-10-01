@@ -138,6 +138,7 @@ pub fn run() {
             commands::app_info,
             commands::open_gallery,
             commands::open_mini,
+            commands::fit_mini,
             commands::close_mini,
             commands::show_main,
             commands::diagnostics_report,

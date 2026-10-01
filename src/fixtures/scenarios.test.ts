@@ -19,6 +19,7 @@ const COMMANDS = [
   "capture_status",
   "scope_frame",
   "open_mini",
+  "fit_mini",
   "close_mini",
   "show_main",
   "update_notes",

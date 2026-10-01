@@ -465,6 +465,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return startedAt === null ? null : status(state, startedAt, segmentCount);
         // Window management: nothing to do in a gallery that has no windows.
         case "open_mini":
+        case "fit_mini":
         case "close_mini":
         case "show_main":
         case "open_gallery":

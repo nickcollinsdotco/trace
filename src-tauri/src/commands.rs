@@ -872,6 +872,12 @@ pub async fn open_mini(app: AppHandle) -> CmdResult<()> {
     crate::windows::open_mini(&app).map_err(err)
 }
 
+/// Widen the mini window to fit its content, within its cap.
+#[tauri::command]
+pub async fn fit_mini(app: AppHandle, width: f64) -> CmdResult<()> {
+    crate::windows::fit_mini(&app, width).map_err(err)
+}
+
 /// Closing the mini window never stops a meeting (docs/13 Q20).
 #[tauri::command]
 pub async fn close_mini(app: AppHandle) -> CmdResult<()> {

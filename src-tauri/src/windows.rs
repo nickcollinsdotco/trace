@@ -158,6 +158,37 @@ pub fn open_mini(app: &AppHandle) -> tauri::Result<()> {
     window.set_focus()
 }
 
+/// The widest the mini window may grow, so it stays a bar beside a call
+/// rather than a second app.
+const MINI_MAX_WIDTH: f64 = 640.0;
+
+/// The width the mini window takes for content that needs `wanted` pixels:
+/// never narrower than its usual size, never wider than its cap.
+pub fn mini_width(wanted: f64) -> f64 {
+    wanted.clamp(MINI_SIZE.0, MINI_MAX_WIDTH).round()
+}
+
+/// Widen the mini window to fit what it is showing, or bring it back.
+///
+/// A theme in capitals, a wide typeface, or a longer message can need more
+/// than the usual width; wrapping onto a second line inside a 56px bar cut
+/// it in half. It grows leftwards, keeping its right edge, because it lives
+/// against the right edge of the screen.
+pub fn fit_mini(app: &AppHandle, wanted: f64) -> tauri::Result<()> {
+    let Some(window) = app.get_webview_window(MINI) else {
+        return Ok(());
+    };
+    let scale = window.scale_factor()?;
+    let width = mini_width(wanted);
+    let current = window.inner_size()?.to_logical::<f64>(scale);
+    if (current.width - width).abs() < 1.0 {
+        return Ok(());
+    }
+    let at = window.outer_position()?.to_logical::<f64>(scale);
+    window.set_size(LogicalSize::new(width, MINI_SIZE.1))?;
+    window.set_position(LogicalPosition::new(at.x + current.width - width, at.y))
+}
+
 pub fn close_mini(app: &AppHandle) -> tauri::Result<()> {
     match app.get_webview_window(MINI) {
         Some(window) => window.close(),
@@ -203,6 +234,13 @@ mod tests {
         let (x, y) = mini_spot((0.0, 0.0, 1920.0, 1040.0), (360.0, 56.0));
         assert_eq!(x, 1920.0 - 360.0 - 16.0);
         assert_eq!(y, (1040.0_f64 * 0.62).round());
+    }
+
+    #[test]
+    fn the_mini_window_grows_only_as_far_as_its_cap() {
+        assert_eq!(mini_width(200.0), 360.0);
+        assert_eq!(mini_width(431.4), 431.0);
+        assert_eq!(mini_width(5000.0), 640.0);
     }
 
     #[test]

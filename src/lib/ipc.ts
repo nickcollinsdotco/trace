@@ -416,6 +416,8 @@ export const ipc = {
   openGallery: () => call<void>("open_gallery"),
   /** The mini window: a name and Start, or the recording bar. */
   openMini: () => call<void>("open_mini"),
+  /** Widen the mini window to fit its content, within its cap. */
+  fitMini: (width: number) => call<void>("fit_mini", { width }),
   /** Closes the mini window. Never stops a meeting. */
   closeMini: () => call<void>("close_mini"),
   /**

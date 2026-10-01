@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -16,6 +17,8 @@ export const HOLD_MS = 600;
 const SAVED_MS = 4_000;
 const POLL_MS = 500;
 const WAVE_KEY = "trace.mini.wave";
+/** The window's usual width, which it returns to once content fits again. */
+const BAR_WIDTH = 360;
 
 export type MiniPhase =
   | { kind: "idle" }
@@ -105,8 +108,35 @@ export function MiniWindow({ initial }: { initial?: MiniPhase } = {}) {
 
   const recording = phase.kind === "recording";
 
+  // Grow to fit rather than wrap. A theme in capitals or a wide typeface can
+  // need more than the usual width, and a second line in a 56px bar is cut
+  // in half. Measured after each change of state, once the fonts are in,
+  // and when the theme changes in the other window.
+  const root = useRef<HTMLDivElement>(null);
+  const kind = phase.kind;
+  useLayoutEffect(() => {
+    if (initial || !hasBackend()) return;
+    const measure = () => {
+      const el = root.current;
+      if (!el) return;
+      if (el.scrollWidth > el.clientWidth + 1) {
+        void ipc.fitMini(el.scrollWidth + 4).catch(() => {});
+      } else if (kind === "idle" || kind === "recording") {
+        // Their middles stretch, so they always fit; back to the usual size.
+        void ipc.fitMini(BAR_WIDTH).catch(() => {});
+      }
+    };
+    measure();
+    void document.fonts?.ready.then(measure);
+    window.addEventListener("storage", measure);
+    return () => window.removeEventListener("storage", measure);
+  }, [kind, initial]);
+
   return (
-    <div className="group flex h-full items-center gap-2 overflow-hidden bg-surface-1 pr-1.5 pl-1 text-ink select-none">
+    <div
+      ref={root}
+      className="group flex h-full items-center gap-2 overflow-hidden bg-surface-1 pr-1.5 pl-1 text-ink select-none"
+    >
       <Grip />
 
       <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -174,14 +204,14 @@ export function MiniWindow({ initial }: { initial?: MiniPhase } = {}) {
         )}
 
         {phase.kind === "saving" && (
-          <p className="min-w-0 flex-1 font-mono text-xs text-ink-muted">
+          <p className="shrink-0 whitespace-nowrap font-mono text-xs text-ink-muted">
             <Prompt />
             saving…
           </p>
         )}
 
         {phase.kind === "saved" && (
-          <p className="flex min-w-0 flex-1 items-center gap-2 font-mono text-xs text-ink-muted">
+          <p className="flex shrink-0 items-center gap-2 whitespace-nowrap font-mono text-xs text-ink-muted">
             <span className="text-phosphor">✓ saved</span>· writing notes…
             <button
               type="button"
@@ -189,7 +219,10 @@ export function MiniWindow({ initial }: { initial?: MiniPhase } = {}) {
                 void ipc.showMain(phase.notePath, false);
                 void ipc.closeMini();
               }}
-              className="ml-auto rounded-xs px-1.5 text-phosphor trace-press hover:underline"
+              // Its own font-mono, so the theme's letter case reaches it:
+              // buttons reset text-transform, and "open" stayed lowercase in
+              // an all-capitals line.
+              className="rounded-xs px-1.5 font-mono text-phosphor trace-press hover:underline"
             >
               open
             </button>

@@ -398,8 +398,10 @@ function Preview({ scenario }: { scenario: Scenario }) {
     return (
       <div className="flex h-full items-center justify-center bg-surface-0">
         <div
-          className="overflow-hidden rounded-md border border-line-strong shadow-(--elevation-overlay)"
-          style={{ width: 360, height: 56 }}
+          // At least the usual width, and wider when the content needs it,
+          // as the real window grows.
+          className="w-max overflow-hidden rounded-md border border-line-strong shadow-(--elevation-overlay)"
+          style={{ minWidth: 360, height: 56 }}
         >
           <MiniWindow
             {...(scenario.miniSaved

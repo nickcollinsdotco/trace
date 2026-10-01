@@ -502,6 +502,10 @@ state with the main window through the existing status polling and events.
   waveform already say it. The waveform is faint and can be switched off,
   remembered. Opens against the right edge in the lower third of the main
   window's monitor; only the ⠿ grip drags it.
+- **It grows rather than wraps.** Themes in capitals or wide typefaces made
+  the saved message wrap onto a second line inside the 56px bar. Text never
+  wraps now; the bar measures itself and widens leftwards, keeping its right
+  edge, up to 640px, and returns to 360px once its content fits again.
 - **Hidden from screen shares** (`content_protected`), and created afresh
   and closed rather than hidden and re-shown — the black-rectangle bug on
   build 19045. **Not yet checked against a real Teams share.**

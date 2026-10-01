@@ -401,12 +401,14 @@ function Preview({ scenario }: { scenario: Scenario }) {
           // At least the usual width, and wider when the content needs it,
           // as the real window grows.
           className="w-max overflow-hidden rounded-md border border-line-strong shadow-(--elevation-overlay)"
-          style={{ minWidth: 360, height: 56 }}
+          style={{ minWidth: 360, minHeight: 56 }}
         >
           <MiniWindow
             {...(scenario.miniSaved
               ? { initial: { kind: "saved" as const, notePath: "fixture.md" } }
               : {})}
+            initialMenu={scenario.miniMenu ?? false}
+            initialDetails={scenario.miniDetails ?? false}
           />
         </div>
       </div>

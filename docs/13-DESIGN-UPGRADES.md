@@ -506,6 +506,16 @@ state with the main window through the existing status polling and events.
   the saved message wrap onto a second line inside the 56px bar. Text never
   wraps now; the bar measures itself and widens leftwards, keeping its right
   edge, up to 640px, and returns to 360px once its content fits again.
+- **Minor controls live in an options menu (⋮)**, as Recordly's do, not in
+  buttons of their own: the waveform switch, the extended view, and whether
+  it is hidden from screen shares (now a live switch, `protect_mini`). The
+  menu and the details row stack above the bar; the window grows up and to
+  the left to hold them, keeping its bottom-right corner, so the bar never
+  moves. **The extended view** names the microphone and the transcription
+  model — the meeting's own, from the capture status, which now reports
+  both — and the segment count. **Parked:** one width per theme, set by its
+  widest state, so a bar pinned in a corner never changes size
+  (`10-BACKLOG.md`).
 - **Hidden from screen shares** (`content_protected`), and created afresh
   and closed rather than hidden and re-shown — the black-rectangle bug on
   build 19045. **Not yet checked against a real Teams share.**

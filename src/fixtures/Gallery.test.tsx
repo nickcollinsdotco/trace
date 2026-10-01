@@ -1234,4 +1234,29 @@ describe("Gallery", () => {
     const sidebar = await screen.findByRole("complementary", { name: "Sidebar" });
     expect(within(sidebar).getByRole("button", { name: /Mini window/ })).toBeInTheDocument();
   });
+
+  it("keeps the mini window's minor switches in its options menu", async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Mini window, options");
+
+    const menu = await screen.findByRole("menu", { name: "Mini window options" });
+    const wave = within(menu).getByRole("menuitemcheckbox", { name: "Waveform" });
+    expect(wave).toHaveAttribute("aria-checked", "true");
+    expect(
+      within(menu).getByRole("menuitemcheckbox", { name: "Hidden from screen shares" }),
+    ).toHaveAttribute("aria-checked", "true");
+
+    // The extended view names what the meeting listens and transcribes with.
+    await user.click(within(menu).getByRole("menuitemcheckbox", { name: /Details/ }));
+    expect(await screen.findByText("Microphone (Razer Seiren V3 Mini)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Parakeet TDT 0.6B v3 (int8)", { selector: "span" }),
+    ).toBeInTheDocument();
+
+    await user.click(wave);
+    expect(wave).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByRole("img", { name: "Both voices, live" })).toBeNull();
+  });
 });

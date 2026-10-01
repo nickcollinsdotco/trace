@@ -16,8 +16,7 @@ export const HOLD_MS = 600;
 /** How long "saved" stays before the window closes itself. */
 const SAVED_MS = 4_000;
 const POLL_MS = 500;
-const WAVE_KEY = "trace.mini.wave";
-/** The window's usual width, which it returns to once content fits again. */
+/** The bar's usual width, which the window returns to once content fits. */
 const BAR_WIDTH = 360;
 
 export type MiniPhase =
@@ -31,24 +30,38 @@ export type MiniPhase =
  * everything, for when TRACE itself is behind the call.
  *
  * Shaped after the mini players people already know — Spotify's, Apple
- * Music's, Recordly's bar: one round button carries it, and anything
- * secondary waits for the pointer.
+ * Music's, Recordly's: one round button carries the bar, and everything
+ * minor lives in an options menu rather than a row of its own buttons.
  *
  * One bar, whatever the state, so nothing jumps when a meeting starts: the
  * name field sits where the meeting's name will be, and the round red Start
- * sits exactly where Stop will. Starting swaps the one for the other and
- * nothing else moves. Stop has to be held — the bar sits beside a call's own
+ * sits exactly where Stop will. The menu and the details row stack above
+ * the bar, and the window grows upwards to hold them, so the bar never moves
+ * on the screen. Stop has to be held — the bar sits beside a call's own
  * controls, where one stray click would end a meeting that cannot be
  * resumed. Closing it only closes it; the meeting carries on.
  *
  * Only the ⠿ grip drags the window, so a click is never mistaken for a drag.
  */
-export function MiniWindow({ initial }: { initial?: MiniPhase } = {}) {
+export function MiniWindow({
+  initial,
+  initialMenu = false,
+  initialDetails,
+}: {
+  initial?: MiniPhase;
+  /** Open on the options menu — the gallery's scenario for it. */
+  initialMenu?: boolean;
+  /** Override the remembered choice — the gallery's scenario for it. */
+  initialDetails?: boolean;
+} = {}) {
   const [phase, setPhase] = useState<MiniPhase>(initial ?? { kind: "idle" });
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState(false);
-  const [wave, setWave] = useWave();
+  const [menu, setMenu] = useState(initialMenu);
+  const [wave, setWave] = usePref("trace.mini.wave", true);
+  const [details, setDetails] = usePref("trace.mini.details", false, initialDetails);
+  const [hidden, setHidden] = usePref("trace.mini.shares-hidden", true);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
 
@@ -80,6 +93,12 @@ export function MiniWindow({ initial }: { initial?: MiniPhase } = {}) {
     };
   }, [initial, refresh]);
 
+  // Screen shares: hidden unless asked for (docs/13 Q18). The window opens
+  // hidden; this brings it in line with the remembered choice.
+  useEffect(() => {
+    if (hasBackend()) void ipc.protectMini(hidden).catch(() => {});
+  }, [hidden]);
+
   async function start() {
     setError(null);
     try {
@@ -108,182 +127,363 @@ export function MiniWindow({ initial }: { initial?: MiniPhase } = {}) {
 
   const recording = phase.kind === "recording";
 
-  // Grow to fit rather than wrap. A theme in capitals or a wide typeface can
-  // need more than the usual width, and a second line in a 56px bar is cut
-  // in half. Measured after each change of state, once the fonts are in,
-  // and when the theme changes in the other window.
+  /*
+   * The window is sized to what it shows. Wider when a theme in capitals or
+   * a wide typeface would wrap a line inside the 56px bar; taller for the
+   * menu and the details row. Rust grows it up and to the left, keeping the
+   * bar where it is. Measured after anything that changes the stack, once
+   * the fonts are in, and when the theme changes in the other window.
+   */
   const root = useRef<HTMLDivElement>(null);
+  const stack = useRef<HTMLDivElement>(null);
   const kind = phase.kind;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: menu and details change the stack's height, so they re-measure it
   useLayoutEffect(() => {
     if (initial || !hasBackend()) return;
     const measure = () => {
       const el = root.current;
-      if (!el) return;
-      if (el.scrollWidth > el.clientWidth + 1) {
-        void ipc.fitMini(el.scrollWidth + 4).catch(() => {});
-      } else if (kind === "idle" || kind === "recording") {
-        // Their middles stretch, so they always fit; back to the usual size.
-        void ipc.fitMini(BAR_WIDTH).catch(() => {});
-      }
+      const content = stack.current;
+      if (!el || !content) return;
+      const overflowing = el.scrollWidth > el.clientWidth + 1;
+      // The bar's middle stretches, so outside the saved states it always
+      // fits the usual width; only a real overflow widens it.
+      const width = overflowing
+        ? el.scrollWidth + 4
+        : kind === "idle" || kind === "recording"
+          ? BAR_WIDTH
+          : el.clientWidth;
+      void ipc.fitMini(width, content.getBoundingClientRect().height).catch(() => {});
     };
     measure();
     void document.fonts?.ready.then(measure);
     window.addEventListener("storage", measure);
     return () => window.removeEventListener("storage", measure);
-  }, [kind, initial]);
+  }, [kind, initial, menu, details]);
 
   return (
     <div
       ref={root}
-      className="group flex h-full items-center gap-2 overflow-hidden bg-surface-1 pr-1.5 pl-1 text-ink select-none"
+      className="group flex h-full flex-col justify-end overflow-hidden bg-surface-1 text-ink select-none"
     >
-      <Grip />
-
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        {phase.kind === "idle" && (
-          <form
-            className="min-w-0 flex-1"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void start();
-            }}
-          >
-            <label className="flex items-center gap-1.5 font-mono text-sm">
-              <span className="text-phosphor">
-                <Prompt />
-              </span>
-              <span className="sr-only">Meeting name</span>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                // A failure is said where the name goes, so the bar keeps its
-                // one row and its shape.
-                placeholder={error ? `couldn't start: ${error}` : "name this meeting"}
-                aria-invalid={error !== null}
-                // biome-ignore lint/a11y/noAutofocus: opened to type a name
-                autoFocus
-                spellCheck={false}
-                data-selectable
-                className={`trace-mini-field min-w-0 flex-1 bg-transparent text-ink ${
-                  error ? "placeholder:text-error" : "placeholder:text-ink-faint"
-                }`}
-              />
-            </label>
-          </form>
+      <div ref={stack} className="flex shrink-0 flex-col">
+        {menu && (
+          <OptionsMenu
+            onClose={() => setMenu(false)}
+            wave={wave}
+            onWave={setWave}
+            details={details}
+            onDetails={setDetails}
+            hidden={hidden}
+            onHidden={setHidden}
+          />
         )}
 
-        {phase.kind === "recording" && (
-          <>
-            <button
-              type="button"
-              onClick={() => void ipc.showMain(null, false)}
-              title="Back to TRACE"
-              className="flex min-w-0 shrink flex-col items-start text-left trace-press"
-            >
-              <span className="max-w-40 truncate text-sm text-ink">
-                {phase.status.title || "Untitled meeting"}
-              </span>
-              {/* A click on Stop is answered here, under the name, where the
-                  eye already is — not over the waveform. */}
-              <span
-                className={`font-mono text-2xs tabular-nums ${hint ? "text-error" : "text-ink-muted"}`}
+        {details && <Details status={recording ? phase.status : null} />}
+
+        <div className="flex h-14 shrink-0 items-center gap-2 pr-1.5 pl-1">
+          <Grip />
+
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {phase.kind === "idle" && (
+              <form
+                className="min-w-0 flex-1"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void start();
+                }}
               >
-                {hint ? "hold to stop" : formatElapsed(phase.status.elapsedMs)}
-              </span>
-            </button>
-            {/* Faint, so it is life at the edge of the eye rather than
-                something to watch during a call; and it can be turned off. */}
-            {wave && (
-              <Scope
-                mode="wave"
-                label="Both voices, live"
-                className="h-8 min-w-0 flex-1 opacity-45"
-              />
+                <label className="flex items-center gap-1.5 font-mono text-sm">
+                  <span className="text-phosphor">
+                    <Prompt />
+                  </span>
+                  <span className="sr-only">Meeting name</span>
+                  <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    // A failure is said where the name goes, so the bar keeps
+                    // its one row and its shape.
+                    placeholder={error ? `couldn't start: ${error}` : "name this meeting"}
+                    aria-invalid={error !== null}
+                    // biome-ignore lint/a11y/noAutofocus: opened to type a name
+                    autoFocus
+                    spellCheck={false}
+                    data-selectable
+                    className={`trace-mini-field min-w-0 flex-1 bg-transparent text-ink ${
+                      error ? "placeholder:text-error" : "placeholder:text-ink-faint"
+                    }`}
+                  />
+                </label>
+              </form>
             )}
-          </>
-        )}
 
-        {phase.kind === "saving" && (
-          <p className="shrink-0 whitespace-nowrap font-mono text-xs text-ink-muted">
-            <Prompt />
-            saving…
-          </p>
-        )}
+            {phase.kind === "recording" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void ipc.showMain(null, false)}
+                  title="Back to TRACE"
+                  className="flex min-w-0 shrink flex-col items-start text-left trace-press"
+                >
+                  <span className="max-w-40 truncate text-sm text-ink">
+                    {phase.status.title || "Untitled meeting"}
+                  </span>
+                  {/* A click on Stop is answered here, under the name, where
+                      the eye already is — not over the waveform. */}
+                  <span
+                    className={`font-mono text-2xs tabular-nums ${hint ? "text-error" : "text-ink-muted"}`}
+                  >
+                    {hint ? "hold to stop" : formatElapsed(phase.status.elapsedMs)}
+                  </span>
+                </button>
+                {/* Faint, so it is life at the edge of the eye rather than
+                    something to watch during a call; off in the menu. */}
+                {wave && (
+                  <Scope
+                    mode="wave"
+                    label="Both voices, live"
+                    className="h-8 min-w-0 flex-1 opacity-45"
+                  />
+                )}
+              </>
+            )}
 
-        {phase.kind === "saved" && (
-          <p className="flex shrink-0 items-center gap-2 whitespace-nowrap font-mono text-xs text-ink-muted">
-            <span className="text-phosphor">✓ saved</span>· writing notes…
+            {phase.kind === "saving" && (
+              <p className="shrink-0 whitespace-nowrap font-mono text-xs text-ink-muted">
+                <Prompt />
+                saving…
+              </p>
+            )}
+
+            {phase.kind === "saved" && (
+              <p className="flex shrink-0 items-center gap-2 whitespace-nowrap font-mono text-xs text-ink-muted">
+                <span className="text-phosphor">✓ saved</span>· writing notes…
+                <button
+                  type="button"
+                  onClick={() => {
+                    void ipc.showMain(phase.notePath, false);
+                    void ipc.closeMini();
+                  }}
+                  // Its own font-mono, so the theme's letter case reaches it:
+                  // buttons reset text-transform, and "open" stayed lowercase
+                  // in an all-capitals line.
+                  className="rounded-xs px-1.5 font-mono text-phosphor trace-press hover:underline"
+                >
+                  open
+                </button>
+              </p>
+            )}
+          </div>
+
+          {/* The one round button, always in the same place. */}
+          {phase.kind === "idle" && (
             <button
               type="button"
-              onClick={() => {
-                void ipc.showMain(phase.notePath, false);
-                void ipc.closeMini();
-              }}
-              // Its own font-mono, so the theme's letter case reaches it:
-              // buttons reset text-transform, and "open" stayed lowercase in
-              // an all-capitals line.
-              className="rounded-xs px-1.5 font-mono text-phosphor trace-press hover:underline"
+              onClick={() => void start()}
+              aria-label="Start meeting"
+              title="Start meeting (Enter)"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-error trace-press hover:brightness-110"
             >
-              open
+              <span aria-hidden className="size-3.5 rounded-full bg-surface-0" />
             </button>
-          </p>
-        )}
+          )}
+          {recording && <HoldToStop onStop={stop} onHint={setHint} />}
+
+          {/* Options, back and close: there when the pointer is, faint when
+              it is not, as Spotify keeps its corners clear — and held at full
+              strength while the menu is open. The same three in every state,
+              so the round button never moves when Start becomes Stop. */}
+          <span
+            className={`flex shrink-0 items-center transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100 ${
+              menu ? "opacity-100" : "opacity-40"
+            }`}
+          >
+            <IconButton
+              label="Options"
+              expanded={menu}
+              active={menu}
+              onClick={() => setMenu(!menu)}
+            >
+              <circle cx="7" cy="3" r="1.1" fill="currentColor" stroke="none" />
+              <circle cx="7" cy="7" r="1.1" fill="currentColor" stroke="none" />
+              <circle cx="7" cy="11" r="1.1" fill="currentColor" stroke="none" />
+            </IconButton>
+            <IconButton label="Back to TRACE" onClick={() => void ipc.showMain(null, false)}>
+              <path d="M5 3h6v6M11 3 3 11" />
+            </IconButton>
+            <IconButton
+              label="Close the mini window"
+              title="Close — a meeting keeps recording"
+              onClick={() => void ipc.closeMini()}
+            >
+              <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" />
+            </IconButton>
+          </span>
+        </div>
       </div>
-
-      {/* The one round button, always in the same place. */}
-      {phase.kind === "idle" && (
-        <button
-          type="button"
-          onClick={() => void start()}
-          aria-label="Start meeting"
-          title="Start meeting (Enter)"
-          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-error trace-press hover:brightness-110"
-        >
-          <span aria-hidden className="size-3.5 rounded-full bg-surface-0" />
-        </button>
-      )}
-      {recording && <HoldToStop onStop={stop} onHint={setHint} />}
-
-      {/* Secondary: there when the pointer is, faint when it is not, as
-          Spotify's mini player keeps its corners clear. Focus shows them too.
-          The same three in every state, so the round button never moves
-          when Start becomes Stop. */}
-      <span className="flex shrink-0 items-center opacity-40 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
-        <IconButton
-          label={wave ? "Hide the waveform" : "Show the waveform"}
-          pressed={wave}
-          onClick={() => setWave(!wave)}
-        >
-          <path d="M1 7h2l1.5-4 2 8 2-6 1.5 3H13" />
-        </IconButton>
-        <IconButton label="Back to TRACE" onClick={() => void ipc.showMain(null, false)}>
-          <path d="M5 3h6v6M11 3 3 11" />
-        </IconButton>
-        <IconButton
-          label="Close the mini window"
-          title="Close — a meeting keeps recording"
-          onClick={() => void ipc.closeMini()}
-        >
-          <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" />
-        </IconButton>
-      </span>
     </div>
   );
 }
 
-/** Whether the waveform shows. Remembered; on by default, and faint. */
-function useWave(): [boolean, (on: boolean) => void] {
+/**
+ * The minor controls, in one menu above the bar, as Recordly keeps its own:
+ * switches that are set once and left, not reached for during a call.
+ */
+function OptionsMenu({
+  onClose,
+  wave,
+  onWave,
+  details,
+  onDetails,
+  hidden,
+  onHidden,
+}: {
+  onClose: () => void;
+  wave: boolean;
+  onWave: (on: boolean) => void;
+  details: boolean;
+  onDetails: (on: boolean) => void;
+  hidden: boolean;
+  onHidden: (on: boolean) => void;
+}) {
+  const first = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    first.current?.focus();
+  }, []);
+
+  return (
+    <div className="flex justify-end px-1.5 pt-1.5">
+      <div
+        role="menu"
+        aria-label="Mini window options"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+        }}
+        // As wide as its longest line, so a wide typeface widens the menu —
+        // and the window with it — rather than wrapping a line.
+        className="w-max min-w-64 rounded-md border border-line-strong bg-surface-2 py-1 whitespace-nowrap shadow-(--elevation-overlay)"
+      >
+        <MenuCheck refTo={first} checked={wave} onChange={onWave}>
+          Waveform
+        </MenuCheck>
+        <MenuCheck checked={details} onChange={onDetails}>
+          Details — microphone and model
+        </MenuCheck>
+        <MenuCheck checked={hidden} onChange={onHidden}>
+          Hidden from screen shares
+        </MenuCheck>
+        <div aria-hidden className="my-1 border-t border-line" />
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onClose();
+            void ipc.showMain(null, false);
+          }}
+          className="flex w-full items-center px-3 py-1.5 text-left text-xs text-ink-muted trace-press hover:bg-surface-3 hover:text-ink"
+        >
+          Open TRACE
+        </button>
+        <p className="px-3 pt-1 pb-1.5 font-mono text-2xs text-ink-faint">
+          Ctrl+Alt+R opens this from anywhere
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MenuCheck({
+  checked,
+  onChange,
+  refTo,
+  children,
+}: {
+  checked: boolean;
+  onChange: (on: boolean) => void;
+  refTo?: React.RefObject<HTMLButtonElement | null>;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      ref={refTo}
+      type="button"
+      role="menuitemcheckbox"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-muted trace-press hover:bg-surface-3 hover:text-ink"
+    >
+      <span
+        aria-hidden
+        className={`w-3 font-mono ${checked ? "text-phosphor" : "text-transparent"}`}
+      >
+        ✓
+      </span>
+      {children}
+    </button>
+  );
+}
+
+/**
+ * The extended view: what the meeting is listening with and transcribing
+ * with, as Recordly's bar names the screen it records. During a meeting it
+ * reads the meeting's own; idle, the defaults a meeting would start with.
+ */
+function Details({ status }: { status: CaptureStatus | null }) {
+  const [defaults, setDefaults] = useState<{ mic: string | null; model: string | null }>({
+    mic: null,
+    model: null,
+  });
+
+  useEffect(() => {
+    if (status || !hasBackend()) return;
+    void Promise.all([ipc.getSettings(), ipc.speechModels()])
+      .then(([settings, models]) =>
+        setDefaults({
+          mic: settings.defaultMic ?? null,
+          model: models.find((m) => m.active)?.name ?? null,
+        }),
+      )
+      .catch(() => {});
+  }, [status]);
+
+  const mic = (status ? status.mic : defaults.mic) ?? "system default";
+  const model = status ? status.speechModel : (defaults.model ?? "no speech model");
+
+  return (
+    <div className="flex h-8 shrink-0 items-center gap-3 border-b border-line px-3 font-mono text-2xs text-ink-faint whitespace-nowrap">
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="text-ink-muted">mic</span>
+        <span className="max-w-48 truncate text-ink">{mic}</span>
+      </span>
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="text-ink-muted">model</span>
+        <span className="max-w-44 truncate text-ink">{model}</span>
+      </span>
+      {status && (
+        <span className="ml-auto shrink-0 tabular-nums">{status.segmentCount} segments</span>
+      )}
+    </div>
+  );
+}
+
+/** A switch remembered between openings; an override wins for the gallery. */
+function usePref(
+  key: string,
+  fallback: boolean,
+  override?: boolean,
+): [boolean, (on: boolean) => void] {
   const [on, setOn] = useState(() => {
+    if (override !== undefined) return override;
     try {
-      return localStorage.getItem(WAVE_KEY) !== "off";
+      const saved = localStorage.getItem(key);
+      return saved === null ? fallback : saved === "on";
     } catch {
-      return true;
+      return fallback;
     }
   });
   const set = (next: boolean) => {
     setOn(next);
     try {
-      localStorage.setItem(WAVE_KEY, next ? "on" : "off");
+      localStorage.setItem(key, next ? "on" : "off");
     } catch {
       // Not worth surfacing — the choice simply does not persist.
     }
@@ -293,8 +493,8 @@ function useWave(): [boolean, (on: boolean) => void] {
 
 /*
  * The grip sets the size for every icon here: each is drawn on the same
- * 14px square in the same 28px box, so the drag dots, the waveform switch,
- * back and close read as one set.
+ * 14px square in the same 28px box, so the drag dots, options, back and
+ * close read as one set.
  */
 const ICON = "flex size-7 shrink-0 items-center justify-center rounded-sm text-ink-faint";
 
@@ -321,13 +521,15 @@ function Grip() {
 function IconButton({
   label,
   title,
-  pressed,
+  expanded,
+  active = false,
   onClick,
   children,
 }: {
   label: string;
   title?: string;
-  pressed?: boolean;
+  expanded?: boolean;
+  active?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -336,10 +538,10 @@ function IconButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      aria-pressed={pressed}
+      aria-expanded={expanded}
       title={title ?? label}
       className={`${ICON} trace-press hover:bg-surface-2 hover:text-ink ${
-        pressed === false ? "opacity-60" : ""
+        active ? "bg-surface-2 text-ink" : ""
       }`}
     >
       <svg

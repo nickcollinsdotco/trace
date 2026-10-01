@@ -872,10 +872,17 @@ pub async fn open_mini(app: AppHandle) -> CmdResult<()> {
     crate::windows::open_mini(&app).map_err(err)
 }
 
-/// Widen the mini window to fit its content, within its cap.
+/// Size the mini window to its content, within its cap, keeping the bar
+/// where it is.
 #[tauri::command]
-pub async fn fit_mini(app: AppHandle, width: f64) -> CmdResult<()> {
-    crate::windows::fit_mini(&app, width).map_err(err)
+pub async fn fit_mini(app: AppHandle, width: f64, height: f64) -> CmdResult<()> {
+    crate::windows::fit_mini(&app, (width, height)).map_err(err)
+}
+
+/// Hide the mini window from screen shares, or show it in them.
+#[tauri::command]
+pub async fn protect_mini(app: AppHandle, hidden: bool) -> CmdResult<()> {
+    crate::windows::protect_mini(&app, hidden).map_err(err)
 }
 
 /// Closing the mini window never stops a meeting (docs/13 Q20).

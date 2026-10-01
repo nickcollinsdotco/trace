@@ -158,35 +158,52 @@ pub fn open_mini(app: &AppHandle) -> tauri::Result<()> {
     window.set_focus()
 }
 
-/// The widest the mini window may grow, so it stays a bar beside a call
-/// rather than a second app.
-const MINI_MAX_WIDTH: f64 = 640.0;
+/// The most the mini window may grow, so it stays a bar beside a call rather
+/// than a second app.
+const MINI_MAX: (f64, f64) = (640.0, 420.0);
 
-/// The width the mini window takes for content that needs `wanted` pixels:
-/// never narrower than its usual size, never wider than its cap.
-pub fn mini_width(wanted: f64) -> f64 {
-    wanted.clamp(MINI_SIZE.0, MINI_MAX_WIDTH).round()
+/// The size the mini window takes for content that needs `wanted`: never
+/// smaller than the bar, never larger than its cap.
+pub fn mini_fit(wanted: (f64, f64)) -> (f64, f64) {
+    (
+        wanted.0.clamp(MINI_SIZE.0, MINI_MAX.0).round(),
+        wanted.1.clamp(MINI_SIZE.1, MINI_MAX.1).round(),
+    )
 }
 
-/// Widen the mini window to fit what it is showing, or bring it back.
+/// Resize the mini window to what it is showing, or bring it back to a bar.
 ///
-/// A theme in capitals, a wide typeface, or a longer message can need more
-/// than the usual width; wrapping onto a second line inside a 56px bar cut
-/// it in half. It grows leftwards, keeping its right edge, because it lives
-/// against the right edge of the screen.
-pub fn fit_mini(app: &AppHandle, wanted: f64) -> tauri::Result<()> {
+/// It grows for three reasons: a theme in capitals or a wide typeface that
+/// would otherwise wrap a line inside the 56px bar, the options menu, and
+/// the details row. It always grows up and to the left, keeping its
+/// bottom-right corner, so the bar itself never moves on the screen — it
+/// lives against the right edge, usually pinned in a corner.
+pub fn fit_mini(app: &AppHandle, wanted: (f64, f64)) -> tauri::Result<()> {
     let Some(window) = app.get_webview_window(MINI) else {
         return Ok(());
     };
     let scale = window.scale_factor()?;
-    let width = mini_width(wanted);
+    let (width, height) = mini_fit(wanted);
     let current = window.inner_size()?.to_logical::<f64>(scale);
-    if (current.width - width).abs() < 1.0 {
+    if (current.width - width).abs() < 1.0 && (current.height - height).abs() < 1.0 {
         return Ok(());
     }
     let at = window.outer_position()?.to_logical::<f64>(scale);
-    window.set_size(LogicalSize::new(width, MINI_SIZE.1))?;
-    window.set_position(LogicalPosition::new(at.x + current.width - width, at.y))
+    window.set_size(LogicalSize::new(width, height))?;
+    window.set_position(LogicalPosition::new(
+        at.x + current.width - width,
+        at.y + current.height - height,
+    ))
+}
+
+/// Whether the mini window shows in screen shares. Hidden unless asked for
+/// (docs/13 Q18); switched on the live window, never by hiding and showing
+/// it, which is what blacks it out on this Windows build.
+pub fn protect_mini(app: &AppHandle, hidden: bool) -> tauri::Result<()> {
+    match app.get_webview_window(MINI) {
+        Some(window) => window.set_content_protected(hidden),
+        None => Ok(()),
+    }
 }
 
 pub fn close_mini(app: &AppHandle) -> tauri::Result<()> {
@@ -238,9 +255,9 @@ mod tests {
 
     #[test]
     fn the_mini_window_grows_only_as_far_as_its_cap() {
-        assert_eq!(mini_width(200.0), 360.0);
-        assert_eq!(mini_width(431.4), 431.0);
-        assert_eq!(mini_width(5000.0), 640.0);
+        assert_eq!(mini_fit((200.0, 20.0)), (360.0, 56.0));
+        assert_eq!(mini_fit((431.4, 180.2)), (431.0, 180.0));
+        assert_eq!(mini_fit((5000.0, 5000.0)), (640.0, 420.0));
     }
 
     #[test]

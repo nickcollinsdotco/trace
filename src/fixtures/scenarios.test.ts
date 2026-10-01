@@ -20,6 +20,7 @@ const COMMANDS = [
   "scope_frame",
   "open_mini",
   "fit_mini",
+  "protect_mini",
   "close_mini",
   "show_main",
   "update_notes",

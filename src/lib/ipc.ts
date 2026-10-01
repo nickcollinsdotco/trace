@@ -125,6 +125,10 @@ export interface CaptureStatus {
   pendingSpeechMs: number;
   /** False when no model is installed — capture still works. */
   transcribing: boolean;
+  /** The microphone asked for by name, or null for the system default. */
+  mic: string | null;
+  /** The transcription model this meeting uses. */
+  speechModel: string;
 }
 
 /** One stream's latest waveform, oldest sample first, at about 12kHz. */
@@ -416,8 +420,10 @@ export const ipc = {
   openGallery: () => call<void>("open_gallery"),
   /** The mini window: a name and Start, or the recording bar. */
   openMini: () => call<void>("open_mini"),
-  /** Widen the mini window to fit its content, within its cap. */
-  fitMini: (width: number) => call<void>("fit_mini", { width }),
+  /** Size the mini window to its content, within its cap; the bar stays put. */
+  fitMini: (width: number, height: number) => call<void>("fit_mini", { width, height }),
+  /** Hide the mini window from screen shares, or show it in them. */
+  protectMini: (hidden: boolean) => call<void>("protect_mini", { hidden }),
   /** Closes the mini window. Never stops a meeting. */
   closeMini: () => call<void>("close_mini"),
   /**

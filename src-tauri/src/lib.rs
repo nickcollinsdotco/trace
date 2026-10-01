@@ -139,6 +139,7 @@ pub fn run() {
             commands::open_gallery,
             commands::open_mini,
             commands::fit_mini,
+            commands::protect_mini,
             commands::close_mini,
             commands::show_main,
             commands::diagnostics_report,

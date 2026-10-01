@@ -466,6 +466,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         // Window management: nothing to do in a gallery that has no windows.
         case "open_mini":
         case "fit_mini":
+        case "protect_mini":
         case "close_mini":
         case "show_main":
         case "open_gallery":
@@ -684,6 +685,8 @@ function status(
     inFlight: 0,
     pendingSpeechMs: 0,
     transcribing: state.model.installed,
+    mic: "Microphone (Razer Seiren V3 Mini)",
+    speechModel: "Parakeet TDT 0.6B v3 (int8)",
     ...state.statusOverrides,
   };
 }

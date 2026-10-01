@@ -196,6 +196,7 @@ pub fn start_capture(
     crate::audio::preview::stop();
     let status = manager.start(app.clone(), title, mic_device).map_err(err)?;
     capture_changed(&app);
+    crate::windows::on_trigger(&app, crate::windows::Trigger::MeetingStarted);
     Ok(status)
 }
 
@@ -744,6 +745,18 @@ pub fn set_default_mic(name: Option<String>) -> CmdResult<SettingsView> {
     Ok(SettingsView::from(&s))
 }
 
+/// When the mini window opens by itself during a meeting.
+#[tauri::command]
+pub fn set_mini_auto(app: AppHandle, mode: crate::settings::MiniAuto) -> CmdResult<SettingsView> {
+    let s = crate::settings::update(|s| {
+        s.mini_auto = mode;
+        // Choosing anything is an answer to the offer.
+        s.mini_offered = true;
+    })?;
+    crate::windows::remember_auto(&app, mode);
+    Ok(SettingsView::from(&s))
+}
+
 /// Abandon the meeting in progress, writing nothing.
 #[tauri::command]
 pub fn abort_capture(app: AppHandle, manager: State<'_, CaptureManager>) -> CmdResult<()> {
@@ -869,7 +882,7 @@ pub fn app_info(app: AppHandle) -> AppInfo {
 /// Open the mini window, or bring it forward.
 #[tauri::command]
 pub async fn open_mini(app: AppHandle) -> CmdResult<()> {
-    crate::windows::open_mini(&app).map_err(err)
+    crate::windows::open_mini(&app, crate::windows::Open::Asked).map_err(err)
 }
 
 /// Size the mini window to its content, within its cap, keeping the bar

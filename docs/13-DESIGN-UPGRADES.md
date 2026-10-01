@@ -526,13 +526,34 @@ state with the main window through the existing status polling and events.
 - **Both windows hear each other:** start, stop and abort announce
   `trace://capture-changed`, so the main window's recording screen reloads
   when a meeting starts or stops from the mini window.
-- **Not yet (7b):** appearing on its own when TRACE is minimised or left
-  (Off / When minimised / When I switch away / Always during meetings), the
-  one-time inline offer, the screen-share setting, snapping to edges, and
-  remembering its place per monitor. Also not built: the start sequence and
-  its sound, which belong to the sounds work.
 - **For the scope's second visit:** at 190px the bar's waveform aliases
   into a sawtooth; a rolling level would read better at that size.
+
+**7b built 2026-10-01 (v0.16.0).** Notes from building it:
+
+- **It opens by itself only during a meeting**, by Settings → Mini window:
+  only when asked (the default), when TRACE is minimised, when TRACE is
+  minimised or loses focus to another app, or from the moment a meeting
+  starts. The rules are one pure function, `windows::auto_open`, tested
+  case by case; the main window's focus and resize events feed it.
+- **Opened by itself, it never takes focus** — the call keeps the keyboard.
+  Coming back to TRACE closes a window that opened itself, unless the
+  setting is Always; one opened by hand stays until it is closed.
+- **The offer** is asked once, inline on the mini window, the first time
+  TRACE is minimised in a meeting with the setting still off: "Open this
+  whenever you switch away from TRACE?" Yes sets When I switch away; either
+  answer is final and recorded, and Settings can change it later.
+- **It snaps** to 16px from a screen edge when dropped within 28px of one,
+  once it has been still for 350ms, so a drag is never fought mid-move.
+- **It remembers its place per monitor**, by its bottom-right corner, so
+  growing for the menu or the saved message never knocks it off a spot. A
+  place that no longer fits on screen (a resolution change) falls back to
+  the default against the right edge.
+- **Hiding from screen shares stays a switch in its options menu**, not a
+  Settings entry: it is on by default and the one moment it matters is
+  mid-call, where the menu already is.
+- **Not built:** the start sequence and its sound, which belong to the
+  sounds work.
 
 ## Press effects
 

@@ -55,6 +55,9 @@ export type AudioRetention =
 /** When the summary model occupies memory. */
 export type SummaryMemory = "during_meetings" | "while_writing";
 
+/** When the mini window opens by itself during a meeting. */
+export type MiniAuto = "off" | "minimised" | "switch_away" | "always";
+
 export interface Settings {
   audioRetention: AudioRetention;
   /** Id of the speech model meetings use. */
@@ -63,6 +66,7 @@ export interface Settings {
   summaryModel: string | null;
   summaryMemory: SummaryMemory;
   defaultMic: string | null;
+  miniAuto: MiniAuto;
 }
 
 export interface SpeechModel {
@@ -365,6 +369,7 @@ export const ipc = {
     call<Settings>("set_audio_retention", { retention }),
   setSummaryMemory: (memory: SummaryMemory) => call<Settings>("set_summary_memory", { memory }),
   setDefaultMic: (name: string | null) => call<Settings>("set_default_mic", { name }),
+  setMiniAuto: (mode: MiniAuto) => call<Settings>("set_mini_auto", { mode }),
   /** Without an id, the speech model meetings will use — what first run wants. */
   installModel: (id?: string) => call<void>("install_model", { id: id ?? null }),
   speechModels: () => call<SpeechModel[]>("speech_models"),

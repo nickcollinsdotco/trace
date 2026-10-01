@@ -57,6 +57,8 @@ export interface Scenario {
   miniMenu?: boolean;
   /** The mini window's extended view: microphone and model. */
   miniDetails?: boolean;
+  /** The mini window asking, once, whether to open by itself. */
+  miniOffer?: boolean;
   /** The recording screen opened on its full-screen scope. */
   scopeView?: boolean;
   /** Fun mode on, and an easter egg already playing if one is named. */
@@ -511,6 +513,15 @@ export const SCENARIOS: Scenario[] = [
     screen: "mini",
     miniDetails: true,
     state: { ...POPULATED, recording: true, startElapsedMs: 31 * 60_000, script: liveScript() },
+  },
+  {
+    id: "mini-offer",
+    name: "Mini window, the offer",
+    group: "Capture",
+    note: "The first minimise during a meeting: it opens by itself once, without taking focus, and asks.",
+    screen: "mini",
+    miniOffer: true,
+    state: { ...POPULATED, recording: true, startElapsedMs: 9 * 60_000, script: liveScript() },
   },
   {
     id: "mini-idle",

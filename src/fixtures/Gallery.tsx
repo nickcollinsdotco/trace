@@ -409,6 +409,7 @@ function Preview({ scenario }: { scenario: Scenario }) {
               : {})}
             initialMenu={scenario.miniMenu ?? false}
             initialDetails={scenario.miniDetails ?? false}
+            offer={scenario.miniOffer ?? false}
           />
         </div>
       </div>

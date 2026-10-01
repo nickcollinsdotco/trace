@@ -48,7 +48,7 @@ pub fn run() {
                     // (docs/13 Q21).
                     let app = app.clone();
                     tauri::async_runtime::spawn(async move {
-                        if let Err(e) = windows::open_mini(&app) {
+                        if let Err(e) = windows::open_mini(&app, windows::Open::Asked) {
                             diagnostics::log(format!("could not open the mini window: {e}"));
                         }
                     });
@@ -57,6 +57,7 @@ pub fn run() {
         )
         // One meeting at a time, owned by the app rather than any window.
         .manage(CaptureManager::default())
+        .manage(windows::MiniState::default())
         // Mark development builds in the title bar and taskbar, so a
         // `pnpm tauri dev` window is never mistaken for the installed app —
         // they share the notes folder, so recording into the wrong one is
@@ -81,6 +82,8 @@ pub fn run() {
                     diagnostics::log(format!("Ctrl+Alt+R is taken; no mini-window shortcut: {e}"));
                 }
             }
+            // The mini window opening by itself, as the setting says.
+            windows::watch_main(app.handle());
             if let Some(main) = app.get_webview_window("main") {
                 if let Err(e) = windows::fit_and_centre(&main, (1200.0, 840.0)) {
                     diagnostics::log(format!("could not size the main window: {e}"));
@@ -140,6 +143,7 @@ pub fn run() {
             commands::open_mini,
             commands::fit_mini,
             commands::protect_mini,
+            commands::set_mini_auto,
             commands::close_mini,
             commands::show_main,
             commands::diagnostics_report,

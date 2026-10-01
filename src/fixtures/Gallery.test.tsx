@@ -1259,4 +1259,29 @@ describe("Gallery", () => {
     expect(wave).toHaveAttribute("aria-checked", "false");
     expect(screen.queryByRole("img", { name: "Both voices, live" })).toBeNull();
   });
+
+  it("offers, once and inline, to open the mini window by itself", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Mini window, the offer");
+
+    const question = await screen.findByText("Open this whenever you switch away from TRACE?");
+    await user.click(screen.getByRole("button", { name: "Yes" }));
+    expect(question).not.toBeInTheDocument();
+    // The bar carries on underneath, unchanged.
+    expect(screen.getByRole("button", { name: /hold to stop/ })).toBeInTheDocument();
+  });
+
+  it("lets Settings choose when the mini window opens, off until asked", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Settings");
+
+    const group = await screen.findByRole("radiogroup", { name: "When the mini window opens" });
+    expect(within(group).getByRole("radio", { name: /Only when I open it/ })).toBeChecked();
+    await user.click(within(group).getByRole("radio", { name: /When I switch away/ }));
+    await waitFor(() =>
+      expect(within(group).getByRole("radio", { name: /When I switch away/ })).toBeChecked(),
+    );
+  });
 });

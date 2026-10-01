@@ -89,12 +89,10 @@ pub fn open_gallery(app: &AppHandle) -> tauri::Result<()> {
 /// render it.
 pub const MINI: &str = "mini";
 
-/// The mini window's two sizes, in logical pixels (docs/13 Q19): a bar while
-/// a meeting runs — dot, timer, waveform, Stop — and taller while idle, to
-/// hold a name field and Start. Fixed, never freely resized.
-const MINI_WIDTH: f64 = 360.0;
-const MINI_BAR: f64 = 56.0;
-const MINI_EXPANDED: f64 = 156.0;
+/// The mini window's size, in logical pixels: one bar, idle or recording, so
+/// starting a meeting never makes it jump (docs/13, Stage 7). Fixed, never
+/// freely resized.
+const MINI_SIZE: (f64, f64) = (360.0, 56.0);
 
 /// Where the mini window opens: against the right edge, in the lower third,
 /// clear of title bars, close buttons and notifications (docs/13 Q19).
@@ -117,14 +115,13 @@ pub fn mini_spot(area: (f64, f64, f64, f64), size: (f64, f64)) -> (f64, f64) {
 /// mini-window research). Excluded from capture by default, because a
 /// recording indicator is for the person recording, not the people on the
 /// call.
-pub fn open_mini(app: &AppHandle, expanded: bool) -> tauri::Result<()> {
+pub fn open_mini(app: &AppHandle) -> tauri::Result<()> {
     if let Some(existing) = app.get_webview_window(MINI) {
-        set_mini_expanded(app, expanded)?;
         existing.unminimize()?;
         return existing.set_focus();
     }
 
-    let size = (MINI_WIDTH, if expanded { MINI_EXPANDED } else { MINI_BAR });
+    let size = MINI_SIZE;
     let window = WebviewWindowBuilder::new(app, MINI, WebviewUrl::App("index.html#mini".into()))
         .title("TRACE")
         .inner_size(size.0, size.1)
@@ -159,20 +156,6 @@ pub fn open_mini(app: &AppHandle, expanded: bool) -> tauri::Result<()> {
     }
     window.show()?;
     window.set_focus()
-}
-
-/// Switch between the bar and the expanded mini window, keeping its bottom
-/// edge where it was, so it grows upwards rather than off the screen.
-pub fn set_mini_expanded(app: &AppHandle, expanded: bool) -> tauri::Result<()> {
-    let Some(window) = app.get_webview_window(MINI) else {
-        return Ok(());
-    };
-    let scale = window.scale_factor()?;
-    let height = if expanded { MINI_EXPANDED } else { MINI_BAR };
-    let current = window.inner_size()?.to_logical::<f64>(scale);
-    let at = window.outer_position()?.to_logical::<f64>(scale);
-    window.set_size(LogicalSize::new(MINI_WIDTH, height))?;
-    window.set_position(LogicalPosition::new(at.x, at.y + current.height - height))
 }
 
 pub fn close_mini(app: &AppHandle) -> tauri::Result<()> {

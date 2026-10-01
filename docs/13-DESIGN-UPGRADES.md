@@ -492,9 +492,16 @@ state with the main window through the existing status polling and events.
   Ctrl+Alt+R anywhere (`tauri-plugin-global-shortcut`, registered in Rust;
   if another app owns the combination it is logged and the app carries on).
   Idle, it opens expanded with the name field focused; recording, as the bar.
-- **Two sizes**, 360×56 and 360×156, switching with the meeting and keeping
-  the bottom edge still. Opens against the right edge in the lower third of
-  the main window's monitor. Only the ⋮ grip drags it.
+- **One bar, 360×56, idle or recording** — revised after a first cut had a
+  taller idle window that jumped when a meeting started. The name field
+  sits where the meeting's name will be and the round red Start exactly
+  where the held Stop will; the same three icons (waveform, back, close)
+  show in every state so nothing shifts. Shaped after Spotify's, Apple
+  Music's and Recordly's mini players: one round button carries it, the
+  secondary icons fade in on hover. No recording dot — Stop and the
+  waveform already say it. The waveform is faint and can be switched off,
+  remembered. Opens against the right edge in the lower third of the main
+  window's monitor; only the ⠿ grip drags it.
 - **Hidden from screen shares** (`content_protected`), and created afresh
   and closed rather than hidden and re-shown — the black-rectangle bug on
   build 19045. **Not yet checked against a real Teams share.**

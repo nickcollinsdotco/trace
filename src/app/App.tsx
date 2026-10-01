@@ -86,7 +86,7 @@ export function App() {
     // Through the capture screen, not straight to the backend: the screen
     // flushes the notes typed in the last half-second before it stops.
     stopMeeting: () => setRoute({ name: "capture", stop: Date.now() }),
-    openMini: () => void ipc.openMini(!palette.recording).catch(() => {}),
+    openMini: () => void ipc.openMini().catch(() => {}),
     openGallery: () => {
       if (isDesktop()) void ipc.openGallery().catch(() => {});
       else location.hash = "gallery";

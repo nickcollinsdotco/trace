@@ -494,7 +494,7 @@ export const SCENARIOS: Scenario[] = [
     id: "mini-idle",
     name: "Mini window, idle",
     group: "Capture",
-    note: "Opened with Ctrl+Alt+R and nothing recording: a name, and Start.",
+    note: "Nothing recording: the same bar, a name where the title goes and Start where Stop goes.",
     screen: "mini",
     state: POPULATED,
   },

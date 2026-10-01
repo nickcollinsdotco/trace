@@ -395,12 +395,11 @@ function Preview({ scenario }: { scenario: Scenario }) {
   // The mini window is a window of its own, so it is shown at its own size
   // on an empty desk rather than inside the app's shell.
   if (scenario.screen === "mini") {
-    const tall = scenario.state.recording !== true && !scenario.miniSaved;
     return (
       <div className="flex h-full items-center justify-center bg-surface-0">
         <div
           className="overflow-hidden rounded-md border border-line-strong shadow-(--elevation-overlay)"
-          style={{ width: 360, height: tall ? 156 : 56 }}
+          style={{ width: 360, height: 56 }}
         >
           <MiniWindow
             {...(scenario.miniSaved

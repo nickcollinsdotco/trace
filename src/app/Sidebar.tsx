@@ -94,15 +94,10 @@ export function Sidebar({
 
       {/* At the foot, out of the way of the places above. Opens the mini
           window whatever is happening: idle, it asks for a name; recording,
-          it is the bar. */}
+          it shows the meeting. */}
       <button
         type="button"
-        onClick={() =>
-          void ipc
-            .captureStatus()
-            .then((s) => ipc.openMini(s === null))
-            .catch(() => {})
-        }
+        onClick={() => void ipc.openMini().catch(() => {})}
         title="Mini window — floats over everything (Ctrl+Alt+R)"
         className="mx-3 mt-auto mb-3 flex items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-2xs text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
       >

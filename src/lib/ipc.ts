@@ -414,9 +414,8 @@ export const ipc = {
   appInfo: () => call<AppInfo>("app_info"),
   /** Opens the screen gallery in its own window, or focuses it. */
   openGallery: () => call<void>("open_gallery"),
-  /** The mini window: expanded with a name field, or as the recording bar. */
-  openMini: (expanded: boolean) => call<void>("open_mini", { expanded }),
-  setMiniExpanded: (expanded: boolean) => call<void>("set_mini_expanded", { expanded }),
+  /** The mini window: a name and Start, or the recording bar. */
+  openMini: () => call<void>("open_mini"),
   /** Closes the mini window. Never stops a meeting. */
   closeMini: () => call<void>("close_mini"),
   /**

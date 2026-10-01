@@ -43,14 +43,12 @@ pub fn run() {
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }
-                    // From anywhere: the mini window, expanded with its name
-                    // field when nothing is recording, as the bar when
-                    // something is. Never a stop — stopping by accident loses
-                    // the end of a meeting (docs/13 Q21).
-                    let recording = app.state::<CaptureManager>().status().is_some();
+                    // From anywhere: the mini window. Never a stop —
+                    // stopping by accident loses the end of a meeting
+                    // (docs/13 Q21).
                     let app = app.clone();
                     tauri::async_runtime::spawn(async move {
-                        if let Err(e) = windows::open_mini(&app, !recording) {
+                        if let Err(e) = windows::open_mini(&app) {
                             diagnostics::log(format!("could not open the mini window: {e}"));
                         }
                     });
@@ -140,7 +138,6 @@ pub fn run() {
             commands::app_info,
             commands::open_gallery,
             commands::open_mini,
-            commands::set_mini_expanded,
             commands::close_mini,
             commands::show_main,
             commands::diagnostics_report,

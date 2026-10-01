@@ -866,16 +866,10 @@ pub fn app_info(app: AppHandle) -> AppInfo {
     }
 }
 
-/// Open the mini window: expanded with a name field while idle, as a bar
-/// while recording.
+/// Open the mini window, or bring it forward.
 #[tauri::command]
-pub async fn open_mini(app: AppHandle, expanded: bool) -> CmdResult<()> {
-    crate::windows::open_mini(&app, expanded).map_err(err)
-}
-
-#[tauri::command]
-pub async fn set_mini_expanded(app: AppHandle, expanded: bool) -> CmdResult<()> {
-    crate::windows::set_mini_expanded(&app, expanded).map_err(err)
+pub async fn open_mini(app: AppHandle) -> CmdResult<()> {
+    crate::windows::open_mini(&app).map_err(err)
 }
 
 /// Closing the mini window never stops a meeting (docs/13 Q20).

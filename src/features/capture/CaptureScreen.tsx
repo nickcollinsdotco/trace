@@ -150,7 +150,7 @@ export function CaptureScreen({
         {/* Where someone about to switch to the call looks for it. */}
         <button
           type="button"
-          onClick={() => void ipc.openMini(false).catch(() => {})}
+          onClick={() => void ipc.openMini().catch(() => {})}
           aria-label="Open the mini window"
           title="Mini window — floats over the call (Ctrl+Alt+R)"
           className="flex size-7 shrink-0 items-center justify-center self-center rounded-sm text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"

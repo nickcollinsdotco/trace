@@ -79,6 +79,37 @@ Each is a real project rather than a theme, and each needs costing on its own.
 the "fake terminal cosplay" `docs/05-DESIGN-DIRECTION.md` rules out, and the
 ruling is written down here so it is a decision rather than a silent omission.
 
+## The scope, a second visit — ideas from 2026-10-01
+
+The live scope (Stage 6, `docs/13`) is liked but wants refining. Four ideas
+from the user, to design together rather than build piecemeal:
+
+1. **Beside the meters, not above the notes.** The user's mockup (teletext
+   theme) puts it in the Signal section: MIC and SYSTEM as segmented bars
+   with their dB on the left, and on the right a graticule — a squared grid
+   in the theme's line colour — with a single trace rolling across it. That
+   trace reads as loudness over the last minute or so, not a waveform: the
+   meters say *now*, the trace says *lately*. It would free the space the
+   strip takes above the notes.
+2. **Large ASCII waveforms in the background.** Behind the panels on box and
+   card themes (the "behind" placement the screen effects already have), or
+   faded far back on rule themes. An Appearance control for how much, and
+   off.
+3. **Quiet activity while the app is open, not only while recording.**
+   Subtle, always there, because early on nobody spends long in the app and
+   the life should be visible at once. Never real audio outside a meeting —
+   that would feel like listening, and Q30 rules it out: synthetic, or drawn
+   from past meetings' stored envelopes.
+4. **WE ARE LIVE, unmistakably but not annoyingly.** Something across the
+   whole window while recording, visible from any page: a coloured edge or
+   frame, a tinted status bar, a slow pattern. It should be readable from
+   across a room and still be calm to work beside for an hour. Pairs with
+   the mini window (Stage 7), which carries the same signal when the main
+   window is not in view.
+
+Rules carried over: nothing changes a control's size; motion respects
+reduced motion; anything ambient has an Appearance control and an off.
+
 ## Hover and press motion — parked 2026-10-01
 
 Asked for in the design upgrades: something better than the 0.97 push-in,

@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import { isMotion, type Motion } from "./motion";
 import {
   type Effect,
   type EffectSetting,
@@ -37,6 +38,7 @@ import {
  */
 export interface FamilySettings {
   screen: Screen;
+  motion: Motion;
   /** The theme last chosen in this family, restored when flipping back to it. */
   theme?: Theme | undefined;
 }
@@ -46,8 +48,8 @@ export interface FamilySettings {
  * texture that shades the letters without cutting them. Modern starts clean.
  */
 export const FAMILY_DEFAULTS: Record<Family, FamilySettings> = {
-  retro: { screen: presetScreen("lines") },
-  modern: { screen: presetScreen("none") },
+  retro: { screen: presetScreen("lines"), motion: "scramble" },
+  modern: { screen: presetScreen("none"), motion: "ripple" },
 };
 
 /** Fresh family settings, so no two looks ever share a mutable default. */
@@ -109,7 +111,8 @@ function loadFamilies(theme: Theme): Record<Family, FamilySettings> {
         const screen = legacy
           ? presetScreen(legacy)
           : readScreen(saved?.screen, families[f].screen);
-        families[f] = { screen };
+        const motion = isMotion(saved?.motion) ? saved.motion : families[f].motion;
+        families[f] = { screen, motion };
         if (isTheme(saved?.theme) && THEME_FAMILY[saved.theme] === f) {
           families[f].theme = saved.theme;
         }
@@ -117,7 +120,8 @@ function loadFamilies(theme: Theme): Record<Family, FamilySettings> {
     } else if (localStorage.getItem(LEGACY_CRT_KEY) === "on") {
       // Someone who turned CRT mode on should not lose it to an update. It
       // lands on the family they were using, which is where they saw it.
-      families[THEME_FAMILY[theme]] = { screen: presetScreen("crt") };
+      const family = THEME_FAMILY[theme];
+      families[family] = { ...families[family], screen: presetScreen("crt") };
     }
   } catch {
     // Unreadable storage: the defaults are a fine answer.
@@ -208,6 +212,8 @@ export interface AppearanceControl {
   setFamily: (family: Family) => void;
   /** Replace the current family's screen with a preset. */
   setPreset: (preset: Preset) => void;
+  /** How controls answer the pointer, for the current family. */
+  setMotion: (motion: Motion) => void;
   /** Change one effect of the current family's screen. */
   setEffect: (effect: Effect, patch: Partial<EffectSetting>) => void;
   setAxis: (axis: Axis, value: string | undefined) => void;
@@ -274,6 +280,16 @@ function withScreen(a: Appearance, change: (screen: Screen) => Screen): Appearan
     ...a,
     families: { ...a.families, [family]: { ...settings, screen: change(settings.screen) } },
   };
+}
+
+/** The motion in force: the one the current theme's family remembers. */
+export function currentMotion(a: Appearance): Motion {
+  return a.families[THEME_FAMILY[a.theme]].motion;
+}
+
+export function withMotion(a: Appearance, motion: Motion): Appearance {
+  const family = THEME_FAMILY[a.theme];
+  return { ...a, families: { ...a.families, [family]: { ...a.families[family], motion } } };
 }
 
 export function withPreset(a: Appearance, preset: Preset): Appearance {

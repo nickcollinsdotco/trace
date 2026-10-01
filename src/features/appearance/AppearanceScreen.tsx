@@ -5,10 +5,12 @@ import {
   AXES,
   type Axis,
   currentAdjustments,
+  currentMotion,
   currentScreen,
   isAdjusted,
   useAppearanceControl,
 } from "../../design/appearance";
+import { MOTION_NOTES, MOTIONS } from "../../design/motion";
 import {
   EFFECT_LABELS,
   EFFECT_NOTES,
@@ -50,12 +52,13 @@ import {
  * C). They were gallery-only, which made that test depend on a dev harness.
  */
 export function AppearanceScreen() {
-  const { appearance, setTheme, setFamily, setPreset, setEffect, setAxis, reset } =
+  const { appearance, setTheme, setFamily, setPreset, setEffect, setAxis, reset, setMotion } =
     useAppearanceControl();
   const overridden = isAdjusted(appearance, appearance.theme);
   const adjustments = currentAdjustments(appearance);
   const family = THEME_FAMILY[appearance.theme];
   const screen = currentScreen(appearance);
+  const motion = currentMotion(appearance);
   const preset = presetOf(screen);
 
   return (
@@ -98,6 +101,24 @@ export function AppearanceScreen() {
 
       {/* Its own section, but still the family's: each family remembers its
           screen, so flipping to Modern and back brings this one back. */}
+      {/* The family's too, so Retro can scramble while Modern ripples. */}
+      <Section title={`Motion · ${family}`}>
+        <div className="flex flex-col gap-1">
+          <fieldset className="m-0 flex flex-wrap gap-1 border-0 p-0">
+            <legend className="sr-only">Motion</legend>
+            {MOTIONS.map((m) => (
+              <Choice key={m} selected={motion === m} onClick={() => setMotion(m)}>
+                {m}
+              </Choice>
+            ))}
+          </fieldset>
+          <p className="text-2xs text-ink-faint">
+            {MOTION_NOTES[motion]}
+            {motion !== "off" && " Reduced motion in Windows turns it off regardless."}
+          </p>
+        </div>
+      </Section>
+
       <Section title={`Screen · ${family}`}>
         <p className="text-sm text-ink-muted">
           Effects on the glass, each as strong as you like. Textures can sit over everything, or

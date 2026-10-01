@@ -16,7 +16,7 @@
         [ OK ] CONTEXT BUFFER
         [ -- ] AWAITING SESSION
 
-        TRACE // BUILD 0.11.1
+        TRACE // BUILD 0.12.0
 
 · · · · · · · · · · · · · · · · · · · · · · · ·
 ```

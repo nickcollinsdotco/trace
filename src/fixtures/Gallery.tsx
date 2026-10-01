@@ -26,16 +26,19 @@ import {
   AppearanceContext,
   type AppearanceControl,
   currentAdjustments,
+  currentMotion,
   currentScreen,
   defaultFamilies,
   useAppearanceControl,
   withAxis,
   withEffect,
   withFamily,
+  withMotion,
   withPreset,
   withReset,
   withTheme,
 } from "../design/appearance";
+import { applyMotion, MOTION_NOTES, MOTIONS } from "../design/motion";
 import { applyScreen, PRESET_NOTES, PRESETS, presetOf } from "../design/screen";
 import {
   applyTheme,
@@ -132,6 +135,7 @@ export function Gallery() {
   const { theme } = look;
   const overrides = currentAdjustments(look);
   const screen = currentScreen(look);
+  const motion = currentMotion(look);
 
   /*
    * Installed during render, deliberately.
@@ -173,6 +177,7 @@ export function Gallery() {
     setTheme: (t) => setLook((a) => withTheme(a, t)),
     setFamily: (f) => setLook((a) => withFamily(a, f)),
     setPreset: (p) => setLook((a) => withPreset(a, p)),
+    setMotion: (m) => setLook((a) => withMotion(a, m)),
     setEffect: (e, patch) => setLook((a) => withEffect(a, e, patch)),
     setAxis: (axis, value) => setLook((a) => withAxis(a, axis, value)),
     reset: () => setLook(withReset),
@@ -184,13 +189,14 @@ export function Gallery() {
     if (preview.current) {
       applyTheme(theme, preview.current, overrides);
       applyScreen(screen, preview.current);
+      applyMotion(motion, preview.current);
     }
     try {
       localStorage.setItem(THEME_KEY, theme);
     } catch {
       // Not worth surfacing.
     }
-  }, [theme, overrides, screen]);
+  }, [theme, overrides, screen, motion]);
 
   useEffect(() => {
     if (scenario) location.hash = `gallery/${scenario.id}`;
@@ -266,6 +272,12 @@ export function Gallery() {
             />
             {/* Presets only: the per-effect sliders are on the Appearance
                 page, which the gallery renders as the Appearance scenario. */}
+            <Switcher
+              label="Motion"
+              options={MOTIONS.map((m) => ({ id: m, label: m, title: MOTION_NOTES[m] }))}
+              value={motion}
+              onChange={(v) => appearance.setMotion(v as typeof motion)}
+            />
             <Switcher
               label="Screen"
               options={[

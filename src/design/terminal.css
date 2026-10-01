@@ -437,30 +437,15 @@
     color var(--duration-fast) var(--ease-out),
     background-color var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out),
-    opacity var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
-}
-
-/* Subtle — 0.97, not a bounce. Never on a disabled control, which by
-   definition did not hear you. */
-.trace-press:active:not(:disabled) {
-  transform: scale(0.97);
+    opacity var(--duration-fast) var(--ease-out);
 }
 
 /*
- * The press scale is movement, so reduced motion drops it.
- *
- * This override lives here rather than beside the other reduced-motion rules
- * in tokens.css, and the reason is worth stating: both selectors have equal
- * specificity, so the later one wins, and tokens.css is imported first. Put
- * there, this rule was emitted BEFORE the scale it was meant to cancel and
- * did nothing at all. Found by reading the built CSS, not the source.
+ * The press itself is answered by motion.css, per family: a burst of blocks
+ * for Retro, a ripple for Soft, nothing for Off. The 0.97 push-in that lived
+ * here went with it (docs/13, Q13) — it shrank every control in the app, and
+ * a press that is drawn rather than moved never shifts the layout.
  */
-@media (prefers-reduced-motion: reduce) {
-  .trace-press:active:not(:disabled) {
-    transform: none;
-  }
-}
 
 /* ---------------------------------------------------------------------
  * The new-meeting title (CaptureScreen). The hint sits exactly where the

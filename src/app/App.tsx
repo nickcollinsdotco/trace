@@ -4,16 +4,19 @@ import {
   AppearanceContext,
   type AppearanceControl,
   currentAdjustments,
+  currentMotion,
   currentScreen,
   loadAppearance,
   saveAppearance,
   withAxis,
   withEffect,
   withFamily,
+  withMotion,
   withPreset,
   withReset,
   withTheme,
 } from "../design/appearance";
+import { applyMotion } from "../design/motion";
 import { applyScreen } from "../design/screen";
 import { applyTheme, THEMES, themeForKey } from "../design/theme";
 import { AboutScreen } from "../features/about/AboutScreen";
@@ -220,6 +223,7 @@ function useAppearance(): AppearanceControl {
   useEffect(() => {
     applyTheme(appearance.theme, document.documentElement, currentAdjustments(appearance));
     applyScreen(currentScreen(appearance), document.documentElement);
+    applyMotion(currentMotion(appearance), document.documentElement);
     saveAppearance(appearance);
   }, [appearance]);
 
@@ -249,6 +253,7 @@ function useAppearance(): AppearanceControl {
     setTheme: (theme) => setAppearance((a) => withTheme(a, theme)),
     setFamily: (family) => setAppearance((a) => withFamily(a, family)),
     setPreset: (preset) => setAppearance((a) => withPreset(a, preset)),
+    setMotion: (motion) => setAppearance((a) => withMotion(a, motion)),
     setEffect: (effect, patch) => setAppearance((a) => withEffect(a, effect, patch)),
     setAxis: (axis, value) => setAppearance((a) => withAxis(a, axis, value)),
     reset: () => setAppearance(withReset),

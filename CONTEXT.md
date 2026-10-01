@@ -66,8 +66,11 @@ never changes the content column.
 _Avoid_: Spacing (as a theme setting)
 
 **Motion**:
-How controls respond to hover and press: scramble and ASCII presses for
-Retro, fades and ripples for Modern. Set per family.
+How controls respond to hover and press: _scramble_ (labels redraw as the
+pointer arrives, presses burst into block characters), _ripple_ (a soft
+spread from the press) or _off_. Set per family; Retro starts on scramble,
+Modern on ripple.
+_Avoid_: Animation (for this setting), press effect (for the whole of it)
 
 **UI sound**:
 A short, quiet sound acknowledging something the user did. Each family has

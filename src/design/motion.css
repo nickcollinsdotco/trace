@@ -1,0 +1,82 @@
+/*
+ * TRACE — motion
+ *
+ * Presses, drawn rather than moved (motion.ts). Each press lays a frame over
+ * the control, the same size and rounding, and draws inside it; the control
+ * is never restyled, so nothing in the layout shifts. Frames sit in the
+ * shell, so they inherit whichever theme is on screen, the gallery's preview
+ * included. Reduced motion skips them altogether, in motion.ts.
+ * ------------------------------------------------------------------ */
+
+.trace-press-fx {
+  position: fixed;
+  z-index: 60;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.trace-press-fx-mark {
+  position: absolute;
+}
+
+/* Scramble: the control flashes once, like a key on an old terminal echoing,
+   and a row of blocks bursts out from the pointer and fades. It stays where
+   it was pressed — a burst that rose was clipped out of a 32px button before
+   anyone saw it. */
+.trace-press-fx-scramble {
+  animation: trace-press-flash 260ms steps(3, jump-none) forwards;
+}
+
+.trace-press-fx-scramble .trace-press-fx-mark {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-phosphor-bright);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--color-phosphor) 60%, transparent);
+  transform: translate(-50%, -50%);
+  animation: trace-press-burst 420ms var(--ease-out) forwards;
+}
+
+@keyframes trace-press-flash {
+  from {
+    background: color-mix(in srgb, var(--color-phosphor) 28%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@keyframes trace-press-burst {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  40% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.45);
+  }
+}
+
+/* Ripple: ink spreading from the press and fading as it reaches the edge. */
+.trace-press-fx-ripple .trace-press-fx-mark {
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-ink) 24%, transparent);
+  transform: translate(-50%, -50%) scale(0);
+  animation: trace-press-ripple 460ms var(--ease-out) forwards;
+}
+
+/* Full strength while it spreads, then gone: fading from the first frame
+   left it too faint to see on a light-grey control. */
+@keyframes trace-press-ripple {
+  50% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}

@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./app/App";
+import { installMotion } from "./design/motion";
 import { installTextures } from "./design/textures";
 import { ipc, isDesktop } from "./lib/ipc";
 import "./design/index.css";
@@ -8,6 +9,7 @@ import "./design/index.css";
 // Before the first render, so a screen effect is never drawn without its
 // texture for a frame.
 installTextures();
+installMotion();
 
 const root = document.getElementById("root");
 if (!root) {

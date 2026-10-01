@@ -14,6 +14,7 @@ function setup(initialQuery = "") {
     setTheme: vi.fn(),
     setFamily: vi.fn(),
     setPreset: vi.fn(),
+    setMotion: vi.fn(),
     setEffect: vi.fn(),
     setAxis: vi.fn(),
     reset: vi.fn(),

@@ -415,6 +415,23 @@ Ctrl+Shift+T stays alongside it.
 
 Hover scramble, press effects, fun mode, the narrator bar.
 
+**5a, motion — built 2026-10-01 (v0.12.0).** Notes from building it:
+
+- Motion is a per-family setting with three values named for what they do
+  — `scramble`, `ripple`, `off` — rather than after the families, because
+  a Motion choice called "retro" sat next to the Retro family button and
+  nobody could tell them apart.
+- The 0.97 push-in is gone from every control. Presses are drawn in a frame
+  laid over the control, so nothing in the layout ever moves.
+- One delegated listener finds controls by `.trace-press`; no component
+  changed. The scramble writes to text nodes React owns, so it pins the
+  label's width first and gives way if React rewrites the label mid-way.
+- Checked mid-animation in headless Chrome with real mouse input. Two
+  first drafts failed that check: the burst rose out of a 32px button and
+  was clipped away unseen, and the ripple faded from its first frame and
+  was too faint on graphite. Both fixed before commit.
+- 5b — fun mode, the narrator and the eggs — is next.
+
 ### Stage 6 — audio visualisation
 
 The Rust `audio-frame` event and FFT, the visualiser components, a full-screen

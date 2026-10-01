@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   type Appearance,
   currentAdjustments,
+  currentMotion,
   currentScreen,
   defaultFamilies,
   isAdjusted,
@@ -10,6 +11,7 @@ import {
   withAxis,
   withEffect,
   withFamily,
+  withMotion,
   withPreset,
   withReset,
   withTheme,
@@ -57,6 +59,30 @@ describe("screens", () => {
     expect(currentScreen(a).grain).toEqual({ amount: 70, place: "behind", size: 1 });
     a = withFamily(a, "modern");
     expect(currentScreen(a).grain.amount).toBe(0);
+  });
+});
+
+describe("motion", () => {
+  it("starts Retro on the scramble and Modern on the ripple", () => {
+    const a = fresh();
+    expect(currentMotion(a)).toBe("scramble");
+    expect(currentMotion(withFamily(a, "modern"))).toBe("ripple");
+  });
+
+  it("belongs to its family, and survives a restart", () => {
+    let a = withMotion(fresh(), "off");
+    a = withFamily(a, "modern");
+    expect(currentMotion(a)).toBe("ripple");
+    saveAppearance(withFamily(a, "retro"));
+    expect(currentMotion(loadAppearance())).toBe("off");
+  });
+
+  it("falls back to the family default for a value it does not know", () => {
+    localStorage.setItem(
+      "trace.appearance.families",
+      JSON.stringify({ retro: { motion: "wobble" } }),
+    );
+    expect(currentMotion(loadAppearance())).toBe("scramble");
   });
 });
 

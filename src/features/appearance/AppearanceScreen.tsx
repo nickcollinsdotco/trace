@@ -63,8 +63,8 @@ export function AppearanceScreen() {
       <Section title="Theme">
         <p className="text-sm text-ink-muted">
           Two families, each with its own themes and its own screen. Pick one, then a theme within
-          it — or press <Key>1</Key>–<Key>9</Key> and <Key>0</Key> anywhere outside a text field. A
-          theme is best judged over a few days of real meetings, not from a preview.
+          it — or press <Key>1</Key>–<Key>{String(THEMES.length % 10)}</Key> anywhere outside a text
+          field. A theme is best judged over a few days of real meetings, not from a preview.
         </p>
 
         <fieldset className="m-0 flex w-fit gap-1 rounded-pill border border-line p-1">

@@ -378,6 +378,11 @@ Keys 7, 8, 9, 0. Fonts bundled: VT323, Silkscreen, Share Tech Mono, Roboto
 Condensed (all OFL). `vault` borrows the device's look and nothing of its
 branding.
 
+**Retired 2026-10-01, on review:** `console` and `council`. Eight themes
+remain, on keys 1–8: terminal, report, industrial, termcn, graphite, shell,
+index, vault. A saved choice of a retired theme falls back to terminal and
+its adjustments are dropped.
+
 ### Stage 4 — command palette
 
 After the themes, as `10-BACKLOG.md` already argues, so it is styled once.

@@ -20,19 +20,21 @@
 
 /**
  * Every built-in theme, in the order the number keys reach them: 1–9, then
- * 0 for the tenth. New themes go on the end, so a key never changes what it
- * picks.
+ * 0 for the tenth. New themes go on the end, so adding one never moves a
+ * key; retiring one does, and the user is told the new order.
+ *
+ * Retired 2026-10-01, on the user's call after living with them: `console`
+ * (conky's hue-ramp meters) and `council` (the conference badge). A saved
+ * choice of either falls back to the default, and its adjustments go with it.
  */
 export const THEMES = [
   "terminal",
   "report",
-  "console",
   "industrial",
   "termcn",
   "graphite",
   "shell",
   "index",
-  "council",
   "vault",
 ] as const;
 
@@ -133,13 +135,6 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     // a report rather than a document about one — and the TR-100 shouts.
     type: { mono: "plex", role: "mono", case: "upper" },
   },
-  console: {
-    family: "retro",
-    note: "conky — dense rows, and a hue ramp that makes the meters readable at a glance.",
-    frame: "rule",
-    // conky is a readout: mono everywhere, tight, even, and quiet.
-    type: { mono: "jetbrains", role: "mono", case: "lower" },
-  },
   industrial: {
     family: "retro",
     note: "R-1 / LAB — hot orange as a brand colour, not a status accent.",
@@ -149,7 +144,7 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
   },
   termcn: {
     family: "retro",
-    note: "termcn — pure black, saturated ANSI, heavy square boxes. The loudest of the five.",
+    note: "termcn — pure black, saturated ANSI, heavy square boxes. The loudest of them.",
     frame: "box",
     // Their shots are bold Title Case, not caps — weight does the shouting.
     type: { mono: "jetbrains", role: "mono", case: "normal" },
@@ -173,12 +168,6 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     note: "A studio index: pixel capitals, dense rows, a row lit up in full as you pass it.",
     frame: "rule",
     type: { mono: "sharetech", role: "mono", case: "upper" },
-  },
-  council: {
-    family: "retro",
-    note: "A conference badge: green on slate, a ruled grid, pixel labels in solid blocks.",
-    frame: "box",
-    type: { mono: "sharetech", role: "hybrid", case: "upper" },
   },
   vault: {
     family: "retro",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   type Appearance,
   AppearanceContext,
@@ -23,8 +23,10 @@ import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
 import { ModelsScreen } from "../features/models/ModelsScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
+import { buildCommands } from "../features/palette/commands";
+import { Palette } from "../features/palette/Palette";
 import { SettingsScreen } from "../features/settings/SettingsScreen";
-import { hasBackend, ipc } from "../lib/ipc";
+import { hasBackend, ipc, isDesktop } from "../lib/ipc";
 import { Shell } from "./Shell";
 import type { Page } from "./Sidebar";
 
@@ -35,7 +37,8 @@ import type { Page } from "./Sidebar";
  */
 type Route =
   | { name: "library"; search?: string }
-  | { name: "capture" }
+  /** `stop` asks the screen to stop the meeting, once per distinct value. */
+  | { name: "capture"; stop?: number }
   | { name: "note"; path: string }
   | { name: "models" }
   | { name: "appearance" }
@@ -49,6 +52,7 @@ export function App() {
 
   const appearance = useAppearance();
   const [ready, setReady] = useModelReady();
+  const palette = usePalette();
 
   /*
    * First run owns the whole window rather than a corner of the shell.
@@ -71,6 +75,20 @@ export function App() {
     else setRoute({ name: page } as Route);
   };
 
+  const commands = buildCommands({
+    navigate,
+    searchLibrary: (q) => toLibrary(q),
+    // Through the capture screen, not straight to the backend: the screen
+    // flushes the notes typed in the last half-second before it stops.
+    stopMeeting: () => setRoute({ name: "capture", stop: Date.now() }),
+    openGallery: () => {
+      if (isDesktop()) void ipc.openGallery().catch(() => {});
+      else location.hash = "gallery";
+    },
+    recording: palette.recording,
+    appearance,
+  });
+
   return (
     <AppearanceContext.Provider value={appearance}>
       <Shell
@@ -90,6 +108,7 @@ export function App() {
 
         {route.name === "capture" && (
           <CaptureScreen
+            stopRequest={route.stop}
             onFinish={(notePath) => {
               setLibraryKey((k) => k + 1);
               setRoute(notePath ? { name: "note", path: notePath } : { name: "library" });
@@ -111,9 +130,52 @@ export function App() {
         {route.name === "appearance" && <AppearanceScreen />}
         {route.name === "settings" && <SettingsScreen />}
         {route.name === "about" && <AboutScreen />}
+
+        {palette.open && (
+          <Palette
+            commands={commands}
+            onOpenNote={(path) => setRoute({ name: "note", path })}
+            onSearchLibrary={(q) => toLibrary(q)}
+            onClose={palette.close}
+          />
+        )}
       </Shell>
     </AppearanceContext.Provider>
   );
+}
+
+/**
+ * Ctrl+K (Cmd+K) opens the palette from anywhere, text fields included —
+ * the modifier means it can never be typing. Pressed again, it closes.
+ *
+ * Whether a meeting is recording is asked as it opens, so the palette
+ * offers Stop or Start to match, without polling while it is shut.
+ */
+function usePalette(): { open: boolean; recording: boolean; close: () => void } {
+  const [open, setOpen] = useState(false);
+  const [recording, setRecording] = useState(false);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      if (e.key.toLowerCase() !== "k") return;
+      e.preventDefault();
+      setOpen((o) => !o);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !hasBackend()) return;
+    void ipc
+      .captureStatus()
+      .then((s) => setRecording(s !== null))
+      .catch(() => {});
+  }, [open]);
+
+  const close = useMemo(() => () => setOpen(false), []);
+  return { open, recording, close };
 }
 
 /**

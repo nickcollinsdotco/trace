@@ -476,6 +476,30 @@ everything worth keeping
 has a timestamp.
 ```
 
+These answer in the command palette (Ctrl+K), to exact input only, and are
+never offered as suggestions. Added with it:
+
+### `trace --coffee`
+
+```text
+brewing.................. ok
+the meeting can wait four minutes.
+```
+
+### `trace --cloud`
+
+```text
+no.
+everything stays on this machine.
+```
+
+### `sudo trace`
+
+```text
+nice try.
+TRACE has no root. only roots.
+```
+
 ## 19. Terminal divider library
 
 Keep a small approved set:

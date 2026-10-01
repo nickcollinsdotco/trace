@@ -118,6 +118,11 @@ The full-screen visualisation of a meeting in progress, with a single-line
 notes prompt so writing never stops.
 _Avoid_: Visualiser mode
 
+**Command palette**:
+The box Ctrl+K opens from anywhere: commands first, then meetings. A leading
+`>` keeps it to commands.
+_Avoid_: Command bar, spotlight, quick switcher
+
 **Mini window**:
 A small window floating above all others that shows a meeting in progress
 and can start or stop one.

@@ -28,6 +28,7 @@ import {
   currentAdjustments,
   currentScreen,
   defaultFamilies,
+  useAppearanceControl,
   withAxis,
   withEffect,
   withFamily,
@@ -60,6 +61,8 @@ import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
 import { LibraryScreen } from "../features/library/LibraryScreen";
 import { ModelsScreen } from "../features/models/ModelsScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
+import { buildCommands } from "../features/palette/commands";
+import { Palette } from "../features/palette/Palette";
 import { SettingsScreen } from "../features/settings/SettingsScreen";
 import { installFakeBackend } from "../lib/ipc";
 import { makeBackend } from "./backend";
@@ -407,7 +410,34 @@ function Preview({ scenario }: { scenario: Scenario }) {
       {scenario.screen === "settings" && <SettingsScreen />}
       {scenario.screen === "about" && <AboutScreen />}
       {scenario.dialog && <AskOnMount options={scenario.dialog} />}
+      {scenario.palette !== undefined && <PalettePreview query={scenario.palette} />}
     </Shell>
+  );
+}
+
+/**
+ * The palette as the app opens it, over the scenario's screen. Its commands
+ * do nothing here except the appearance ones, which re-theme the preview.
+ */
+function PalettePreview({ query }: { query: string }) {
+  const appearance = useAppearanceControl();
+  const noop = () => {};
+  const commands = buildCommands({
+    navigate: noop,
+    searchLibrary: noop,
+    stopMeeting: noop,
+    openGallery: noop,
+    recording: false,
+    appearance,
+  });
+  return (
+    <Palette
+      commands={commands}
+      initialQuery={query}
+      onOpenNote={noop}
+      onSearchLibrary={noop}
+      onClose={noop}
+    />
   );
 }
 

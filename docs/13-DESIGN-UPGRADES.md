@@ -415,6 +415,16 @@ Ctrl+Shift+T stays alongside it.
 
 Hover scramble, press effects, fun mode, the narrator bar.
 
+**Motion parked, 2026-10-01.** A first cut (PR #18, branch
+`stage-5a-motion`, closed unmerged) built a per-family Motion setting:
+labels that scrambled on hover, presses that flashed and burst into block
+characters or rippled. Tried in the app, the scramble broke fields and
+buttons — it pinned each label's width while it ran, and controls whose
+width follows their content resized around it — and the set as a whole was
+louder than wanted. All hover and press motion now waits for a prototype
+pass of its own; see "Hover and press motion" in `10-BACKLOG.md`. The 0.97
+push-in stays until then.
+
 ### Stage 6 — audio visualisation
 
 The Rust `audio-frame` event and FFT, the visualiser components, a full-screen

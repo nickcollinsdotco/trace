@@ -79,6 +79,46 @@ Each is a real project rather than a theme, and each needs costing on its own.
 the "fake terminal cosplay" `docs/05-DESIGN-DIRECTION.md` rules out, and the
 ruling is written down here so it is a decision rather than a silent omission.
 
+## Hover and press motion — parked 2026-10-01
+
+Asked for in the design upgrades: something better than the 0.97 push-in,
+and hovers with character. A first cut was built and dropped (PR #18,
+branch `stage-5a-motion`, kept for reference): a scramble that redrew labels
+through block characters on hover, a flash and a glyph burst on press for
+Retro, and an ink ripple for Modern.
+
+**Why it was dropped.** The scramble broke fields and buttons. It pinned a
+label's width while it ran so a proportional font could not jitter, but
+controls whose width follows their content resized around the pin. And the
+whole set was too much: motion on every control, every time, is noise.
+
+**What to do instead — a prototype pass, not a build.** Try candidates on
+the real controls, side by side in the gallery, before any of it ships:
+nav items, buttons, cards and fields each get their own answer rather than
+one effect everywhere. Judge them by feel, at real speed, in the app.
+
+**Reference: arkiiitekt.com**, which is close in spirit though not exactly
+it. Its stylesheet is mostly restraint:
+
+- colour does nearly all the work — text and borders brighten over
+  150–250ms, nothing moves or resizes;
+- `[ ]` brackets around a label each step 3px outwards and brighten;
+- links draw a 1px underline from left to right (`background-size` from 0
+  to 100%);
+- an arrow beside a label nudges 4px right;
+- a frame's border brightens when anything inside it is hovered
+  (`:has(a:hover)`).
+
+**Rules the first cut taught:**
+
+- Never change a control's size or its text's width. Draw over it, or
+  change colour.
+- Motion is per kind of control, and quiet by default; louder belongs to
+  Fun mode, not the everyday setting.
+- Check mid-animation in a real browser with real input: the first press
+  burst was clipped out of sight, and the first ripple too faint to see,
+  and neither showed in a still screenshot.
+
 ## Command palette (Cmd+K)
 
 **Built 2026-10-01** as Stage 4 of `docs/13-DESIGN-UPGRADES.md`

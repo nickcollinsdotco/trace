@@ -24,7 +24,7 @@ describe("hold to stop", () => {
     act(() => vi.advanceTimersByTime(HOLD_MS));
 
     expect(onStop).not.toHaveBeenCalled();
-    expect(button).toHaveTextContent("hold");
+    expect(screen.getByRole("status")).toHaveTextContent("hold to stop");
   });
 
   it("stops once held for the full time", () => {

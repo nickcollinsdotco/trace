@@ -1,5 +1,6 @@
 import { type RefObject, useEffect, useRef } from "react";
 import { formatElapsed, SystemLabel } from "../components/ui/terminal";
+import { MiniIcon } from "../features/mini/MiniIcon";
 import { ipc } from "../lib/ipc";
 import { Wordmark } from "./Wordmark";
 
@@ -105,7 +106,7 @@ export function Sidebar({
         title="Mini window — floats over everything (Ctrl+Alt+R)"
         className="mx-3 mt-auto mb-3 flex items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-2xs text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
       >
-        <span aria-hidden>◳</span>
+        <MiniIcon />
         Mini window
       </button>
     </aside>

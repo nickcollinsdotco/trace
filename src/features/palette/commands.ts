@@ -34,6 +34,7 @@ export interface PaletteContext {
   /** Library search, for the "search meetings for…" fallback. */
   searchLibrary: (query: string) => void;
   stopMeeting: () => void;
+  openMini?: (() => void) | undefined;
   openGallery: () => void;
   recording: boolean;
   appearance: AppearanceControl;
@@ -137,6 +138,17 @@ export function buildCommands(ctx: PaletteContext): Command[] {
       label: fun.on ? "Turn fun mode off" : "Turn fun mode on",
       keywords: "fun narrator easter eggs play boot",
       run: () => fun.setOn(!fun.on),
+    });
+  }
+
+  if (ctx.openMini) {
+    commands.push({
+      id: "app:mini",
+      group: "Meeting",
+      label: "Open the mini window",
+      keywords: "mini floating small always on top compact recorder",
+      hint: "Ctrl+Alt+R",
+      run: ctx.openMini,
     });
   }
 

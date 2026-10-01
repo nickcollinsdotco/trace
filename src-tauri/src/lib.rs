@@ -24,6 +24,7 @@ pub mod transcribe;
 pub mod windows;
 
 use capture_manager::CaptureManager;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -35,6 +36,27 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    use tauri_plugin_global_shortcut::ShortcutState;
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    // From anywhere: the mini window, expanded with its name
+                    // field when nothing is recording, as the bar when
+                    // something is. Never a stop — stopping by accident loses
+                    // the end of a meeting (docs/13 Q21).
+                    let recording = app.state::<CaptureManager>().status().is_some();
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = windows::open_mini(&app, !recording) {
+                            diagnostics::log(format!("could not open the mini window: {e}"));
+                        }
+                    });
+                })
+                .build(),
+        )
         // One meeting at a time, owned by the app rather than any window.
         .manage(CaptureManager::default())
         // Mark development builds in the title bar and taskbar, so a
@@ -43,7 +65,6 @@ pub fn run() {
         // easy and confusing. Set here rather than in `tauri.conf.json`,
         // which has no per-profile title.
         .setup(|app| {
-            use tauri::Manager;
             if cfg!(debug_assertions) {
                 for window in app.webview_windows().values() {
                     window.set_title("TRACE (dev)")?;
@@ -53,6 +74,15 @@ pub fn run() {
             // screen before anyone sees it at the wrong size. It is shown
             // whether or not the sizing worked: a window that never appears
             // is far worse than one that opens too large.
+            // Ctrl+Alt+R, the mini window from anywhere. Another app may own
+            // the combination already; that costs the shortcut, not the app.
+            {
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+                let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyR);
+                if let Err(e) = app.global_shortcut().register(shortcut) {
+                    diagnostics::log(format!("Ctrl+Alt+R is taken; no mini-window shortcut: {e}"));
+                }
+            }
             if let Some(main) = app.get_webview_window("main") {
                 if let Err(e) = windows::fit_and_centre(&main, (1200.0, 840.0)) {
                     diagnostics::log(format!("could not size the main window: {e}"));
@@ -109,6 +139,10 @@ pub fn run() {
             commands::start_ollama,
             commands::app_info,
             commands::open_gallery,
+            commands::open_mini,
+            commands::set_mini_expanded,
+            commands::close_mini,
+            commands::show_main,
             commands::diagnostics_report,
         ])
         .run(tauri::generate_context!())

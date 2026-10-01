@@ -26,6 +26,7 @@ import {
 } from "./notes";
 
 export type ScreenName =
+  | "mini"
   | "library"
   | "capture"
   | "note"
@@ -50,6 +51,8 @@ export interface Scenario {
   search?: string;
   /** The command palette open over the screen, with this typed. */
   palette?: string;
+  /** The mini window shown already saved, rather than as the backend has it. */
+  miniSaved?: boolean;
   /** The recording screen opened on its full-screen scope. */
   scopeView?: boolean;
   /** Fun mode on, and an easter egg already playing if one is named. */
@@ -478,6 +481,31 @@ export const SCENARIOS: Scenario[] = [
     screen: "capture",
     scopeView: true,
     state: { ...POPULATED, recording: true, startElapsedMs: 22 * 60_000, script: liveScript() },
+  },
+  {
+    id: "mini-live",
+    name: "Mini window, recording",
+    group: "Capture",
+    note: "The bar that floats over a call: dot, time, both voices, and a Stop you have to hold.",
+    screen: "mini",
+    state: { ...POPULATED, recording: true, startElapsedMs: 31 * 60_000, script: liveScript() },
+  },
+  {
+    id: "mini-idle",
+    name: "Mini window, idle",
+    group: "Capture",
+    note: "Opened with Ctrl+Alt+R and nothing recording: a name, and Start.",
+    screen: "mini",
+    state: POPULATED,
+  },
+  {
+    id: "mini-saved",
+    name: "Mini window, saved",
+    group: "Capture",
+    note: "Just after a held Stop. TRACE flashes in the taskbar with the note open; this closes itself.",
+    screen: "mini",
+    miniSaved: true,
+    state: POPULATED,
   },
   {
     id: "capture-processing",

@@ -1,7 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./app/App";
+import { currentAdjustments, loadAppearance } from "./design/appearance";
 import { installTextures } from "./design/textures";
+import { applyTheme } from "./design/theme";
+import { MiniWindow } from "./features/mini/MiniWindow";
 import { ipc, isDesktop } from "./lib/ipc";
 import "./design/index.css";
 
@@ -25,8 +28,29 @@ const reactRoot = ReactDOM.createRoot(root);
  * opened: they are a chunk of their own, fetched on demand.
  */
 const isGallery = () => location.hash.startsWith("#gallery");
+const isMini = () => location.hash.startsWith("#mini");
+
+/**
+ * The mini window wears the main window's theme. They share storage, so a
+ * theme picked in one reaches the other through the storage event.
+ */
+function themeMini() {
+  const a = loadAppearance();
+  applyTheme(a.theme, document.documentElement, currentAdjustments(a));
+}
 
 function mount() {
+  if (isMini()) {
+    themeMini();
+    window.addEventListener("storage", themeMini);
+    reactRoot.render(
+      <React.StrictMode>
+        <MiniWindow />
+      </React.StrictMode>,
+    );
+    return;
+  }
+
   if (isGallery()) {
     void import("./fixtures/Gallery").then(({ Gallery }) => {
       reactRoot.render(

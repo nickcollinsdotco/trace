@@ -486,6 +486,33 @@ from).
 A second Tauri window: frameless, always on top, small. It shares capture
 state with the main window through the existing status polling and events.
 
+**7a built 2026-10-01 (v0.15.0).** Notes from building it:
+
+- **Opened** from a button at the foot of the sidebar, from Ctrl+K, and from
+  Ctrl+Alt+R anywhere (`tauri-plugin-global-shortcut`, registered in Rust;
+  if another app owns the combination it is logged and the app carries on).
+  Idle, it opens expanded with the name field focused; recording, as the bar.
+- **Two sizes**, 360×56 and 360×156, switching with the meeting and keeping
+  the bottom edge still. Opens against the right edge in the lower third of
+  the main window's monitor. Only the ⋮ grip drags it.
+- **Hidden from screen shares** (`content_protected`), and created afresh
+  and closed rather than hidden and re-shown — the black-rectangle bug on
+  build 19045. **Not yet checked against a real Teams share.**
+- **Hold to stop**, 600ms, by pointer or by Space/Enter held; a click alone
+  turns the label to "hold". After it: `✓ saved · writing notes… [open]`,
+  TRACE flashes in the taskbar with the note already open in it, and the
+  mini window closes itself four seconds later.
+- **Both windows hear each other:** start, stop and abort announce
+  `trace://capture-changed`, so the main window's recording screen reloads
+  when a meeting starts or stops from the mini window.
+- **Not yet (7b):** appearing on its own when TRACE is minimised or left
+  (Off / When minimised / When I switch away / Always during meetings), the
+  one-time inline offer, the screen-share setting, snapping to edges, and
+  remembering its place per monitor. Also not built: the start sequence and
+  its sound, which belong to the sounds work.
+- **For the scope's second visit:** at 190px the bar's waveform aliases
+  into a sawtooth; a rolling level would read better at that size.
+
 ## Press effects
 
 The current press is `scale(0.97)` on `.trace-press`. The replacement varies

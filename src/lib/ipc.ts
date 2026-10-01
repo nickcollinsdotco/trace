@@ -414,6 +414,17 @@ export const ipc = {
   appInfo: () => call<AppInfo>("app_info"),
   /** Opens the screen gallery in its own window, or focuses it. */
   openGallery: () => call<void>("open_gallery"),
+  /** The mini window: expanded with a name field, or as the recording bar. */
+  openMini: (expanded: boolean) => call<void>("open_mini", { expanded }),
+  setMiniExpanded: (expanded: boolean) => call<void>("set_mini_expanded", { expanded }),
+  /** Closes the mini window. Never stops a meeting. */
+  closeMini: () => call<void>("close_mini"),
+  /**
+   * The main window, forward or only flashing in the taskbar, opening a note
+   * in it if one is named.
+   */
+  showMain: (notePath: string | null, attentionOnly: boolean) =>
+    call<void>("show_main", { notePath, attentionOnly }),
   diagnosticsReport: () => call<DiagnosticsReport>("diagnostics_report"),
 };
 
@@ -429,7 +440,19 @@ export const EVENT = {
   notesGenerated: "trace://notes-generated",
   activity: "trace://activity",
   summaryPull: "trace://summary-pull",
+  captureChanged: "trace://capture-changed",
+  openNote: "trace://open-note",
 } as const;
+
+/** A meeting started or ended — in this window or the other one. */
+export function onCaptureChanged(handler: () => void): Promise<UnlistenFn> {
+  return subscribe(EVENT.captureChanged, () => handler());
+}
+
+/** The mini window asking the main window to open a note. */
+export function onOpenNote(handler: (path: string) => void): Promise<UnlistenFn> {
+  return subscribe(EVENT.openNote, handler);
+}
 
 /** Subscribe to live transcript segments. */
 export function onSegment(handler: (segment: LiveSegment) => void): Promise<UnlistenFn> {

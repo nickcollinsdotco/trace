@@ -194,7 +194,9 @@ pub fn start_capture(
     // The mic check and the meeting would both hold the device; the meeting
     // wins, and the check has done its job by now anyway.
     crate::audio::preview::stop();
-    manager.start(app, title, mic_device).map_err(err)
+    let status = manager.start(app.clone(), title, mic_device).map_err(err)?;
+    capture_changed(&app);
+    Ok(status)
 }
 
 /// Start the mic check on the Record screen. See `audio::preview` for why it
@@ -257,7 +259,17 @@ pub async fn stop_capture(
     app: AppHandle,
     manager: State<'_, CaptureManager>,
 ) -> CmdResult<FinishedMeeting> {
-    manager.stop(app).map_err(err)
+    let finished = manager.stop(app.clone()).map_err(err)?;
+    capture_changed(&app);
+    Ok(finished)
+}
+
+/// A meeting started or ended. Both windows can do either, so each needs to
+/// hear when the other did.
+pub const EVENT_CAPTURE_CHANGED: &str = "trace://capture-changed";
+
+fn capture_changed(app: &AppHandle) {
+    let _ = app.emit(EVENT_CAPTURE_CHANGED, ());
 }
 
 /* ------------------------------------------------------------------ *
@@ -734,8 +746,10 @@ pub fn set_default_mic(name: Option<String>) -> CmdResult<SettingsView> {
 
 /// Abandon the meeting in progress, writing nothing.
 #[tauri::command]
-pub fn abort_capture(manager: State<'_, CaptureManager>) -> CmdResult<()> {
-    manager.abort().map_err(err)
+pub fn abort_capture(app: AppHandle, manager: State<'_, CaptureManager>) -> CmdResult<()> {
+    manager.abort().map_err(err)?;
+    capture_changed(&app);
+    Ok(())
 }
 
 /// Delete a saved note and the session behind it.
@@ -850,6 +864,34 @@ pub fn app_info(app: AppHandle) -> AppInfo {
         version: app.package_info().version.to_string(),
         dev_build: cfg!(debug_assertions),
     }
+}
+
+/// Open the mini window: expanded with a name field while idle, as a bar
+/// while recording.
+#[tauri::command]
+pub async fn open_mini(app: AppHandle, expanded: bool) -> CmdResult<()> {
+    crate::windows::open_mini(&app, expanded).map_err(err)
+}
+
+#[tauri::command]
+pub async fn set_mini_expanded(app: AppHandle, expanded: bool) -> CmdResult<()> {
+    crate::windows::set_mini_expanded(&app, expanded).map_err(err)
+}
+
+/// Closing the mini window never stops a meeting (docs/13 Q20).
+#[tauri::command]
+pub async fn close_mini(app: AppHandle) -> CmdResult<()> {
+    crate::windows::close_mini(&app).map_err(err)
+}
+
+/// Bring the main window forward, or only flash it, opening a note in it.
+#[tauri::command]
+pub async fn show_main(
+    app: AppHandle,
+    note_path: Option<String>,
+    attention_only: bool,
+) -> CmdResult<()> {
+    crate::windows::show_main(&app, note_path, attention_only).map_err(err)
 }
 
 /// Open the screen gallery in its own window.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type Appearance,
   AppearanceContext,
@@ -28,7 +28,7 @@ import { NoteScreen } from "../features/note/NoteScreen";
 import { buildCommands } from "../features/palette/commands";
 import { Palette } from "../features/palette/Palette";
 import { SettingsScreen } from "../features/settings/SettingsScreen";
-import { hasBackend, ipc, isDesktop } from "../lib/ipc";
+import { hasBackend, ipc, isDesktop, onCaptureChanged, onOpenNote } from "../lib/ipc";
 import { Shell } from "./Shell";
 import type { Page } from "./Sidebar";
 
@@ -55,6 +55,7 @@ export function App() {
   const appearance = useAppearance();
   const [ready, setReady] = useModelReady();
   const palette = usePalette();
+  const captureKey = useOtherWindow((path) => setRoute({ name: "note", path }));
   const fun = useFunMode();
   const [egg, setEgg] = useEggs(fun.on);
 
@@ -85,6 +86,7 @@ export function App() {
     // Through the capture screen, not straight to the backend: the screen
     // flushes the notes typed in the last half-second before it stops.
     stopMeeting: () => setRoute({ name: "capture", stop: Date.now() }),
+    openMini: () => void ipc.openMini(!palette.recording).catch(() => {}),
     openGallery: () => {
       if (isDesktop()) void ipc.openGallery().catch(() => {});
       else location.hash = "gallery";
@@ -114,6 +116,7 @@ export function App() {
 
           {route.name === "capture" && (
             <CaptureScreen
+              key={captureKey}
               stopRequest={route.stop}
               onFinish={(notePath) => {
                 setLibraryKey((k) => k + 1);
@@ -154,6 +157,32 @@ export function App() {
       </FunContext.Provider>
     </AppearanceContext.Provider>
   );
+}
+
+/**
+ * What the mini window does that this window has to hear about.
+ *
+ * A note to open: stopping there flashes this window in the taskbar and
+ * leaves the note waiting, so coming back lands on it (docs/13 Q26). And a
+ * meeting started or stopped there: the recording screen read the state once
+ * when it mounted, so it is mounted afresh to read it again.
+ */
+function useOtherWindow(openNote: (path: string) => void): number {
+  const [captureKey, setCaptureKey] = useState(0);
+  const open = useRef(openNote);
+  open.current = openNote;
+
+  useEffect(() => {
+    if (!hasBackend()) return;
+    const unlisten: Array<() => void> = [];
+    void onOpenNote((path) => open.current(path)).then((u) => unlisten.push(u));
+    void onCaptureChanged(() => setCaptureKey((k) => k + 1)).then((u) => unlisten.push(u));
+    return () => {
+      for (const u of unlisten) u();
+    };
+  }, []);
+
+  return captureKey;
 }
 
 /** Fun mode, remembered between launches. */

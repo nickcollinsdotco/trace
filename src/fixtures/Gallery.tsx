@@ -61,6 +61,7 @@ import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
 import { Boot, FoundFile } from "../features/fun/Eggs";
 import { FunContext } from "../features/fun/fun";
 import { LibraryScreen } from "../features/library/LibraryScreen";
+import { MiniWindow } from "../features/mini/MiniWindow";
 import { ModelsScreen } from "../features/models/ModelsScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
 import { buildCommands } from "../features/palette/commands";
@@ -389,6 +390,26 @@ function Preview({ scenario }: { scenario: Scenario }) {
   // First run owns the whole window, with no shell around it.
   if (scenario.screen === "firstrun") {
     return <FirstRunScreen onReady={() => {}} />;
+  }
+
+  // The mini window is a window of its own, so it is shown at its own size
+  // on an empty desk rather than inside the app's shell.
+  if (scenario.screen === "mini") {
+    const tall = scenario.state.recording !== true && !scenario.miniSaved;
+    return (
+      <div className="flex h-full items-center justify-center bg-surface-0">
+        <div
+          className="overflow-hidden rounded-md border border-line-strong shadow-(--elevation-overlay)"
+          style={{ width: 360, height: tall ? 156 : 56 }}
+        >
+          <MiniWindow
+            {...(scenario.miniSaved
+              ? { initial: { kind: "saved" as const, notePath: "fixture.md" } }
+              : {})}
+          />
+        </div>
+      </div>
+    );
   }
 
   const noop = () => {};

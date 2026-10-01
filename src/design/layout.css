@@ -117,3 +117,20 @@
   background: rgb(0 0 0 / 55%);
   animation: trace-fade-in 180ms var(--ease-out);
 }
+
+/* The mini window's Stop, filling as it is held (MiniWindow.tsx). Width by
+   transform, so the label beside it never moves. Reduced motion skips the
+   fill; the hold still counts. */
+.trace-hold-fill {
+  transform: scaleX(0);
+}
+
+.trace-hold-fill[data-holding] {
+  animation: trace-hold-fill linear forwards;
+}
+
+@keyframes trace-hold-fill {
+  to {
+    transform: scaleX(1);
+  }
+}

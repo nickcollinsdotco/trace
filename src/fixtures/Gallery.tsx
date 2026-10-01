@@ -176,6 +176,7 @@ export function Gallery() {
     setEffect: (e, patch) => setLook((a) => withEffect(a, e, patch)),
     setAxis: (axis, value) => setLook((a) => withAxis(a, axis, value)),
     reset: () => setLook(withReset),
+    restore: (a) => setLook(a),
   };
   const setAxis = appearance.setAxis;
 
@@ -437,6 +438,7 @@ function PalettePreview({ query }: { query: string }) {
       onOpenNote={noop}
       onSearchLibrary={noop}
       onClose={noop}
+      appearance={appearance}
     />
   );
 }

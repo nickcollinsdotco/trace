@@ -137,6 +137,7 @@ export function App() {
             onOpenNote={(path) => setRoute({ name: "note", path })}
             onSearchLibrary={(q) => toLibrary(q)}
             onClose={palette.close}
+            appearance={appearance}
           />
         )}
       </Shell>
@@ -251,5 +252,6 @@ function useAppearance(): AppearanceControl {
     setEffect: (effect, patch) => setAppearance((a) => withEffect(a, effect, patch)),
     setAxis: (axis, value) => setAppearance((a) => withAxis(a, axis, value)),
     reset: () => setAppearance(withReset),
+    restore: (a) => setAppearance(a),
   };
 }

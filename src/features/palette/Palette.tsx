@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Prompt, SystemLabel } from "../../components/ui/terminal";
+import type { AppearanceControl } from "../../design/appearance";
 import { hasBackend, ipc, type SearchHit } from "../../lib/ipc";
 import { type Command, hiddenReply, rankCommands } from "./commands";
 
@@ -15,18 +16,28 @@ type Item = { kind: "command"; command: Command } | { kind: "meeting"; hit: Sear
  * focus stays inside, and Escape closes it, without any of that written
  * by hand. The first result is always highlighted, so typing and pressing
  * Enter is the whole interaction.
+ *
+ * Themes, families and screens preview as they are highlighted, the way an
+ * editor's theme picker does: arrow through them and the app changes under
+ * the palette; Enter keeps the one on screen, and closing any other way puts
+ * back what was there. Only the arrow keys preview. Typing does not — "s"
+ * on the way to "settings" would flash the shell theme — and neither does a
+ * mouse crossing the list on its way somewhere.
  */
 export function Palette({
   commands,
   onOpenNote,
   onSearchLibrary,
   onClose,
+  appearance,
   initialQuery = "",
 }: {
   commands: Command[];
   onOpenNote: (path: string) => void;
   onSearchLibrary: (query: string) => void;
   onClose: () => void;
+  /** To put the look back when a preview is not kept. */
+  appearance?: AppearanceControl | undefined;
   initialQuery?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -35,6 +46,26 @@ export function Palette({
   const [query, setQuery] = useState(initialQuery);
   const [active, setActive] = useState(0);
   const hits = useMeetingSearch(query);
+
+  // The look as the palette opened, a preview on screen, and whether Enter
+  // kept it. Refs, because the unmount that undoes a preview reads them.
+  const original = useRef(appearance?.appearance);
+  const restore = useRef(appearance?.restore);
+  restore.current = appearance?.restore;
+  const previewing = useRef(false);
+  const kept = useRef(false);
+  const byArrow = useRef(false);
+
+  // Every way of closing without Enter — Escape, a click outside, Ctrl+K
+  // again — ends in this unmount, so undoing the preview here catches all.
+  useEffect(
+    () => () => {
+      if (previewing.current && !kept.current && original.current) {
+        restore.current?.(original.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const el = dialog.current;
@@ -88,14 +119,42 @@ export function Palette({
     if (row && typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "nearest" });
   }, [active]);
 
+  // Keyed on the highlighted command's id, not the list: applying a preview
+  // re-renders the app and rebuilds the list, which must not apply it again.
+  const highlighted = items[active];
+  const highlightedId =
+    highlighted?.kind === "command" ? highlighted.command.id : (highlighted?.hit.path ?? "");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once per highlight
+  useEffect(() => {
+    if (!byArrow.current) {
+      // Typed or pointed at, not browsed: the screen shows what it showed.
+      if (previewing.current && original.current) {
+        restore.current?.(original.current);
+        previewing.current = false;
+      }
+      return;
+    }
+    const preview = highlighted?.kind === "command" ? highlighted.command.preview : undefined;
+    if (preview) {
+      preview();
+      previewing.current = true;
+    } else if (previewing.current && original.current) {
+      // Moved off the looks: show the screen as it was, not the last tried.
+      restore.current?.(original.current);
+      previewing.current = false;
+    }
+  }, [highlightedId]);
+
   function run(item: Item | undefined) {
     if (!item) return;
+    kept.current = true;
     onClose();
     if (item.kind === "command") item.command.run();
     else onOpenNote(item.hit.path);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    byArrow.current = e.key === "ArrowDown" || e.key === "ArrowUp";
     if (e.key === "ArrowDown" && items.length) {
       e.preventDefault();
       setActive((a) => (a + 1) % items.length);
@@ -191,7 +250,10 @@ export function Palette({
                   role="option"
                   aria-selected={i === active}
                   tabIndex={-1}
-                  onMouseMove={() => setActive(i)}
+                  onMouseMove={() => {
+                    byArrow.current = false;
+                    setActive(i);
+                  }}
                   onClick={() => run(item)}
                   onKeyDown={() => {}}
                   className={`mx-2 flex cursor-pointer items-baseline gap-3 rounded-sm px-3 py-2 ${

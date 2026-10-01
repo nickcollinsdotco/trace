@@ -20,6 +20,12 @@ export interface Command {
   /** Quiet text on the right: a shortcut, or what it is. */
   hint?: string;
   run: () => void;
+  /**
+   * The command's own effect, shown while it is highlighted and undone if
+   * the palette closes without it. Only for changes that are safe to try on
+   * and cheap to take back: themes, families, screens.
+   */
+  preview?: () => void;
 }
 
 export interface PaletteContext {
@@ -89,6 +95,7 @@ export function buildCommands(ctx: PaletteContext): Command[] {
       keywords: `theme ${THEME_NOTES[theme]}`,
       hint: String((i + 1) % 10),
       run: () => ctx.appearance.setTheme(theme),
+      preview: () => ctx.appearance.setTheme(theme),
     });
   });
   for (const family of FAMILIES) {
@@ -98,6 +105,7 @@ export function buildCommands(ctx: PaletteContext): Command[] {
       label: `${family} family`,
       keywords: "family switch",
       run: () => ctx.appearance.setFamily(family),
+      preview: () => ctx.appearance.setFamily(family),
     });
   }
   commands.push({
@@ -115,6 +123,7 @@ export function buildCommands(ctx: PaletteContext): Command[] {
       label: `${preset} screen`,
       keywords: `screen effects filter ${PRESET_NOTES[preset]}`,
       run: () => ctx.appearance.setPreset(preset),
+      preview: () => ctx.appearance.setPreset(preset),
     });
   }
 

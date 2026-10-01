@@ -127,6 +127,12 @@ export interface CaptureStatus {
   transcribing: boolean;
 }
 
+/** One stream's latest waveform, oldest sample first, at about 12kHz. */
+export interface StreamWave {
+  source: AudioSource;
+  samples: number[];
+}
+
 /** A transcript segment as the backend emits it. */
 export interface LiveSegment {
   id: string;
@@ -368,6 +374,9 @@ export const ipc = {
   startCapture: (title: string, micDevice: string | null) =>
     call<CaptureStatus>("start_capture", { title, micDevice }),
   captureStatus: () => call<CaptureStatus | null>("capture_status"),
+  /** The live scope's waveforms; null when nothing is recording. */
+  scopeFrame: (points?: number) =>
+    call<StreamWave[] | null>("scope_frame", { points: points ?? null }),
   updateNotes: (text: string) => call<void>("update_notes", { text }),
   setTitle: (title: string) => call<void>("set_title", { title }),
   stopCapture: () => call<FinishedMeeting>("stop_capture"),

@@ -410,7 +410,9 @@ function Preview({ scenario }: { scenario: Scenario }) {
             onOpenNote={noop}
           />
         )}
-        {scenario.screen === "capture" && <CaptureScreen onFinish={noop} />}
+        {scenario.screen === "capture" && (
+          <CaptureScreen onFinish={noop} initialScopeView={scenario.scopeView ?? false} />
+        )}
         {scenario.screen === "note" && <NoteScreen path={scenario.notePath ?? ""} onBack={noop} />}
         {scenario.screen === "models" && <ModelsScreen />}
         {scenario.screen === "appearance" && <AppearanceScreen />}

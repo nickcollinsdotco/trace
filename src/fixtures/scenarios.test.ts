@@ -17,6 +17,7 @@ const COMMANDS = [
   "list_output_devices",
   "model_status",
   "capture_status",
+  "scope_frame",
   "update_notes",
   "set_title",
   "list_notes",

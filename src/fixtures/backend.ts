@@ -232,6 +232,33 @@ function levels(t: number): Array<{ source: AudioSource; level: number }> {
   ];
 }
 
+/**
+ * Waveforms for the scope, from the same clock as the levels: a voice is a
+ * fundamental with a couple of harmonics under a syllable-rate envelope. The
+ * two streams differ in pitch and rhythm, so the mic-against-system figure
+ * draws something with shape rather than a diagonal line.
+ */
+function waves(t: number, points: number): Array<{ source: AudioSource; samples: number[] }> {
+  const voice = (f0: number, syllable: number, phase: number, gain: number) =>
+    Array.from({ length: points }, (_, i) => {
+      const s = t / 1000 + i / 12_000;
+      const envelope = gain * (0.35 + 0.65 * Math.abs(Math.sin(s * syllable + phase)));
+      // Harmonics up to about 3kHz, falling away, and a little breath noise:
+      // pure tones lit only the bottom of the spectrum, and a scenario that
+      // looks broken teaches nothing about the real thing.
+      let tone = 0;
+      for (let k = 1; k * f0 < 3_200; k++) {
+        tone += Math.sin(2 * Math.PI * f0 * k * s + k * 0.7) / (k * 0.9);
+      }
+      const breath = (Math.random() - 0.5) * 0.18;
+      return envelope * (tone * 0.32 + breath);
+    });
+  return [
+    { source: "microphone", samples: voice(118, 5.1, 0, 0.8) },
+    { source: "system", samples: voice(196, 3.7, 1.1, 0.65) },
+  ];
+}
+
 export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
   const state: BackendState = { ...DEFAULT_STATE, ...partial };
   const handlers = new Map<string, Set<Handler>>();
@@ -436,6 +463,10 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         }
         case "capture_status":
           return startedAt === null ? null : status(state, startedAt, segmentCount);
+        case "scope_frame":
+          return startedAt === null
+            ? null
+            : waves(Date.now() - startedAt, Number(args?.points ?? 512));
         case "update_notes":
         case "set_title":
           return null;

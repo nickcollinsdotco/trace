@@ -50,6 +50,8 @@ export interface Scenario {
   search?: string;
   /** The command palette open over the screen, with this typed. */
   palette?: string;
+  /** The recording screen opened on its full-screen scope. */
+  scopeView?: boolean;
   /** Fun mode on, and an easter egg already playing if one is named. */
   fun?: { egg?: "boot" | "found" | "rain" };
   state: Partial<BackendState>;
@@ -467,6 +469,15 @@ export const SCENARIOS: Scenario[] = [
     note: "Fourteen minutes in. Meters moving, segments still arriving.",
     screen: "capture",
     state: { ...POPULATED, recording: true, startElapsedMs: 14 * 60_000, script: liveScript() },
+  },
+  {
+    id: "capture-scope",
+    name: "Scope view",
+    group: "Capture",
+    note: "The meeting as a picture, full screen, with one line for notes. Esc goes back.",
+    screen: "capture",
+    scopeView: true,
+    state: { ...POPULATED, recording: true, startElapsedMs: 22 * 60_000, script: liveScript() },
   },
   {
     id: "capture-processing",

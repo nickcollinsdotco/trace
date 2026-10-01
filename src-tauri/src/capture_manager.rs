@@ -82,6 +82,13 @@ pub struct StreamLevel {
     pub level: f32,
 }
 
+/// One stream's latest waveform, oldest sample first.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct StreamWave {
+    pub source: StreamSource,
+    pub samples: Vec<f32>,
+}
+
 /// Result of finishing a meeting.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct FinishedMeeting {
@@ -238,6 +245,24 @@ impl CaptureManager {
         });
 
         Ok(status)
+    }
+
+    /// The live scope's waveforms, or `None` when nothing is recording.
+    ///
+    /// Separate from `status`, which the sidebar and narrator poll once a
+    /// second: this is polled at drawing speed, and only while a scope is on
+    /// screen, so it carries nothing but samples.
+    pub fn scope(&self, points: usize) -> Option<Vec<StreamWave>> {
+        let guard = self.active.lock().ok()?;
+        let active = guard.as_ref()?;
+        Some(
+            active
+                .capture
+                .scope(points)
+                .into_iter()
+                .map(|(source, samples)| StreamWave { source, samples })
+                .collect(),
+        )
     }
 
     /// Poll for the meters and elapsed time. Cheap enough for a UI timer.

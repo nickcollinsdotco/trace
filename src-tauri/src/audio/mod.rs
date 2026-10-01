@@ -35,6 +35,7 @@ pub mod envelope;
 pub mod mic;
 pub mod preview;
 pub mod resample;
+pub mod scope;
 pub mod session;
 pub mod wav;
 
@@ -139,6 +140,8 @@ pub struct StreamStats {
     /// render endpoint sends nothing, so every quiet stretch is padded. A
     /// value of zero on a long capture is the suspicious case, not a high one.
     pub silence_padded_frames: AtomicU64,
+    /// The last moment of the waveform, for the live scope.
+    pub scope: scope::Scope,
 }
 
 impl Default for StreamStats {
@@ -150,6 +153,7 @@ impl Default for StreamStats {
             level_milli: AtomicU64::new(0),
             start_offset_ms: AtomicU64::new(OFFSET_UNSET),
             silence_padded_frames: AtomicU64::new(0),
+            scope: scope::Scope::default(),
         }
     }
 }
@@ -190,6 +194,9 @@ impl StreamStats {
         let rms = (sum_sq / samples.len() as f32).sqrt();
         let scaled = (rms.clamp(0.0, 1.0) * 10_000.0) as u64;
         self.level_milli.store(scaled, Ordering::Relaxed);
+        // Every path that measures a level has the mono samples in hand, so
+        // the scope is fed from the same place rather than a second tap.
+        self.scope.push(samples);
     }
 }
 

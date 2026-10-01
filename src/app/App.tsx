@@ -20,6 +20,8 @@ import { AboutScreen } from "../features/about/AboutScreen";
 import { AppearanceScreen } from "../features/appearance/AppearanceScreen";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
 import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
+import { Boot, FoundFile, Rain, useSecrets, useWordmarkClicks } from "../features/fun/Eggs";
+import { FunContext, type FunControl, loadFun, saveFun } from "../features/fun/fun";
 import { LibraryScreen } from "../features/library/LibraryScreen";
 import { ModelsScreen } from "../features/models/ModelsScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
@@ -53,6 +55,8 @@ export function App() {
   const appearance = useAppearance();
   const [ready, setReady] = useModelReady();
   const palette = usePalette();
+  const fun = useFunMode();
+  const [egg, setEgg] = useEggs(fun.on);
 
   /*
    * First run owns the whole window rather than a corner of the shell.
@@ -87,62 +91,121 @@ export function App() {
     },
     recording: palette.recording,
     appearance,
+    fun,
   });
 
   return (
     <AppearanceContext.Provider value={appearance}>
-      <Shell
-        current={route.name === "note" ? null : route.name}
-        onNavigate={navigate}
-        openNote={route.name === "note" ? route.path : null}
-        onOpenNote={(path) => setRoute({ name: "note", path })}
-      >
-        {route.name === "library" && (
-          <LibraryScreen
-            key={libraryKey}
-            initialSearch={route.search ?? ""}
-            onNewMeeting={() => setRoute({ name: "capture" })}
-            onOpenNote={(path) => setRoute({ name: "note", path })}
-          />
-        )}
+      <FunContext.Provider value={fun}>
+        <Shell
+          current={route.name === "note" ? null : route.name}
+          onNavigate={navigate}
+          openNote={route.name === "note" ? route.path : null}
+          onOpenNote={(path) => setRoute({ name: "note", path })}
+        >
+          {route.name === "library" && (
+            <LibraryScreen
+              key={libraryKey}
+              initialSearch={route.search ?? ""}
+              onNewMeeting={() => setRoute({ name: "capture" })}
+              onOpenNote={(path) => setRoute({ name: "note", path })}
+            />
+          )}
 
-        {route.name === "capture" && (
-          <CaptureScreen
-            stopRequest={route.stop}
-            onFinish={(notePath) => {
-              setLibraryKey((k) => k + 1);
-              setRoute(notePath ? { name: "note", path: notePath } : { name: "library" });
-            }}
-          />
-        )}
+          {route.name === "capture" && (
+            <CaptureScreen
+              stopRequest={route.stop}
+              onFinish={(notePath) => {
+                setLibraryKey((k) => k + 1);
+                setRoute(notePath ? { name: "note", path: notePath } : { name: "library" });
+              }}
+            />
+          )}
 
-        {route.name === "note" && (
-          <NoteScreen
-            path={route.path}
-            onBack={() => toLibrary()}
-            // Clicking a tag goes back to the library with it already searched.
-            onSearchTag={(tag) => toLibrary(`tag:${tag}`)}
-            onRenamed={(path) => setRoute({ name: "note", path })}
-          />
-        )}
+          {route.name === "note" && (
+            <NoteScreen
+              path={route.path}
+              onBack={() => toLibrary()}
+              // Clicking a tag goes back to the library with it already searched.
+              onSearchTag={(tag) => toLibrary(`tag:${tag}`)}
+              onRenamed={(path) => setRoute({ name: "note", path })}
+            />
+          )}
 
-        {route.name === "models" && <ModelsScreen />}
-        {route.name === "appearance" && <AppearanceScreen />}
-        {route.name === "settings" && <SettingsScreen />}
-        {route.name === "about" && <AboutScreen />}
+          {route.name === "models" && <ModelsScreen />}
+          {route.name === "appearance" && <AppearanceScreen />}
+          {route.name === "settings" && <SettingsScreen />}
+          {route.name === "about" && <AboutScreen />}
 
-        {palette.open && (
-          <Palette
-            commands={commands}
-            onOpenNote={(path) => setRoute({ name: "note", path })}
-            onSearchLibrary={(q) => toLibrary(q)}
-            onClose={palette.close}
-            appearance={appearance}
-          />
-        )}
-      </Shell>
+          {palette.open && (
+            <Palette
+              commands={commands}
+              onOpenNote={(path) => setRoute({ name: "note", path })}
+              onSearchLibrary={(q) => toLibrary(q)}
+              onClose={palette.close}
+              appearance={appearance}
+            />
+          )}
+
+          {egg === "boot" && <Boot onDone={() => setEgg(null)} />}
+          {egg === "rain" && <Rain onDone={() => setEgg(null)} />}
+          {egg === "found" && <FoundFile onClose={() => setEgg(null)} />}
+        </Shell>
+      </FunContext.Provider>
     </AppearanceContext.Provider>
   );
+}
+
+/** Fun mode, remembered between launches. */
+function useFunMode(): FunControl {
+  const [on, setOn] = useState(loadFun);
+  return useMemo(
+    () => ({
+      on,
+      setOn: (next: boolean) => {
+        saveFun(next);
+        setOn(next);
+      },
+    }),
+    [on],
+  );
+}
+
+type Egg = "boot" | "rain" | "found";
+
+/**
+ * The big easter eggs, and when they may play.
+ *
+ * Never over a meeting being recorded (docs/13 Q6): the recording screen is
+ * where the user works, and it may be on a shared screen. The boot sequence
+ * plays at launch in Fun mode; the rest answer their secrets in any mode.
+ */
+function useEggs(funOn: boolean): [Egg | null, (egg: Egg | null) => void] {
+  const [egg, setEgg] = useState<Egg | null>(null);
+
+  const play = (next: Egg) => {
+    if (!hasBackend()) {
+      setEgg(next);
+      return;
+    }
+    void ipc
+      .captureStatus()
+      .then((s) => {
+        if (s === null) setEgg(next);
+      })
+      .catch(() => {});
+  };
+
+  // Launch only: turning Fun mode on later is greeted by the narrator.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once, at launch
+  useEffect(() => {
+    if (funOn) play("boot");
+  }, []);
+
+  useSecrets((secret) => play(secret === "konami" ? "rain" : "boot"));
+  useWordmarkClicks(() => play("found"));
+
+  return [egg, setEgg];
 }
 
 /**

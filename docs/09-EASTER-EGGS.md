@@ -522,6 +522,18 @@ Keep a small approved set:
 
 Avoid the heaviest block characters except in special screens.
 
+## Built so far
+
+As of 2026-10-01 (docs/13, Stage 5b):
+
+- **§2 boot sequence** — at launch in Fun mode, and on typing `trace`
+  outside a text field.
+- **§16 found file** — seven clicks on the wordmark within four seconds.
+- **§18 hidden commands** — in the command palette, exact input only.
+- **The narrator** (§8, §10, §11 in spirit) — Fun mode's status-bar line.
+- **The Konami code** — phosphor rain over the window, using the app's own
+  glyphs rather than katakana.
+
 ## 20. Easter-egg rules
 
 1. Never interrupt a live meeting unexpectedly.

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Popover, PopoverDivider, PopoverHeading, PopoverItem } from "../components/ui/Popover";
 import { Prompt } from "../components/ui/terminal";
 import { ActivityEntry } from "../features/activity/ActivityEntry";
+import { isRunning } from "../features/activity/jobs";
+import { Narrator } from "../features/fun/Narrator";
 import { useLlmStatus } from "../features/llm/useLlmStatus";
 import { formatBytes } from "../lib/format";
 import {
@@ -13,6 +15,7 @@ import {
   type SpeechModel,
   type SummaryModels,
 } from "../lib/ipc";
+import type { Page } from "./Sidebar";
 
 /**
  * The bottom bar: which models are in play, what they are doing, and which
@@ -27,10 +30,13 @@ import {
  * the one place on every screen.
  */
 export function StatusBar({
+  page = null,
   jobs,
   onManageModels,
   onOpenNote,
 }: {
+  /** Where the user is, for the narrator. */
+  page?: Page | null;
   jobs: Job[];
   onManageModels: () => void;
   onOpenNote?: ((path: string) => void) | undefined;
@@ -75,6 +81,10 @@ export function StatusBar({
         <SummaryPicker status={llm.status} onChanged={llm.recheck} onManage={onManageModels} />
       )}
       <ActivityEntry jobs={jobs} onOpenNote={onOpenNote} />
+      {/* Fun mode's commentary, in the room the bar has spare. Anything the
+          bar genuinely needs to say — a job running, no speech model —
+          comes first, and the narrator steps aside for it. */}
+      <Narrator page={page} busy={jobs.some(isRunning) || Boolean(speech && !active?.installed)} />
 
       <span className="ml-auto flex items-center gap-2 text-ink-faint">
         {info?.devBuild && <span className="text-warn">dev</span>}

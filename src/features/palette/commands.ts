@@ -2,6 +2,7 @@ import type { Page } from "../../app/Sidebar";
 import type { AppearanceControl } from "../../design/appearance";
 import { PRESET_NOTES, PRESETS } from "../../design/screen";
 import { FAMILIES, THEME_NOTES, THEMES } from "../../design/theme";
+import type { FunControl } from "../fun/fun";
 
 /**
  * What the palette can do, and how a query finds it.
@@ -36,6 +37,7 @@ export interface PaletteContext {
   openGallery: () => void;
   recording: boolean;
   appearance: AppearanceControl;
+  fun?: FunControl | undefined;
 }
 
 const PLACES: Array<{ page: Page; label: string; keywords?: string }> = [
@@ -124,6 +126,17 @@ export function buildCommands(ctx: PaletteContext): Command[] {
       keywords: `screen effects filter ${PRESET_NOTES[preset]}`,
       run: () => ctx.appearance.setPreset(preset),
       preview: () => ctx.appearance.setPreset(preset),
+    });
+  }
+
+  if (ctx.fun) {
+    const fun = ctx.fun;
+    commands.push({
+      id: "app:fun",
+      group: "App",
+      label: fun.on ? "Turn fun mode off" : "Turn fun mode on",
+      keywords: "fun narrator easter eggs play boot",
+      run: () => fun.setOn(!fun.on),
     });
   }
 

@@ -1150,4 +1150,38 @@ describe("Gallery", () => {
     expect(within(palette).getByText("because someone will ask")).toBeInTheDocument();
     expect(within(palette).queryByRole("listbox")).toBeNull();
   });
+
+  it("lets the narrator speak in Fun mode, and only then", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+
+    await openScenario(user, "Meetings");
+    const bar = await screen.findByRole("contentinfo");
+    expect(within(bar).queryByRole("status")).toBeNull();
+
+    await openScenario(user, "Fun mode, the narrator");
+    const funBar = await screen.findByRole("contentinfo");
+    expect(
+      await within(funBar).findByRole("status", { name: /the machine will now speak/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("boots in Fun mode, line by line, to READY", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Fun mode, booting");
+
+    const boot = await screen.findByRole("status", { name: "TRACE starting" });
+    expect(boot).toHaveTextContent("TRACE / INITIALIZING");
+    await waitFor(() => expect(boot).toHaveTextContent("READY."), { timeout: 3_000 });
+  });
+
+  it("shows the found file", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Found file");
+
+    const file = await screen.findByRole("dialog", { name: "Found file" });
+    expect(file).toHaveTextContent("So we kept a trace.");
+  });
 });

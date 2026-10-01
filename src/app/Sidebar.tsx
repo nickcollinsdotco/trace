@@ -189,6 +189,8 @@ export function SidebarHead({
         onClick={onHome}
         className="rounded-xs px-1.5 transition-opacity duration-120 hover:opacity-80"
         aria-label="TRACE — back to meetings"
+        // Counted by Fun mode's wordmark secret (features/fun/Eggs.tsx).
+        data-wordmark
       >
         <Wordmark />
       </button>

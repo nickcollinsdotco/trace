@@ -425,6 +425,29 @@ louder than wanted. All hover and press motion now waits for a prototype
 pass of its own; see "Hover and press motion" in `10-BACKLOG.md`. The 0.97
 push-in stays until then.
 
+**5b, fun mode — built 2026-10-01 (v0.13.0; 0.12.0 was the parked motion
+branch, so it is skipped rather than reused).** Notes from building it:
+
+- **Fun mode** is one app-wide switch, off by default, on the Appearance
+  page and in the palette. On, it starts the narrator and plays the boot
+  sequence at launch.
+- **The narrator** takes the status bar's spare room, after the model
+  pickers, and steps aside whenever a job is running or no speech model is
+  installed. Deadpan lines about places, themes and the meeting — started
+  (with its own line after midnight), every hundred segments, crosstalk
+  (both channels above −34 dBFS for three seconds, then not again for two
+  minutes), a quiet room (both below −48 dBFS for thirty seconds), stopped
+  — and an idle line at most once a minute. Never a word of what was said,
+  and no idle line claims the microphone is open.
+- **The secrets answer in any mode**, because finding one should not depend
+  on a setting: the Konami code (phosphor rain), typing `trace` outside a
+  field (the boot sequence), seven clicks on the wordmark (the found
+  README), and the palette's hidden commands. None of the big ones plays
+  over a recording.
+- **Not yet:** the shredder on delete, the screensaver, and the hidden theme
+  at the hundredth meeting. All three are still wanted; each needs a design
+  of its own rather than a quick cut.
+
 ### Stage 6 — audio visualisation
 
 The Rust `audio-frame` event and FFT, the visualiser components, a full-screen

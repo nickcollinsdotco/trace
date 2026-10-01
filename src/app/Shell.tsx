@@ -167,6 +167,7 @@ export function Shell({
             )}
           </div>
           <StatusBar
+            page={current}
             jobs={jobs}
             onManageModels={() => onNavigate("models")}
             onOpenNote={onOpenNote}

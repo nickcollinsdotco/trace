@@ -617,3 +617,234 @@
     linear-gradient(var(--c), var(--c)) bottom right / 9px 2px no-repeat,
     linear-gradient(var(--c), var(--c)) bottom right / 2px 9px no-repeat;
 }
+
+/* ---------------------------------------------------------------------
+ * teletext — Ceefax page 100.
+ *
+ * Seven hard colours on black and nothing in between: white for reading,
+ * yellow for headings, cyan for what is live, green and magenta for the
+ * rest. Sections are headed by a full-width blue band with yellow capitals,
+ * as a teletext page heads its stories; the top bar carries a page number;
+ * the status line runs in the four Fastext colours. VT323 stands in for the
+ * Mode 7 face, whose blocky pixels it is close to.
+ * ------------------------------------------------------------------ */
+[data-theme="teletext"] {
+  --color-surface-0: #000000;
+  --color-surface-1: #000000;
+  --color-surface-2: #000000;
+  --color-surface-3: #0000ff;
+
+  --color-line: rgb(255 255 255 / 30%);
+  --color-line-strong: #ffffff;
+
+  --color-ink: #ffffff;
+  --color-ink-muted: #00ffff;
+  --color-ink-faint: #00ff00;
+
+  --color-phosphor: #ffff00;
+  --color-phosphor-bright: #ffffff;
+  --color-phosphor-muted: #ff00ff;
+  --color-phosphor-dim: #0000ff;
+
+  --color-warn: #ffff00;
+  --color-warn-dim: rgb(255 255 0 / 18%);
+  --color-error: #ff0000;
+  --color-error-dim: rgb(255 0 0 / 22%);
+
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-pill: 0px;
+
+  --font-sans: "VT323", ui-monospace, monospace;
+
+  --text-2xs: 1rem;
+  --text-xs: 1.0625rem;
+  --text-sm: 1.1875rem;
+  --text-base: 1.3125rem;
+  --text-lg: 1.4375rem;
+  --text-xl: 1.875rem;
+  --text-2xl: 2.75rem;
+
+  --label-font: var(--font-mono);
+  --label-transform: uppercase;
+  --label-tracking: 0.04em;
+
+  /* Mosaic: a solid block on a track of separated graphics cells. */
+  --fill-active: #00ffff;
+  --fill-hot: #ff00ff;
+  --fill-track: repeating-linear-gradient(90deg, #0000ff 0 4px, transparent 4px 6px);
+  --fill-hatch: repeating-linear-gradient(90deg, rgb(0 0 255 / 70%) 0 4px, transparent 4px 7px);
+
+  --field-bg: #000000;
+  --field-bg-focus: #000000;
+  --field-border: #00ffff;
+  --field-border-focus: #ffff00;
+  --field-focus-shadow: none;
+}
+
+/* Headlines in yellow: teletext's colour for a title. */
+[data-theme="teletext"] .trace-title {
+  color: #ffff00;
+  letter-spacing: 0.02em;
+}
+
+/* A story's heading: a blue band across the page, yellow capitals on it. */
+[data-theme="teletext"] .trace-section-head {
+  background: #0000ff;
+  padding: 0.15rem 0.6rem;
+}
+
+[data-theme="teletext"] .trace-section-head .trace-system-label {
+  color: #ffff00;
+}
+
+[data-theme="teletext"] .trace-section-head .trace-rule,
+[data-theme="teletext"] .trace-section-corner {
+  visibility: hidden;
+}
+
+/* The page number, where Ceefax put it. */
+[data-theme="teletext"] .trace-topbar {
+  position: relative;
+}
+
+[data-theme="teletext"] .trace-topbar::before {
+  content: "P100";
+  position: absolute;
+  top: 50%;
+  left: 0.75rem;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: #ffffff;
+}
+
+[data-theme="teletext"] nav[aria-label="App"] [aria-current="page"] {
+  background: #00ffff;
+  color: #000000;
+}
+
+/* Fastext: red, green, yellow, cyan, in that order along the bottom row. */
+[data-theme="teletext"] .trace-statusbar {
+  border-top-color: transparent;
+}
+
+[data-theme="teletext"] .trace-statusbar > :nth-child(4n + 1) {
+  color: #ff0000;
+}
+[data-theme="teletext"] .trace-statusbar > :nth-child(4n + 2) {
+  color: #00ff00;
+}
+[data-theme="teletext"] .trace-statusbar > :nth-child(4n + 3) {
+  color: #ffff00;
+}
+[data-theme="teletext"] .trace-statusbar > :nth-child(4n + 4) {
+  color: #00ffff;
+}
+
+/* ---------------------------------------------------------------------
+ * scope — a Tektronix oscilloscope.
+ *
+ * P31 phosphor green on black, every letter glowing a little, over a
+ * graticule: ten divisions across and eight down, with a finer-ticked
+ * centre cross, scaled to the page so it always divides it evenly. The
+ * corners carry readouts, as a scope's do: the two channels are the two
+ * streams, you and them. Made to sit under the waveforms of the visualiser
+ * stage.
+ * ------------------------------------------------------------------ */
+[data-theme="scope"] {
+  --color-surface-0: #040705;
+  --color-surface-1: #060b07;
+  --color-surface-2: #09110b;
+  --color-surface-3: #0d1810;
+
+  --color-line: rgb(57 255 106 / 18%);
+  --color-line-strong: rgb(57 255 106 / 45%);
+
+  --color-ink: #b9ffcb;
+  --color-ink-muted: #5fd987;
+  --color-ink-faint: #2f8a4c;
+
+  --color-phosphor: #39ff6a;
+  --color-phosphor-bright: #c8ffd6;
+  --color-phosphor-muted: #1d6e36;
+  --color-phosphor-dim: rgb(57 255 106 / 12%);
+
+  --color-warn: #ffd84a;
+  --color-warn-dim: rgb(255 216 74 / 14%);
+  --color-error: #ff5a4a;
+  --color-error-dim: rgb(255 90 74 / 16%);
+
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-pill: 2px;
+
+  --font-sans: "Share Tech Mono", ui-monospace, monospace;
+
+  --label-font: var(--font-mono);
+  --label-transform: uppercase;
+  --label-tracking: 0.1em;
+
+  --fill-active: var(--color-phosphor);
+  --fill-hot: var(--color-warn);
+  --fill-track: rgb(57 255 106 / 8%);
+  --fill-hatch: repeating-linear-gradient(90deg, rgb(57 255 106 / 16%) 0 1px, transparent 1px 5px);
+
+  --field-bg: transparent;
+  --field-bg-focus: rgb(57 255 106 / 5%);
+  --field-border: var(--color-line);
+  --field-border-focus: var(--color-line-strong);
+  --field-focus-shadow: none;
+}
+
+/* The graticule: 10 × 8 divisions in percentages, so it always fits the
+   page exactly, and a centre cross ticked at fifths of a division. */
+[data-theme="scope"] .trace-canvas {
+  --grat: rgb(57 255 106 / 9%);
+  --axis: rgb(57 255 106 / 24%);
+  background-image:
+    linear-gradient(to right, var(--axis) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--axis) 1px, transparent 1px),
+    linear-gradient(to right, var(--grat) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grat) 1px, transparent 1px);
+  /* Centre-cross ticks every fifth of a division, then the divisions. */
+  background-size:
+    2% 7px,
+    7px 2.5%,
+    10% 100%,
+    100% 12.5%;
+  background-position:
+    0 calc(50% + 3px),
+    calc(50% + 3px) 0,
+    0 0,
+    0 0;
+  background-repeat: repeat-x, repeat-y, repeat, repeat;
+}
+
+[data-theme="scope"] .trace-canvas,
+[data-theme="scope"] aside {
+  text-shadow: 0 0 5px rgb(57 255 106 / 40%);
+}
+
+/* Readouts along the bottom, as a scope prints them under the screen. In
+   the status bar, not the page's corners: there they sat on top of the
+   last row of a list and the recording screen's Stop button. */
+[data-theme="scope"] .trace-statusbar::before,
+[data-theme="scope"] .trace-statusbar::after {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--color-ink-faint);
+  white-space: nowrap;
+}
+
+[data-theme="scope"] .trace-statusbar::before {
+  content: "CH1 YOU  CH2 THEM";
+}
+
+[data-theme="scope"] .trace-statusbar::after {
+  content: "M 1.00 min/div  TRIG SPEECH";
+}

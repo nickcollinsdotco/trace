@@ -36,6 +36,8 @@ export const THEMES = [
   "shell",
   "index",
   "vault",
+  "teletext",
+  "scope",
 ] as const;
 
 export type Theme = (typeof THEMES)[number];
@@ -174,6 +176,18 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     note: "A wrist computer from a bunker: phosphor green, condensed type, bracketed tabs.",
     frame: "rule",
     type: { mono: "sharetech", role: "sans", case: "upper" },
+  },
+  teletext: {
+    family: "retro",
+    note: "Ceefax page 100: seven hard colours on black, blue story bands, Fastext along the bottom.",
+    frame: "rule",
+    type: { mono: "vt323", role: "mono", case: "normal" },
+  },
+  scope: {
+    family: "retro",
+    note: "A Tektronix scope: P31 green over a 10 × 8 graticule, readouts in the corners.",
+    frame: "rule",
+    type: { mono: "sharetech", role: "mono", case: "upper" },
   },
 };
 

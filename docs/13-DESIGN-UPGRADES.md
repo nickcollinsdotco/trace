@@ -383,6 +383,12 @@ remain, on keys 1–8: terminal, report, industrial, termcn, graphite, shell,
 index, vault. A saved choice of a retired theme falls back to terminal and
 its adjustments are dropped.
 
+**Rough cuts of teletext and scope (v0.10.0)**, from the ideas list. Keys 9
+and 0. teletext: seven hard colours, blue story bands, a page number, the
+Fastext colours along the status line, VT323 for Mode 7. scope: P31 green
+over a 10 × 8 graticule scaled to the page, channel and timebase readouts
+in the status line (in the page's corners they sat on the last list row).
+
 ### Stage 4 — command palette
 
 After the themes, as `10-BACKLOG.md` already argues, so it is styled once.

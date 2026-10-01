@@ -225,24 +225,49 @@ function SetupPanel({
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <SystemLabel tone="muted">New meeting</SystemLabel>
 
-        <input
-          value={title}
-          onChange={(e) => onTitleChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !starting) onStart();
-          }}
-          placeholder="Untitled meeting"
-          name="meeting-title"
-          // Off deliberately: a meeting title is not a credential, and a
-          // password manager offering to fill it is pure noise.
-          autoComplete="off"
-          data-selectable
-          // Autofocused because the title is the only thing worth typing here,
-          // and everything else has a sensible default.
-          // biome-ignore lint/a11y/noAutofocus: single-purpose entry screen
-          autoFocus
-          className="trace-field text-2xl"
-        />
+        {/*
+          A prompt, not a form field. While it is empty a block cursor blinks
+          where the title will go — the one thing this screen asks for — and
+          the system caret stays out of the way until typing starts. The
+          Modern family drops the field's box entirely (family.css), so the
+          title floats. The placeholder is kept for screen readers; it is only
+          hidden, because the hint draws it instead.
+        */}
+        <div className="trace-title-prompt flex items-center gap-3">
+          <span aria-hidden className="trace-title-mark font-mono text-2xl text-phosphor">
+            &gt;
+          </span>
+          <div className="relative min-w-0 flex-1">
+            <input
+              value={title}
+              onChange={(e) => onTitleChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !starting) onStart();
+              }}
+              placeholder="Untitled meeting"
+              aria-label="Meeting title"
+              name="meeting-title"
+              // Off deliberately: a meeting title is not a credential, and a
+              // password manager offering to fill it is pure noise.
+              autoComplete="off"
+              data-selectable
+              // Autofocused because the title is the only thing worth typing
+              // here, and everything else has a sensible default.
+              // biome-ignore lint/a11y/noAutofocus: single-purpose entry screen
+              autoFocus
+              className={`trace-field trace-title-input text-2xl ${title ? "" : "caret-transparent"}`}
+            />
+            {title === "" && (
+              <span
+                aria-hidden
+                className="trace-title-hint pointer-events-none absolute inset-0 flex items-center text-2xl text-ink-faint"
+              >
+                <span className="trace-cursor" />
+                <span className="ml-2 truncate">Untitled meeting</span>
+              </span>
+            )}
+          </div>
+        </div>
 
         <label className="flex flex-col gap-2">
           <SystemLabel>Microphone</SystemLabel>
@@ -278,19 +303,27 @@ function SetupPanel({
 
         {error && <Banner tone="error">{error}</Banner>}
 
-        <div className="flex items-center gap-3">
+        {/* The one thing this screen is for, so it is the biggest thing on
+            it, and says it answers to Enter from the title. */}
+        <div className="flex flex-col items-stretch gap-3">
           <button
             type="button"
             onClick={onStart}
             disabled={starting}
-            className="rounded-sm border border-phosphor bg-phosphor-dim px-4 py-2 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+            className="flex w-full items-center justify-between gap-4 rounded-md border border-phosphor bg-phosphor-dim px-5 py-4 font-mono text-sm uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
           >
-            {starting ? "Starting…" : "Start meeting"}
+            <span className="flex items-center gap-3">
+              <span aria-hidden className="inline-block size-2 rounded-full bg-current" />
+              {starting ? "Starting…" : "Start meeting"}
+            </span>
+            <kbd aria-hidden className="font-mono text-2xs normal-case tracking-normal opacity-70">
+              ↵ Enter
+            </kbd>
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
+            className="self-center font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
           >
             Cancel
           </button>

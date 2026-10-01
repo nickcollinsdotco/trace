@@ -694,6 +694,76 @@ describe("Gallery", () => {
     expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument();
   });
 
+  it("renames a meeting in place, and Escape leaves it as it was", async () => {
+    const prompt = vi.spyOn(window, "prompt");
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Meetings");
+    await screen.findByText("Pricing page rework", { selector: ROW });
+
+    await user.click(screen.getAllByRole("button", { name: "Meeting actions" })[1] as HTMLElement);
+    await user.click(screen.getByRole("button", { name: "Rename" }));
+    const field = await screen.findByRole("textbox", { name: "Rename Pricing page rework" });
+    expect(field).toHaveValue("Pricing page rework");
+    await user.clear(field);
+    await user.type(field, "Pricing, round two{Enter}");
+
+    expect(await screen.findByText("Pricing, round two", { selector: ROW })).toBeInTheDocument();
+    // The browser's "tauri.localhost says" box is gone for good.
+    expect(prompt).not.toHaveBeenCalled();
+
+    // F2 on a row, the Windows convention, and Escape puts it back.
+    const open = screen.getByText("Catch-up with Dev", { selector: ROW }).closest("button");
+    open?.focus();
+    await user.keyboard("{F2}");
+    const again = await screen.findByRole("textbox", { name: "Rename Catch-up with Dev" });
+    await user.type(again, " and more{Escape}");
+    expect(await screen.findByText("Catch-up with Dev", { selector: ROW })).toBeInTheDocument();
+    prompt.mockRestore();
+  });
+
+  it("suggests the library's own tags while a tag is typed", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Enhanced note");
+
+    await user.click(await screen.findByRole("button", { name: "+ Tag" }));
+    // Nothing typed: the tags in use that this note has not got yet.
+    const list = await screen.findByRole("listbox", { name: "Tags already in use" });
+    expect(
+      within(list)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["internal1", "planning1"]);
+
+    await user.type(screen.getByRole("combobox", { name: "New tag" }), "pl");
+    await user.keyboard("{Tab}");
+    // Completed from "pl" and added: the tag's own button is named by its text.
+    expect(await screen.findByRole("button", { name: "planning" })).toBeInTheDocument();
+  });
+
+  it("autofills people and filters in the search line", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Meetings");
+    await screen.findByText("Pricing page rework", { selector: ROW });
+
+    const search = screen.getByRole("combobox", { name: "Search meetings and transcripts" });
+    await user.click(search);
+    await user.type(search, "sa");
+    const list = await screen.findByRole("listbox", { name: "Suggestions" });
+    expect(within(list).getByRole("option", { name: /with:Sarah Chen/ })).toBeInTheDocument();
+
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(search).toHaveValue("with:sarah-chen ");
+    // Only the meetings she was in.
+    await waitFor(() =>
+      expect(screen.queryByText("Catch-up with Dev", { selector: ROW })).toBeNull(),
+    );
+    expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument();
+    expect(screen.getByText("Quarterly planning", { selector: ROW })).toBeInTheDocument();
+  });
+
   it("hides the sidebar by hand and keeps the recording in view", async () => {
     localStorage.clear();
     const user = userEvent.setup();
@@ -762,7 +832,10 @@ describe("Gallery", () => {
     );
 
     // "comparison" appears only in a transcript line, never in a title.
-    await user.type(screen.getByRole("searchbox"), "comparison");
+    await user.type(
+      screen.getByRole("combobox", { name: "Search meetings and transcripts" }),
+      "comparison",
+    );
 
     await waitFor(() => expect(screen.getByText(/1 result/)).toBeInTheDocument());
     expect(screen.getByText(/comparison table/i)).toBeInTheDocument();
@@ -776,7 +849,10 @@ describe("Gallery", () => {
       expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument(),
     );
 
-    await user.type(screen.getByRole("searchbox"), "pricing elephant");
+    await user.type(
+      screen.getByRole("combobox", { name: "Search meetings and transcripts" }),
+      "pricing elephant",
+    );
 
     await waitFor(() => expect(screen.getByText(/nothing matches/)).toBeInTheDocument());
   });
@@ -789,7 +865,7 @@ describe("Gallery", () => {
       expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument(),
     );
 
-    const box = screen.getByRole("searchbox");
+    const box = screen.getByRole("combobox", { name: "Search meetings and transcripts" });
     await user.type(box, "comparison");
     await waitFor(() => expect(screen.getByText(/1 result/)).toBeInTheDocument());
 
@@ -806,7 +882,7 @@ describe("Gallery", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "pricing" })).toBeVisible());
     await user.click(screen.getByRole("button", { name: "+ Tag" }));
-    await user.type(screen.getByRole("textbox", { name: "New tag" }), "Design Review{Enter}");
+    await user.type(screen.getByRole("combobox", { name: "New tag" }), "Design Review{Enter}");
 
     // Normalised on the way in — the UI shows what the store would write.
     await waitFor(() =>
@@ -848,7 +924,9 @@ describe("Gallery", () => {
     expect(screen.getByText("Monday standup", { selector: ROW })).toBeInTheDocument();
 
     // And the search line says so, since the controls only ever edit it.
-    expect(screen.getByRole("searchbox")).toHaveValue("tag:internal");
+    expect(screen.getByRole("combobox", { name: "Search meetings and transcripts" })).toHaveValue(
+      "tag:internal",
+    );
     await user.click(within(filters).getByRole("button", { name: "All 6" }));
     await waitFor(() =>
       expect(screen.getByText("Pricing page rework", { selector: ROW })).toBeInTheDocument(),
@@ -868,7 +946,9 @@ describe("Gallery", () => {
 
     await user.click(screen.getByRole("button", { name: /Newest/ }));
     await user.click(screen.getByRole("button", { name: "Oldest" }));
-    expect(screen.getByRole("searchbox")).toHaveValue("sort:oldest");
+    expect(screen.getByRole("combobox", { name: "Search meetings and transcripts" })).toHaveValue(
+      "sort:oldest",
+    );
     await waitFor(() => expect(titles()[0]).toBe("Acme discovery call"));
     expect(titles().at(-1)).toBe("Catch-up with Dev");
   });
@@ -935,7 +1015,9 @@ describe("Gallery", () => {
     await user.click(screen.getByRole("button", { name: /Filters/ }));
     await user.click(screen.getByRole("button", { name: /Under 15 min/ }));
 
-    expect(screen.getByRole("searchbox")).toHaveValue("len:<15m");
+    expect(screen.getByRole("combobox", { name: "Search meetings and transcripts" })).toHaveValue(
+      "len:<15m",
+    );
     await waitFor(() =>
       expect(screen.queryByText("Pricing page rework", { selector: ROW })).toBeNull(),
     );
@@ -1004,7 +1086,10 @@ describe("Gallery", () => {
       expect(screen.getByText("Monday standup", { selector: ROW })).toBeInTheDocument(),
     );
 
-    await user.type(screen.getByRole("searchbox"), "tag:client");
+    await user.type(
+      screen.getByRole("combobox", { name: "Search meetings and transcripts" }),
+      "tag:client",
+    );
 
     // Filters alone are answered from the listing, with no search at all.
     await waitFor(() => expect(screen.getByText(/1 of 6 meetings/)).toBeInTheDocument());

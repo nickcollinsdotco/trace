@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConfirm } from "../../components/ui/Confirm";
 import { Page } from "../../components/ui/Page";
 import { Popover, PopoverItem } from "../../components/ui/Popover";
+import { RenameInput } from "../../components/ui/RenameInput";
 import { TopBar, useScrolledPast } from "../../components/ui/TopBar";
 import { Prompt, SystemLabel } from "../../components/ui/terminal";
 import { isTypingTarget } from "../../design/theme";
@@ -414,13 +415,12 @@ function NoteRow({
 }) {
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
+  const [renaming, setRenaming] = useState(false);
 
-  async function rename() {
-    const title = window.prompt("Rename meeting", note.title);
-    if (title === null || title.trim() === "" || title === note.title) return;
-
+  async function rename(title: string) {
+    setRenaming(false);
     setBusy(true);
-    await ipc.renameNote(note.path, title.trim()).catch(() => {});
+    await ipc.renameNote(note.path, title).catch(() => {});
     setBusy(false);
     onChanged();
   }
@@ -456,14 +456,38 @@ function NoteRow({
           a non-replaced inline element, so an inline span with `truncate`
           silently did nothing and a long title overflowed its row.
         */}
+        {/*
+          Renaming swaps the title for a field in place. Not by double-click
+          here, unlike on the note itself: a click opens the meeting, and
+          telling one from the first half of a double-click would make every
+          open wait. F2, the Windows convention, and the row's menu instead.
+        */}
+        {renaming && (
+          <RenameInput
+            initial={note.title}
+            label={`Rename ${note.title}`}
+            onCommit={(title) => void rename(title)}
+            onCancel={() => setRenaming(false)}
+            className="trace-title text-base text-ink"
+          />
+        )}
         <button
           type="button"
           onClick={() => onOpen(note.path)}
+          onKeyDown={(e) => {
+            if (e.key === "F2" && hasBackend()) {
+              e.preventDefault();
+              setRenaming(true);
+            }
+          }}
+          title={hasBackend() ? "Open — F2 to rename" : undefined}
           className="flex min-w-0 flex-col gap-0.5 text-left"
         >
-          <span className="trace-title block truncate text-base text-ink group-hover:text-phosphor">
-            {note.title}
-          </span>
+          {!renaming && (
+            <span className="trace-title block truncate text-base text-ink group-hover:text-phosphor">
+              {note.title}
+            </span>
+          )}
           {list &&
             (note.gist ? (
               <span className="line-clamp-2 text-sm text-ink-muted">{note.gist}</span>
@@ -524,7 +548,7 @@ function NoteRow({
                   disabled={busy}
                   onSelect={() => {
                     close();
-                    void rename();
+                    setRenaming(true);
                   }}
                 >
                   Rename

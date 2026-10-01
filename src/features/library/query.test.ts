@@ -20,6 +20,7 @@ function note(title: string, extra: Partial<NoteSummary> = {}): NoteSummary {
     type: "general",
     gist: null,
     tags: [],
+    participants: [],
     startedAt: null,
     durationMs: null,
     signal: null,

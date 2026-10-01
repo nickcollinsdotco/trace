@@ -72,15 +72,17 @@
   background-color: var(--color-surface-0);
 }
 
-[data-fx-behind] .trace-field,
-[data-fx-behind] .trace-field:focus,
-[data-fx-behind] .trace-field:focus-visible {
+/* Not selects: they already have a solid fill, and their chevron is a
+   background image this would paint over. */
+[data-fx-behind] .trace-field:not(select),
+[data-fx-behind] .trace-field:not(select):focus,
+[data-fx-behind] .trace-field:not(select):focus-visible {
   background-color: var(--color-surface-0);
   background-image: linear-gradient(var(--field-bg), var(--field-bg));
 }
 
-[data-fx-behind] .trace-field:focus,
-[data-fx-behind] .trace-field:focus-visible {
+[data-fx-behind] .trace-field:not(select):focus,
+[data-fx-behind] .trace-field:not(select):focus-visible {
   background-image: linear-gradient(var(--field-bg-focus), var(--field-bg-focus));
 }
 

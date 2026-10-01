@@ -8,6 +8,14 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 
+/* The new themes' faces (docs/13, Stage 3). Latin only: they are display and
+   system faces, and the line-drawing characters come from the system font. */
+@import "@fontsource/vt323/latin-400.css";
+@import "@fontsource/silkscreen/latin-400.css";
+@import "@fontsource/silkscreen/latin-700.css";
+@import "@fontsource/share-tech-mono/latin-400.css";
+@import "@fontsource-variable/roboto-condensed/wght.css";
+
 @import "tailwindcss";
 @import "./tokens.css";
 @import "./terminal.css";

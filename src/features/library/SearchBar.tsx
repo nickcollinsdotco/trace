@@ -1,7 +1,9 @@
-import type { RefObject } from "react";
+import { type RefObject, useState } from "react";
 import { Popover, PopoverHeading, PopoverItem } from "../../components/ui/Popover";
+import { SuggestionList, useSuggestionKeys } from "../../components/ui/Suggestions";
 import type { NoteSummary } from "../../lib/ipc";
 import { filterCount, LENGTHS, type Query, SORTS, type Sort, setToken, tagCounts } from "./query";
+import { applySuggestion, suggest, wordAt } from "./suggest";
 
 export type View = "list" | "compact";
 
@@ -56,6 +58,24 @@ export function SearchBar({
   const types = [...new Set(notes.map((n) => n.type))].filter((t) => t !== "general");
   const active = filterCount(parsed);
 
+  /*
+   * Autofill. The cursor's position decides which word is being completed,
+   * so it is tracked rather than assumed to be at the end. Escape closes the
+   * list first and clears the line second; typing opens it again.
+   */
+  const [focused, setFocused] = useState(false);
+  const [caret, setCaret] = useState(query.length);
+  const [dismissed, setDismissed] = useState(false);
+  const items = focused && !dismissed ? suggest(query, caret, notes) : [];
+  const pick = (value: string) => {
+    const next = applySuggestion(query, caret, value);
+    onChange(next.query);
+    setCaret(next.caret);
+    // After the new value has rendered, or the browser puts the cursor back.
+    requestAnimationFrame(() => inputRef.current?.setSelectionRange(next.caret, next.caret));
+  };
+  const keys = useSuggestionKeys(items, (s) => pick(s.value), wordAt(query, caret).text !== "");
+
   return (
     <div className="flex flex-col gap-4">
       <div className="relative">
@@ -72,14 +92,32 @@ export function SearchBar({
           ref={inputRef}
           type="search"
           value={query}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setCaret(e.target.selectionStart ?? e.target.value.length);
+            setDismissed(false);
+          }}
+          onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? query.length)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onKeyDown={(e) => {
-            if (e.key === "Escape" && query) {
+            if (keys.onKeyDown(e)) return;
+            if (e.key === "Escape" && items.length > 0) {
+              e.preventDefault();
+              setDismissed(true);
+            } else if (e.key === "Escape" && query) {
               e.preventDefault();
               onChange("");
             }
           }}
-          placeholder="Search, or filter — tag:client len:>30m"
+          role="combobox"
+          aria-expanded={items.length > 0}
+          aria-controls="trace-search-suggestions"
+          aria-autocomplete="list"
+          aria-activedescendant={
+            keys.active >= 0 ? `trace-search-suggestions-${keys.active}` : undefined
+          }
+          placeholder="Search, or filter — tag:client with:sarah len:>30m"
           name="search"
           autoComplete="off"
           spellCheck={false}
@@ -95,6 +133,14 @@ export function SearchBar({
         >
           /
         </kbd>
+        <SuggestionList
+          id="trace-search-suggestions"
+          label="Suggestions"
+          items={items}
+          active={keys.active}
+          onHover={keys.setActive}
+          onPick={(s) => pick(s.value)}
+        />
       </div>
 
       <div className="flex items-center gap-3">

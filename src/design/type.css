@@ -66,6 +66,16 @@
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 
+/* A bitmap face, so it wants to be large: it is drawn on a 16px grid and
+   anything smaller blurs its pixels. The shell theme sizes up to suit. */
+[data-mono="vt323"] {
+  --font-mono: "VT323", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+[data-mono="sharetech"] {
+  --font-mono: "Share Tech Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
 /* ---------------------------------------------------------------------
  * Where monospace is used.
  *

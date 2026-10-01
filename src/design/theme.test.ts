@@ -65,7 +65,7 @@ describe("themes", () => {
     applyTheme("report", el);
     expect(el.getAttribute("data-frame")).toBe("box");
 
-    applyTheme("console", el);
+    applyTheme("index", el);
     expect(el.getAttribute("data-frame")).toBe("rule");
   });
 
@@ -125,7 +125,9 @@ describe("themes", () => {
     applyTheme("report", el);
     expect(el.getAttribute("data-case")).toBe("upper");
 
-    applyTheme("console", el);
+    // No built-in starts in lower case since console retired; an
+    // adjustment still asks for it.
+    applyTheme("report", el, { case: "lower" });
     expect(el.getAttribute("data-case")).toBe("lower");
 
     // terminal must stay exactly as it is: "normal" has no CSS rules at all,
@@ -158,9 +160,13 @@ describe("themes", () => {
       expect(themeForKey("5", null, false)).toBe(THEMES[4]);
     });
 
-    it("ignores digits with no theme behind them", () => {
-      expect(themeForKey(String(THEMES.length + 1), null, false)).toBeNull();
-      expect(themeForKey("0", null, false)).toBeNull();
+    it("runs 1 to 9 then 0, and a key with no theme behind it does nothing", () => {
+      const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
+      keys.forEach((key, i) => {
+        expect(themeForKey(key, null, false), key).toBe((THEMES as readonly string[])[i] ?? null);
+      });
+      // Two digits are never a key, however many themes there are.
+      expect(themeForKey("10", null, false)).toBeNull();
     });
 
     it("never fires while the user is typing", () => {

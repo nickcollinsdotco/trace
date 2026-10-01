@@ -1,13 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type Appearance,
+  currentAdjustments,
   currentScreen,
   defaultFamilies,
+  isAdjusted,
   loadAppearance,
   saveAppearance,
+  withAxis,
   withEffect,
   withFamily,
   withPreset,
+  withReset,
   withTheme,
 } from "./appearance";
 import { presetOf } from "./screen";
@@ -15,7 +19,7 @@ import { presetOf } from "./screen";
 afterEach(() => localStorage.clear());
 
 function fresh(): Appearance {
-  return { theme: "terminal", overrides: {}, families: defaultFamilies() };
+  return { theme: "terminal", adjustments: {}, families: defaultFamilies() };
 }
 
 describe("families", () => {
@@ -28,7 +32,7 @@ describe("families", () => {
   });
 
   it("do nothing when asked for the family already in use", () => {
-    const a = withTheme(fresh(), "console");
+    const a = withTheme(fresh(), "report");
     expect(withFamily(a, "retro")).toBe(a);
   });
 
@@ -56,6 +60,40 @@ describe("screens", () => {
   });
 });
 
+describe("adjustments", () => {
+  it("belong to the theme they were made on", () => {
+    let a = withAxis(fresh(), "mono", "plex");
+    expect(isAdjusted(a, "terminal")).toBe(true);
+    a = withTheme(a, "industrial");
+    expect(currentAdjustments(a)).toEqual({});
+    a = withTheme(a, "terminal");
+    expect(currentAdjustments(a).mono).toBe("plex");
+  });
+
+  it("reset only the current theme", () => {
+    let a = withAxis(fresh(), "mono", "plex");
+    a = withAxis(withTheme(a, "report"), "case", "lower");
+    a = withReset(a);
+    expect(isAdjusted(a, "report")).toBe(false);
+    expect(isAdjusted(a, "terminal")).toBe(true);
+  });
+
+  it("carry the old global overrides onto the theme in use, and only it", () => {
+    localStorage.setItem("trace.theme", "termcn");
+    localStorage.setItem("trace.appearance.overrides", JSON.stringify({ frame: "box" }));
+    const a = loadAppearance();
+    expect(a.adjustments).toEqual({ termcn: { frame: "box" } });
+    saveAppearance(a);
+    expect(localStorage.getItem("trace.appearance.overrides")).toBeNull();
+    expect(loadAppearance().adjustments.termcn?.frame).toBe("box");
+  });
+
+  it("carry nothing over when nothing was set", () => {
+    localStorage.setItem("trace.appearance.overrides", JSON.stringify({ frame: "rhombus" }));
+    expect(loadAppearance().adjustments).toEqual({});
+  });
+});
+
 describe("storage", () => {
   it("carries CRT mode over into the crt preset, on the family it was used in", () => {
     localStorage.setItem("trace.theme", "graphite");
@@ -78,6 +116,22 @@ describe("storage", () => {
     saveAppearance(a);
     expect(currentScreen(loadAppearance())).toEqual(currentScreen(a));
     expect(localStorage.getItem("trace.appearance.crt")).toBeNull();
+  });
+
+  it("lets a retired theme go quietly: default theme, adjustments dropped", () => {
+    localStorage.setItem("trace.theme", "console");
+    localStorage.setItem(
+      "trace.appearance.adjustments",
+      JSON.stringify({ council: { frame: "card" }, report: { case: "lower" } }),
+    );
+    localStorage.setItem(
+      "trace.appearance.families",
+      JSON.stringify({ retro: { theme: "council" } }),
+    );
+    const a = loadAppearance();
+    expect(a.theme).toBe("terminal");
+    expect(a.adjustments).toEqual({ report: { case: "lower" } });
+    expect(a.families.retro.theme).toBeUndefined();
   });
 
   it("drops a remembered theme that belongs to the other family", () => {

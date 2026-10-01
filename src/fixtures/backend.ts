@@ -516,8 +516,10 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         case "rename_note": {
           const path = args?.notePath as string;
           const title = args?.title as string;
-          const note = state.notes.find((n) => n.path === path);
-          if (note) note.title = title;
+          // A new array, as delete makes: editing the note object in place
+          // changed the shared fixture, so a rename outlived its scenario and
+          // leaked into every one after it.
+          state.notes = state.notes.map((n) => (n.path === path ? { ...n, title } : n));
           return path;
         }
 

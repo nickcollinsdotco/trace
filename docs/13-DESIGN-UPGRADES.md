@@ -308,6 +308,25 @@ off the pixel grid.
 Items 1–3 and 5–9. Independent of one another, small, and all things touched
 daily. `with:` autofill carries the one Rust change in this stage.
 
+**Built 2026-09-30 (v0.8.0).** Items 5 and 8 were done in Stage 0.
+
+- **Select chevron** drawn in CSS with the same gutter as the text, in the
+  theme's muted ink; a focused select keeps it.
+- **Start meeting** is the full-width primary button, with its Enter hint.
+- **The title** is a `>` prompt with a blinking block cursor while empty;
+  the Modern family drops the field's box so it floats.
+- **Rename is inline**: the row's menu or F2 in the library, double-click on
+  a note's title. Not double-click in the list, where a click opens the
+  meeting and telling the two apart would make every open wait.
+- **Tags** complete from the library's own, most used first; Tab takes the
+  first once something is typed.
+- **Search autofill**: a bare word offers people, tags and filters; a `key:`
+  word offers that key's values. `with:` matches any part of a name, and a
+  filter name with no value yet is ignored rather than searched for.
+  `NoteSummary` now carries `participants`.
+- Found on the way: the gallery's fake `rename_note` edited the shared
+  fixture, so a rename in one scenario leaked into every later one.
+
 ### Stage 2 — themes as data, then the builder
 
 - A theme schema: palette, fonts, type role, case, frame, fill style, radius,
@@ -321,6 +340,21 @@ daily. `with:` autofill carries the one Rust change in this stage.
 - **The builder**, on top of the gallery's preview pane. Custom themes are
   JSON files in `~/Documents/TRACE/themes/`, so they are easy to back up,
   share, and edit by hand.
+
+**2a built 2026-09-30 (v0.9.0), with a change of plan.** The built-ins
+did not move their colours into script. Their tokens stay in themes.css,
+because the type and case axes override a theme's fonts only by coming
+later in the cascade (type.css after themes.css), and field and fill
+defaults sit in unlayered `:root` rules; moving the values out would have
+put that order at risk for nothing on screen. What became data is
+everything else — one `THEME_DEFS` record of family, note, frame and type —
+and the adjustments laid over a built-in, which is what the builder will
+save. Checked: the six existing themes on four screens are pixel-identical
+before and after, bar the signal panel's sweeping playhead.
+
+- **Adjustments are per theme** (Q22): Reset per theme, an "adjusted" mark
+  on its card, and the old global overrides moved onto the theme in use.
+- **Number keys** run 1–9 then 0; new themes join the end so no key moves.
 
 ### Stage 3 — new themes
 
@@ -338,6 +372,22 @@ Written in the Stage 2 format.
 
 `shell` needs a new frame value, `ascii`. A value, not a switch — nothing new
 forks, which keeps within the budget `themes.css` sets out.
+
+**Rough cuts built 2026-09-30 (v0.9.0)**, to be judged before polishing.
+Keys 7, 8, 9, 0. Fonts bundled: VT323, Silkscreen, Share Tech Mono, Roboto
+Condensed (all OFL). `vault` borrows the device's look and nothing of its
+branding.
+
+**Retired 2026-10-01, on review:** `console` and `council`. Eight themes
+remain, on keys 1–8: terminal, report, industrial, termcn, graphite, shell,
+index, vault. A saved choice of a retired theme falls back to terminal and
+its adjustments are dropped.
+
+**Rough cuts of teletext and scope (v0.10.0)**, from the ideas list. Keys 9
+and 0. teletext: seven hard colours, blue story bands, a page number, the
+Fastext colours along the status line, VT323 for Mode 7. scope: P31 green
+over a 10 × 8 graticule scaled to the page, channel and timebase readouts
+in the status line (in the page's corners they sat on the last list row).
 
 ### Stage 4 — command palette
 

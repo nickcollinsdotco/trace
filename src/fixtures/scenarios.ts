@@ -46,6 +46,8 @@ export interface Scenario {
   notePath?: string;
   /** A confirmation already asked, for the states that only exist mid-question. */
   dialog?: ConfirmOptions;
+  /** The library's search line as the scenario opens. */
+  search?: string;
   state: Partial<BackendState>;
 }
 
@@ -94,6 +96,7 @@ const NOTES: NoteSummary[] = [
     type: "general",
     gist: "An informal catch-up with Dev about the week; nothing was decided.",
     tags: [],
+    participants: ["Dev"],
     startedAt: startedDaysAgo(0, 16),
     durationMs: 18 * MINUTE,
     signal: "▆▆▆▇█▅▃▃▃▁▂▅▆▅▇█▆▃▄▃▁▁▁▆▅▆█▇▄▄▄▂▁▃▅▅▆█▇▅▄▄▂▁▃▁▁▁",
@@ -105,6 +108,7 @@ const NOTES: NoteSummary[] = [
     type: "design-review",
     gist: "The team reviewed the current pricing page and agreed it is doing too much at once.",
     tags: [],
+    participants: ["Sarah Chen", "Dev"],
     startedAt: startedDaysAgo(1, 14),
     durationMs: 47 * MINUTE,
     signal: "▅▇▇▆▆██▇▅▅▅▆▄▁▂▃▄▃▂▄▆▇▆▆▇██▆▅▅▆▅▂▁▃▄▃▂▃▅▇▆▆▆██▇▅",
@@ -116,6 +120,7 @@ const NOTES: NoteSummary[] = [
     type: "client",
     gist: null,
     tags: [],
+    participants: ["Priya Raman"],
     startedAt: startedDaysAgo(2, 11),
     durationMs: null,
     signal: null,
@@ -127,6 +132,7 @@ const NOTES: NoteSummary[] = [
     type: "general",
     gist: null,
     tags: [],
+    participants: [],
     startedAt: startedDaysAgo(3, 9),
     durationMs: 12 * MINUTE,
     signal: null,
@@ -138,6 +144,7 @@ const NOTES: NoteSummary[] = [
     type: "general",
     gist: "Quarterly planning across three teams, settling the roadmap and who owns the migration, with hiring left open.",
     tags: [],
+    participants: ["Sarah Chen", "Dev", "Priya Raman"],
     startedAt: startedDaysAgo(12, 10),
     durationMs: 94 * MINUTE,
     signal: null,
@@ -149,6 +156,7 @@ const NOTES: NoteSummary[] = [
     type: "discovery",
     gist: "A first call with Acme to understand how their support team triages tickets.",
     tags: [],
+    participants: ["Priya Raman"],
     startedAt: startedDaysAgo(53, 15),
     durationMs: 38 * MINUTE,
     signal: null,
@@ -369,6 +377,15 @@ export const SCENARIOS: Scenario[] = [
       confirm: "Delete meeting",
       danger: true,
     },
+    state: POPULATED,
+  },
+  {
+    id: "library-with-person",
+    name: "Filtered to one person",
+    group: "Library",
+    note: "with:sarah — the meetings Sarah Chen was in. Click the search line for autofill; F2 on a row renames it.",
+    screen: "library",
+    search: "with:sarah",
     state: POPULATED,
   },
   {

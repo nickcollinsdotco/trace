@@ -1,7 +1,14 @@
 import { useEffect, useRef } from "react";
 import { Page } from "../../components/ui/Page";
 import { Prompt, Section, SystemLabel } from "../../components/ui/terminal";
-import { AXES, type Axis, currentScreen, useAppearanceControl } from "../../design/appearance";
+import {
+  AXES,
+  type Axis,
+  currentAdjustments,
+  currentScreen,
+  isAdjusted,
+  useAppearanceControl,
+} from "../../design/appearance";
 import {
   EFFECT_LABELS,
   EFFECT_NOTES,
@@ -45,7 +52,8 @@ import {
 export function AppearanceScreen() {
   const { appearance, setTheme, setFamily, setPreset, setEffect, setAxis, reset } =
     useAppearanceControl();
-  const overridden = Object.values(appearance.overrides).some((v) => v !== undefined);
+  const overridden = isAdjusted(appearance, appearance.theme);
+  const adjustments = currentAdjustments(appearance);
   const family = THEME_FAMILY[appearance.theme];
   const screen = currentScreen(appearance);
   const preset = presetOf(screen);
@@ -55,7 +63,7 @@ export function AppearanceScreen() {
       <Section title="Theme">
         <p className="text-sm text-ink-muted">
           Two families, each with its own themes and its own screen. Pick one, then a theme within
-          it — or press <Key>1</Key>–<Key>{String(THEMES.length)}</Key> anywhere outside a text
+          it — or press <Key>1</Key>–<Key>{String(THEMES.length % 10)}</Key> anywhere outside a text
           field. A theme is best judged over a few days of real meetings, not from a preview.
         </p>
 
@@ -78,9 +86,10 @@ export function AppearanceScreen() {
             <ThemeCard
               key={theme}
               theme={theme}
-              shortcut={THEMES.indexOf(theme) + 1}
+              shortcut={String((THEMES.indexOf(theme) + 1) % 10)}
               selected={appearance.theme === theme}
-              overrides={appearance.overrides}
+              overrides={appearance.adjustments[theme] ?? {}}
+              adjusted={isAdjusted(appearance, theme)}
               onSelect={() => setTheme(theme)}
             />
           ))}
@@ -125,7 +134,7 @@ export function AppearanceScreen() {
       </Section>
 
       <Section
-        title="Fine-tuning"
+        title={`Adjust ${appearance.theme}`}
         actions={
           overridden ? (
             <button
@@ -133,21 +142,22 @@ export function AppearanceScreen() {
               onClick={reset}
               className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
             >
-              Reset to theme
+              Reset {appearance.theme}
             </button>
           ) : undefined
         }
       >
         <p className="text-sm text-ink-muted">
-          Each theme has its own choices for these. “Theme” keeps them; anything else overrides them
-          on top of whichever theme is selected.
+          Changes here belong to {appearance.theme} alone: every theme keeps its own, so switching
+          brings back each one as you left it. “Theme” is how it shipped; Reset puts all of them
+          back.
         </p>
         <div className="flex flex-col gap-4">
           {(Object.keys(AXES) as Axis[]).map((axis) => (
             <AxisControl
               key={axis}
               axis={axis}
-              value={appearance.overrides[axis]}
+              value={adjustments[axis]}
               onChange={(v) => setAxis(axis, v)}
             />
           ))}
@@ -162,12 +172,16 @@ function ThemeCard({
   shortcut,
   selected,
   overrides,
+  adjusted,
   onSelect,
 }: {
   theme: Theme;
-  shortcut: number;
+  /** The key that picks it: "1"–"9", then "0". */
+  shortcut: string;
   selected: boolean;
+  /** This theme's own adjustments, so the card shows it as it will look. */
   overrides: Overrides;
+  adjusted: boolean;
   onSelect: () => void;
 }) {
   const preview = useRef<HTMLDivElement>(null);
@@ -218,6 +232,14 @@ function ThemeCard({
             {selected && <Prompt />}
             {theme}
           </span>
+          {adjusted && (
+            <span
+              title="Adjusted — Reset under Adjust puts it back"
+              className="font-mono text-2xs text-phosphor"
+            >
+              adjusted
+            </span>
+          )}
           <span className="ml-auto font-mono text-2xs text-ink-faint">{shortcut}</span>
         </span>
         <span className="text-2xs text-ink-muted">{THEME_NOTES[theme]}</span>

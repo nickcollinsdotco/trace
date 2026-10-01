@@ -54,9 +54,17 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      # ort's build script links DirectML.dll into target/ as a symlink to its
+      # download cache, which lives outside target/. Restoring target/ alone
+      # left that link dangling, and tauri-build's copy of the committed DLL
+      # onto it failed with "cannot find the path specified" (os error 3).
+      # Locally Windows refuses the symlink and ort copies instead, so this
+      # only ever happens here. The prefix bump drops the cache saved without it.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          prefix-key: v1-rust
+          cache-directories: ~/AppData/Local/ort.pyke.io
 
       # tauri::generate_context! reads frontendDist, so dist/ must exist before
       # the Rust crate will compile. Cheapest possible stand-in.

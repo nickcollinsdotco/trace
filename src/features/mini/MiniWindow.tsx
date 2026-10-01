@@ -47,8 +47,11 @@ export function MiniWindow({
   initial,
   initialMenu = false,
   initialDetails,
+  offer: offered = typeof location !== "undefined" && location.hash.includes("offer"),
 }: {
   initial?: MiniPhase;
+  /** Opened by itself the first time TRACE was minimised in a meeting. */
+  offer?: boolean;
   /** Open on the options menu — the gallery's scenario for it. */
   initialMenu?: boolean;
   /** Override the remembered choice — the gallery's scenario for it. */
@@ -59,6 +62,7 @@ export function MiniWindow({
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState(false);
   const [menu, setMenu] = useState(initialMenu);
+  const [offer, setOffer] = useState(offered);
   const [wave, setWave] = usePref("trace.mini.wave", true);
   const [details, setDetails] = usePref("trace.mini.details", false, initialDetails);
   const [hidden, setHidden] = usePref("trace.mini.shares-hidden", true);
@@ -158,7 +162,7 @@ export function MiniWindow({
     void document.fonts?.ready.then(measure);
     window.addEventListener("storage", measure);
     return () => window.removeEventListener("storage", measure);
-  }, [kind, initial, menu, details]);
+  }, [kind, initial, menu, details, offer]);
 
   return (
     <div
@@ -177,6 +181,8 @@ export function MiniWindow({
             onHidden={setHidden}
           />
         )}
+
+        {offer && <Offer onDone={() => setOffer(false)} />}
 
         {details && <Details status={recording ? phase.status : null} />}
 
@@ -320,6 +326,39 @@ export function MiniWindow({
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The one-time offer (docs/13 Q16): asked inline, on the window it is about,
+ * the first time TRACE is minimised during a meeting — never as a dialog in
+ * the way of the call. Yes means "when I switch away", which is how people
+ * actually get to a call; either answer is final, and Settings can change it.
+ */
+function Offer({ onDone }: { onDone: () => void }) {
+  return (
+    <div className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2 text-xs whitespace-nowrap">
+      <span className="text-ink">Open this whenever you switch away from TRACE?</span>
+      <span className="ml-auto flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => {
+            void ipc.setMiniAuto("switch_away").catch(() => {});
+            onDone();
+          }}
+          className="rounded-sm bg-phosphor-dim px-2.5 py-1 font-mono text-2xs text-phosphor trace-press hover:bg-phosphor hover:text-surface-0"
+        >
+          Yes
+        </button>
+        <button
+          type="button"
+          onClick={onDone}
+          className="rounded-sm px-2.5 py-1 font-mono text-2xs text-ink-faint trace-press hover:text-ink"
+        >
+          Not now
+        </button>
+      </span>
     </div>
   );
 }

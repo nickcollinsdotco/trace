@@ -49,7 +49,36 @@ pub enum SummaryMemory {
     WhileWriting,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+/// When the mini window opens by itself during a meeting (docs/13, Q16).
+///
+/// Off until the user says otherwise: windows that appear unasked are what
+/// people complain about most in this kind of app. The first minimise during
+/// a meeting offers it once, inline, instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MiniAuto {
+    #[default]
+    Off,
+    /// When TRACE is minimised.
+    Minimised,
+    /// When TRACE is minimised or loses focus to another app — what actually
+    /// happens on a call, where people Alt+Tab to it rather than minimise.
+    SwitchAway,
+    /// From the moment a meeting starts.
+    Always,
+}
+
+/// Where the mini window was left on one monitor, by its bottom-right
+/// corner, in logical pixels: the window grows up and to the left from that
+/// corner, so it holds whatever size the window is showing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MiniPlace {
+    pub monitor: String,
+    pub right: f64,
+    pub bottom: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     /// Superseded by `audio_retention`, and read only to migrate a file
@@ -66,6 +95,10 @@ pub struct Settings {
     pub summary_memory: SummaryMemory,
     /// Microphone the setup panel selects first, by device name.
     pub default_mic: Option<String>,
+    pub mini_auto: MiniAuto,
+    /// The one-time offer has been made, accepted or not.
+    pub mini_offered: bool,
+    pub mini_places: Vec<MiniPlace>,
 }
 
 impl Settings {
@@ -91,6 +124,7 @@ pub struct SettingsView {
     pub summary_model: Option<String>,
     pub summary_memory: SummaryMemory,
     pub default_mic: Option<String>,
+    pub mini_auto: MiniAuto,
 }
 
 impl From<&Settings> for SettingsView {
@@ -101,6 +135,7 @@ impl From<&Settings> for SettingsView {
             summary_model: s.summary_model.clone(),
             summary_memory: s.summary_memory,
             default_mic: s.default_mic.clone(),
+            mini_auto: s.mini_auto,
         }
     }
 }

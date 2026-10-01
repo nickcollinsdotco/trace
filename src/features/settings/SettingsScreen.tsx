@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { Page } from "../../components/ui/Page";
 import { Prompt, Section } from "../../components/ui/terminal";
-import { type DeviceInfo, hasBackend, ipc, type Settings, type SummaryMemory } from "../../lib/ipc";
+import {
+  type DeviceInfo,
+  hasBackend,
+  ipc,
+  type MiniAuto,
+  type Settings,
+  type SummaryMemory,
+} from "../../lib/ipc";
 import { AudioRetentionField } from "./AudioRetentionField";
 
 const MEMORY_OPTIONS: Array<{ value: SummaryMemory; label: string; note: string }> = [
@@ -14,6 +21,34 @@ const MEMORY_OPTIONS: Array<{ value: SummaryMemory; label: string; note: string 
     value: "while_writing",
     label: "Only while writing notes",
     note: "Frees video memory during calls. Notes take about a minute longer after a restart.",
+  },
+];
+
+/*
+ * In the order docs/13 Q16 settled, quietest first. Off is the default: a
+ * window that appears unasked is the complaint people make most about this
+ * kind of app, so the first minimise during a meeting offers it instead.
+ */
+const MINI_OPTIONS: Array<{ value: MiniAuto; label: string; note: string }> = [
+  {
+    value: "off",
+    label: "Only when I open it",
+    note: "From the sidebar, Ctrl+K, or Ctrl+Alt+R from anywhere.",
+  },
+  {
+    value: "minimised",
+    label: "When I minimise TRACE",
+    note: "During a meeting. Coming back to TRACE closes it again.",
+  },
+  {
+    value: "switch_away",
+    label: "When I switch away",
+    note: "Minimised, or another app brought forward — how people actually move to a call.",
+  },
+  {
+    value: "always",
+    label: "Always during meetings",
+    note: "From the moment one starts, until it is saved.",
   },
 ];
 
@@ -82,6 +117,32 @@ export function SettingsScreen() {
             </Field>
             <Field label="Audio">
               <AudioRetentionField />
+            </Field>
+          </Section>
+
+          <Section title="Mini window">
+            <Field label="Opens">
+              <div
+                role="radiogroup"
+                aria-label="When the mini window opens"
+                className="flex flex-col gap-2"
+              >
+                {MINI_OPTIONS.map((o) => (
+                  <label key={o.value} className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="radio"
+                      name="mini-auto"
+                      checked={settings.miniAuto === o.value}
+                      onChange={() => save(ipc.setMiniAuto(o.value))}
+                      className="mt-1 size-3.5 shrink-0 accent-phosphor"
+                    />
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-sm text-ink">{o.label}</span>
+                      <span className="text-2xs text-ink-faint">{o.note}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
             </Field>
           </Section>
 

@@ -156,6 +156,7 @@ export const DEFAULT_STATE: BackendState = {
     summaryModel: null,
     summaryMemory: "during_meetings",
     defaultMic: null,
+    miniAuto: "off",
   },
   failures: {},
   llm: { state: "ready", model: "qwen3:14b" },
@@ -390,6 +391,9 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return settings;
         case "set_default_mic":
           settings = { ...settings, defaultMic: (args?.name as string | null) ?? null };
+          return settings;
+        case "set_mini_auto":
+          settings = { ...settings, miniAuto: args?.mode as Settings["miniAuto"] };
           return settings;
 
         case "speech_models":

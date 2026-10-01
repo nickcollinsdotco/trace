@@ -1,6 +1,6 @@
 {
   "name": "trace",
-  "version": "0.15.4",
+  "version": "0.16.0",
   "description": "Local-first meeting capture and intelligence. Conversations leave traces.",
   "license": "MIT",
   "private": true,

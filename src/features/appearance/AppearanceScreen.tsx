@@ -38,6 +38,7 @@ import {
   TYPE_NOTES,
   themesIn,
 } from "../../design/theme";
+import { useFun } from "../fun/fun";
 
 /**
  * The theme, chosen by seeing it.
@@ -132,6 +133,8 @@ export function AppearanceScreen() {
           ))}
         </div>
       </Section>
+
+      <FunSection />
 
       <Section
         title={`Adjust ${appearance.theme}`}
@@ -367,6 +370,34 @@ function EffectRow({
         {EFFECT_NOTES[effect]}
       </span>
     </div>
+  );
+}
+
+/**
+ * Fun mode's switch. App-wide, unlike everything above it, which belongs to
+ * a family: a narrator that came and went with the theme would be a puzzle.
+ */
+function FunSection() {
+  const fun = useFun();
+  return (
+    <Section title="Fun mode">
+      <label className="flex cursor-pointer items-start gap-3">
+        <input
+          type="checkbox"
+          checked={fun.on}
+          onChange={(e) => fun.setOn(e.target.checked)}
+          className="mt-1 accent-(--color-phosphor)"
+        />
+        <span className="flex flex-col gap-1">
+          <span className="text-sm text-ink">Let the machine talk</span>
+          <span className="text-2xs text-ink-faint">
+            A narrator in the status bar, deadpan, about what the app is doing — never about what
+            anyone said. The boot sequence at launch. During a meeting it speaks only of the
+            meeting, and anything the status bar genuinely needs to say comes first.
+          </span>
+        </span>
+      </label>
+    </Section>
   );
 }
 

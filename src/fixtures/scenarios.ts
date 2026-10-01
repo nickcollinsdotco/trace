@@ -50,6 +50,8 @@ export interface Scenario {
   search?: string;
   /** The command palette open over the screen, with this typed. */
   palette?: string;
+  /** Fun mode on, and an easter egg already playing if one is named. */
+  fun?: { egg?: "boot" | "found" | "rain" };
   state: Partial<BackendState>;
 }
 
@@ -815,6 +817,34 @@ export const SCENARIOS: Scenario[] = [
     },
   },
 
+  /* --- Fun mode ---------------------------------------------------- */
+  {
+    id: "fun-narrator",
+    name: "Fun mode, the narrator",
+    group: "Pages",
+    note: "The narrator in the status bar's spare room: events and counts, never what was said.",
+    screen: "library",
+    fun: {},
+    state: POPULATED,
+  },
+  {
+    id: "fun-boot",
+    name: "Fun mode, booting",
+    group: "Pages",
+    note: "The boot sequence: at launch in Fun mode, or typing trace anywhere. Any key ends it.",
+    screen: "library",
+    fun: { egg: "boot" },
+    state: POPULATED,
+  },
+  {
+    id: "fun-found",
+    name: "Found file",
+    group: "Pages",
+    note: "Seven clicks on the wordmark. docs/09-EASTER-EGGS.md §16.",
+    screen: "library",
+    fun: { egg: "found" },
+    state: POPULATED,
+  },
   /* --- Pages ------------------------------------------------------- */
   {
     id: "palette",

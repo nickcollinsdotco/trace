@@ -58,6 +58,8 @@ import { AboutScreen } from "../features/about/AboutScreen";
 import { AppearanceScreen } from "../features/appearance/AppearanceScreen";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
 import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
+import { Boot, FoundFile } from "../features/fun/Eggs";
+import { FunContext } from "../features/fun/fun";
 import { LibraryScreen } from "../features/library/LibraryScreen";
 import { ModelsScreen } from "../features/models/ModelsScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
@@ -360,7 +362,10 @@ export function Gallery() {
                 "--reading-measure": reading,
               } as React.CSSProperties
             }
-            className="mx-auto flex h-full min-h-[560px] flex-col overflow-hidden rounded-md border border-white/10 bg-surface-0 shadow-2xl"
+            // The transform makes the pane the frame for anything fixed inside
+            // it, so a full-window moment like the boot sequence fills the
+            // preview, as it fills the app's window, instead of the gallery.
+            className="mx-auto flex h-full min-h-[560px] transform-[translateZ(0)] flex-col overflow-hidden rounded-md border border-white/10 bg-surface-0 shadow-2xl"
           >
             {/*
               Keyed by scenario so switching genuinely remounts. Without this a
@@ -389,30 +394,34 @@ function Preview({ scenario }: { scenario: Scenario }) {
   const noop = () => {};
   const current: Page | null = scenario.screen === "note" ? null : scenario.screen;
   return (
-    <Shell
-      current={current}
-      onNavigate={noop}
-      // As the app passes it, so a note scenario is not shown a toast about
-      // itself that the real app would hold back.
-      openNote={scenario.screen === "note" ? (scenario.notePath ?? null) : null}
-      onOpenNote={noop}
-    >
-      {scenario.screen === "library" && (
-        <LibraryScreen
-          initialSearch={scenario.search ?? ""}
-          onNewMeeting={noop}
-          onOpenNote={noop}
-        />
-      )}
-      {scenario.screen === "capture" && <CaptureScreen onFinish={noop} />}
-      {scenario.screen === "note" && <NoteScreen path={scenario.notePath ?? ""} onBack={noop} />}
-      {scenario.screen === "models" && <ModelsScreen />}
-      {scenario.screen === "appearance" && <AppearanceScreen />}
-      {scenario.screen === "settings" && <SettingsScreen />}
-      {scenario.screen === "about" && <AboutScreen />}
-      {scenario.dialog && <AskOnMount options={scenario.dialog} />}
-      {scenario.palette !== undefined && <PalettePreview query={scenario.palette} />}
-    </Shell>
+    <FunContext.Provider value={{ on: scenario.fun !== undefined, setOn: noop }}>
+      <Shell
+        current={current}
+        onNavigate={noop}
+        // As the app passes it, so a note scenario is not shown a toast about
+        // itself that the real app would hold back.
+        openNote={scenario.screen === "note" ? (scenario.notePath ?? null) : null}
+        onOpenNote={noop}
+      >
+        {scenario.screen === "library" && (
+          <LibraryScreen
+            initialSearch={scenario.search ?? ""}
+            onNewMeeting={noop}
+            onOpenNote={noop}
+          />
+        )}
+        {scenario.screen === "capture" && <CaptureScreen onFinish={noop} />}
+        {scenario.screen === "note" && <NoteScreen path={scenario.notePath ?? ""} onBack={noop} />}
+        {scenario.screen === "models" && <ModelsScreen />}
+        {scenario.screen === "appearance" && <AppearanceScreen />}
+        {scenario.screen === "settings" && <SettingsScreen />}
+        {scenario.screen === "about" && <AboutScreen />}
+        {scenario.dialog && <AskOnMount options={scenario.dialog} />}
+        {scenario.palette !== undefined && <PalettePreview query={scenario.palette} />}
+        {scenario.fun?.egg === "boot" && <Boot onDone={noop} />}
+        {scenario.fun?.egg === "found" && <FoundFile onClose={noop} />}
+      </Shell>
+    </FunContext.Provider>
   );
 }
 

@@ -81,6 +81,11 @@ ruling is written down here so it is a decision rather than a silent omission.
 
 ## Command palette (Cmd+K)
 
+**Built 2026-10-01** as Stage 4 of `docs/13-DESIGN-UPGRADES.md`
+(`src/features/palette`). It searches meetings with the existing search
+command, not an FTS5 index; that index is still worth building when the
+library is large enough for the plain search to feel slow.
+
 Raised 2026-09-05 as "a future feature addition", and it already has a home:
 it is **M7** in `docs/11-PLAN.md`, alongside search and keyboard shortcuts.
 

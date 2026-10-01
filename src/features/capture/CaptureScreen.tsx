@@ -24,7 +24,14 @@ import { useCapture } from "./useCapture";
  * get more room than the TRANSCRIPT. The transcript is supporting evidence,
  * not the main event.
  */
-export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => void }) {
+export function CaptureScreen({
+  onFinish,
+  stopRequest,
+}: {
+  onFinish: (notePath?: string) => void;
+  /** Stop the meeting as soon as it is known to be running — the palette's Stop. */
+  stopRequest?: number | undefined;
+}) {
   const capture = useCapture();
   const confirm = useConfirm();
   const [title, setTitle] = useState("");
@@ -79,6 +86,16 @@ export function CaptureScreen({ onFinish }: { onFinish: (notePath?: string) => v
     await ipc.abortCapture().catch(() => {});
     onFinish();
   }
+
+  // Once per request: a re-render while stopping must not stop twice.
+  const handled = useRef<number | undefined>(undefined);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: handleStop is recreated every render
+  useEffect(() => {
+    if (stopRequest === undefined || handled.current === stopRequest) return;
+    if (!capture.status || capture.stopping) return;
+    handled.current = stopRequest;
+    void handleStop();
+  }, [stopRequest, capture.status, capture.stopping]);
 
   async function handleStop() {
     const finished = await capture.stop();

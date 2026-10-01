@@ -1105,4 +1105,49 @@ describe("Gallery", () => {
     unmount();
     expect(hasBackend()).toBe(false);
   });
+
+  it("opens the palette with every command, the best one ready for Enter", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Gallery />);
+    await openScenario(user, "Command palette");
+
+    const palette = await screen.findByRole("dialog", { name: "Command palette" });
+    const input = within(palette).getByRole("combobox", { name: "Command" });
+    expect(within(palette).getByRole("option", { name: "Start a meeting" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    // Typing narrows it, and Enter runs the top match: here, a theme.
+    await user.type(input, "vault");
+    expect(within(palette).getAllByRole("option")[0]).toHaveTextContent("vault");
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(container.querySelector('[data-theme="vault"]')).not.toBeNull());
+  });
+
+  it("finds meetings in the palette, after the commands", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Palette, finding a meeting");
+
+    const palette = await screen.findByRole("dialog", { name: "Command palette" });
+    expect(
+      await within(palette).findByRole("option", { name: /Pricing page rework/ }),
+    ).toBeInTheDocument();
+    expect(within(palette).getByText("Meetings")).toBeInTheDocument();
+    // And always the way into the library's fuller search.
+    expect(
+      within(palette).getByRole("option", { name: "Search meetings for “pric”" }),
+    ).toBeInTheDocument();
+  });
+
+  it("answers a hidden command instead of listing anything", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Palette, a hidden command");
+
+    const palette = await screen.findByRole("dialog", { name: "Command palette" });
+    expect(within(palette).getByText("because someone will ask")).toBeInTheDocument();
+    expect(within(palette).queryByRole("listbox")).toBeNull();
+  });
 });

@@ -48,6 +48,8 @@ export interface Scenario {
   dialog?: ConfirmOptions;
   /** The library's search line as the scenario opens. */
   search?: string;
+  /** The command palette open over the screen, with this typed. */
+  palette?: string;
   state: Partial<BackendState>;
 }
 
@@ -814,6 +816,33 @@ export const SCENARIOS: Scenario[] = [
   },
 
   /* --- Pages ------------------------------------------------------- */
+  {
+    id: "palette",
+    name: "Command palette",
+    group: "Pages",
+    note: "Ctrl+K from anywhere. Nothing typed: every command, grouped.",
+    screen: "library",
+    palette: "",
+    state: POPULATED,
+  },
+  {
+    id: "palette-search",
+    name: "Palette, finding a meeting",
+    group: "Pages",
+    note: "Commands that answer first, then meetings from the same search the library uses.",
+    screen: "library",
+    palette: "pric",
+    state: POPULATED,
+  },
+  {
+    id: "palette-hidden",
+    name: "Palette, a hidden command",
+    group: "Pages",
+    note: "Exact input only, never suggested: docs/09-EASTER-EGGS.md §18.",
+    screen: "library",
+    palette: "trace --why",
+    state: POPULATED,
+  },
   {
     id: "models",
     name: "Models",

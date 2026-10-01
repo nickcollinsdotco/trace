@@ -394,6 +394,23 @@ in the status line (in the page's corners they sat on the last list row).
 After the themes, as `10-BACKLOG.md` already argues, so it is styled once.
 Ctrl+Shift+T stays alongside it.
 
+**Built 2026-10-01 (v0.11.0).** Notes from building it:
+
+- One box (Q31): Start or Stop a meeting, the places, every theme with its
+  number key, both families, Reset, every screen preset, and the gallery;
+  then up to five meetings from the library's own search; then "Search
+  meetings for…", which hands the words to the library and its filters.
+  `>` keeps it to commands.
+- Stop goes through the capture screen rather than straight to the
+  backend, because the screen flushes the last half-second of typed notes
+  before it stops.
+- Ranking prefers a prefix, then a word start, then anywhere, then the
+  letters in order, and gives labels more weight than the words behind
+  them (`microphone` finds Settings, but below anything named so).
+- The hidden commands answer exact input only. Three are new: `trace
+  --coffee`, `trace --cloud` and `sudo trace` (09-EASTER-EGGS.md §18).
+- Fun mode and the mini window will add their commands when they exist.
+
 ### Stage 5 — motion and joy
 
 Hover scramble, press effects, fun mode, the narrator bar.

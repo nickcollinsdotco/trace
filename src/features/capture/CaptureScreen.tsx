@@ -13,6 +13,7 @@ import {
   SystemLabel,
 } from "../../components/ui/terminal";
 import { type DeviceInfo, hasBackend, ipc, type LiveSegment } from "../../lib/ipc";
+import { MiniIcon } from "../mini/MiniIcon";
 import { ScopeStrip, ScopeView, useScopeMode } from "../scope/ScopePanels";
 import { AudioRetentionField } from "../settings/AudioRetentionField";
 import { MicCheck } from "./MicCheck";
@@ -146,6 +147,16 @@ export function CaptureScreen({
         <StatusDot state={state} />
         <span aria-hidden className="trace-rule" />
         <Elapsed ms={capture.status?.elapsedMs ?? 0} />
+        {/* Where someone about to switch to the call looks for it. */}
+        <button
+          type="button"
+          onClick={() => void ipc.openMini().catch(() => {})}
+          aria-label="Open the mini window"
+          title="Mini window — floats over the call (Ctrl+Alt+R)"
+          className="flex size-7 shrink-0 items-center justify-center self-center rounded-sm text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
+        >
+          <MiniIcon />
+        </button>
       </div>
 
       {capture.status?.transcribing === false && (

@@ -1202,4 +1202,61 @@ describe("Gallery", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Scope view" })).toBeNull());
     expect(screen.getByPlaceholderText("type only what matters…")).toHaveValue("ship it friday");
   });
+
+  it("shows the mini window recording, idle and saved", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+
+    await openScenario(user, "Mini window, recording");
+    expect(await screen.findByRole("button", { name: /hold to stop/ })).toBeInTheDocument();
+    expect(await screen.findByText(/^31:/)).toBeInTheDocument();
+    // Closing it is offered, and says the meeting carries on.
+    expect(screen.getByRole("button", { name: "Close the mini window" })).toHaveAttribute(
+      "title",
+      expect.stringMatching(/keeps recording/),
+    );
+
+    await openScenario(user, "Mini window, idle");
+    expect(await screen.findByRole("textbox", { name: "Meeting name" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Start meeting/ })).toBeInTheDocument();
+
+    await openScenario(user, "Mini window, saved");
+    expect(await screen.findByText("✓ saved")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "open" })).toBeInTheDocument();
+  });
+
+  it("offers the mini window from the sidebar", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Meetings");
+    // In the app's sidebar, not the gallery's list, which names scenarios
+    // after it too.
+    const sidebar = await screen.findByRole("complementary", { name: "Sidebar" });
+    expect(within(sidebar).getByRole("button", { name: /Mini window/ })).toBeInTheDocument();
+  });
+
+  it("keeps the mini window's minor switches in its options menu", async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Mini window, options");
+
+    const menu = await screen.findByRole("menu", { name: "Mini window options" });
+    const wave = within(menu).getByRole("menuitemcheckbox", { name: "Waveform" });
+    expect(wave).toHaveAttribute("aria-checked", "true");
+    expect(
+      within(menu).getByRole("menuitemcheckbox", { name: "Hidden from screen shares" }),
+    ).toHaveAttribute("aria-checked", "true");
+
+    // The extended view names what the meeting listens and transcribes with.
+    await user.click(within(menu).getByRole("menuitemcheckbox", { name: /Details/ }));
+    expect(await screen.findByText("Microphone (Razer Seiren V3 Mini)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Parakeet TDT 0.6B v3 (int8)", { selector: "span" }),
+    ).toBeInTheDocument();
+
+    await user.click(wave);
+    expect(wave).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByRole("img", { name: "Both voices, live" })).toBeNull();
+  });
 });

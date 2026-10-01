@@ -118,6 +118,17 @@ reduced motion; anything ambient has an Appearance control and an off.
    shows speech as recognisable striped shapes and the two voices taking
    turns.
 
+## The mini window's width — parked 2026-10-01
+
+The mini window widens to fit its content (Stage 7a): a theme in capitals
+or a wide typeface would otherwise wrap a line inside its 56px bar. But
+people pin it in a corner, and a bar that changes width as it moves from
+idle to recording to saved — or as the menu or details open — can look off
+there. The idea to try: one width per theme, set by that theme's widest
+state, so the bar stays the same size whatever it is showing. Worth
+measuring every state in every theme first (the gallery has them all) and
+seeing how far apart the widths really are.
+
 ## Hover and press motion — parked 2026-10-01
 
 Asked for in the design upgrades: something better than the 0.97 push-in,

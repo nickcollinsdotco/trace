@@ -74,6 +74,11 @@ pub struct CaptureStatus {
     /// closed. This is the latency the user perceives, and reporting it lets
     /// the UI say the system is working rather than appearing stalled.
     pub pending_speech_ms: u64,
+    /// The microphone asked for — a device name, or `None` for the system
+    /// default. For the mini window's details; not the device's own report.
+    pub mic: Option<String>,
+    /// The transcription model this meeting uses, as people know it.
+    pub speech_model: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -114,6 +119,7 @@ struct Active {
     /// notes are written. `None` when the user keeps it out of memory during
     /// meetings, or Ollama was not ready.
     model_hold: Option<crate::synthesis::ollama::ModelHold>,
+    mic: Option<String>,
 }
 
 /// The application's capture state. One meeting at a time, by design.
@@ -204,6 +210,7 @@ impl CaptureManager {
         let transcribing = live.is_some();
 
         let (tap_tx, tap_rx) = crossbeam_channel::bounded::<CapturedAudio>(4000);
+        let mic = mic_device.clone();
         let capture = CaptureSession::start(&session_id, &dir, mic_device, Some(tap_tx));
 
         let segments = Arc::new(Mutex::new(Vec::new()));
@@ -228,6 +235,8 @@ impl CaptureManager {
             transcribing,
             in_flight: 0,
             pending_speech_ms: 0,
+            mic: mic.clone(),
+            speech_model: speech.display_name.to_string(),
         };
 
         *guard = Some(Active {
@@ -242,6 +251,7 @@ impl CaptureManager {
             pump: Some(pump),
             speech,
             model_hold,
+            mic,
         });
 
         Ok(status)
@@ -305,6 +315,8 @@ impl CaptureManager {
                         .load(std::sync::atomic::Ordering::Relaxed)
                 })
                 .unwrap_or(0),
+            mic: active.mic.clone(),
+            speech_model: active.speech.display_name.to_string(),
         })
     }
 

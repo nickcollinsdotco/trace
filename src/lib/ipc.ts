@@ -125,6 +125,10 @@ export interface CaptureStatus {
   pendingSpeechMs: number;
   /** False when no model is installed — capture still works. */
   transcribing: boolean;
+  /** The microphone asked for by name, or null for the system default. */
+  mic: string | null;
+  /** The transcription model this meeting uses. */
+  speechModel: string;
 }
 
 /** One stream's latest waveform, oldest sample first, at about 12kHz. */
@@ -414,6 +418,20 @@ export const ipc = {
   appInfo: () => call<AppInfo>("app_info"),
   /** Opens the screen gallery in its own window, or focuses it. */
   openGallery: () => call<void>("open_gallery"),
+  /** The mini window: a name and Start, or the recording bar. */
+  openMini: () => call<void>("open_mini"),
+  /** Size the mini window to its content, within its cap; the bar stays put. */
+  fitMini: (width: number, height: number) => call<void>("fit_mini", { width, height }),
+  /** Hide the mini window from screen shares, or show it in them. */
+  protectMini: (hidden: boolean) => call<void>("protect_mini", { hidden }),
+  /** Closes the mini window. Never stops a meeting. */
+  closeMini: () => call<void>("close_mini"),
+  /**
+   * The main window, forward or only flashing in the taskbar, opening a note
+   * in it if one is named.
+   */
+  showMain: (notePath: string | null, attentionOnly: boolean) =>
+    call<void>("show_main", { notePath, attentionOnly }),
   diagnosticsReport: () => call<DiagnosticsReport>("diagnostics_report"),
 };
 
@@ -429,7 +447,19 @@ export const EVENT = {
   notesGenerated: "trace://notes-generated",
   activity: "trace://activity",
   summaryPull: "trace://summary-pull",
+  captureChanged: "trace://capture-changed",
+  openNote: "trace://open-note",
 } as const;
+
+/** A meeting started or ended — in this window or the other one. */
+export function onCaptureChanged(handler: () => void): Promise<UnlistenFn> {
+  return subscribe(EVENT.captureChanged, () => handler());
+}
+
+/** The mini window asking the main window to open a note. */
+export function onOpenNote(handler: (path: string) => void): Promise<UnlistenFn> {
+  return subscribe(EVENT.openNote, handler);
+}
 
 /** Subscribe to live transcript segments. */
 export function onSegment(handler: (segment: LiveSegment) => void): Promise<UnlistenFn> {

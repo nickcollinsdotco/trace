@@ -1,5 +1,7 @@
 import { type RefObject, useEffect, useRef } from "react";
 import { formatElapsed, SystemLabel } from "../components/ui/terminal";
+import { MiniIcon } from "../features/mini/MiniIcon";
+import { ipc } from "../lib/ipc";
 import { Wordmark } from "./Wordmark";
 
 export type Page = "library" | "capture" | "models" | "appearance" | "settings" | "about";
@@ -89,6 +91,19 @@ export function Sidebar({
           ))}
         </NavGroup>
       </nav>
+
+      {/* At the foot, out of the way of the places above. Opens the mini
+          window whatever is happening: idle, it asks for a name; recording,
+          it shows the meeting. */}
+      <button
+        type="button"
+        onClick={() => void ipc.openMini().catch(() => {})}
+        title="Mini window — floats over everything (Ctrl+Alt+R)"
+        className="mx-3 mt-auto mb-3 flex items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-2xs text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
+      >
+        <MiniIcon />
+        Mini window
+      </button>
     </aside>
   );
 }

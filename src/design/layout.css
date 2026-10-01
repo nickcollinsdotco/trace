@@ -117,3 +117,37 @@
   background: rgb(0 0 0 / 55%);
   animation: trace-fade-in 180ms var(--ease-out);
 }
+
+/* The mini window's Stop: a ring that fills as it is held (MiniWindow.tsx).
+   The stroke is drawn on a path of length 1, so a dash offset from 1 to 0
+   is the whole circle whatever its size. Reduced motion skips the fill; the
+   hold still counts. */
+/* Invisible until held: a round line end is drawn even at zero length, and
+   left a dot at the top of an empty ring. */
+.trace-hold-ring {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+}
+
+.trace-hold-ring[data-holding] {
+  opacity: 1;
+  animation: trace-hold-ring linear forwards;
+}
+
+@keyframes trace-hold-ring {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/*
+ * The mini window's name field: its underline brightening is the focus. The
+ * app's focus box was heavy for a window this size. A plain rule rather than
+ * a utility, because the global :focus-visible rule is unlayered and so beats
+ * any Tailwind utility, which lives in a layer — `focus-visible:outline-none`
+ * was tried and did nothing.
+ */
+.trace-mini-field:focus-visible {
+  outline: none;
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "mini",
+  "description": "The mini window: events, and being dragged by its grip. Nothing else; everything it does goes through the app's own commands.",
+  "windows": ["mini"],
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
+}

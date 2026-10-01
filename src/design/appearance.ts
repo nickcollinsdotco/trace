@@ -212,6 +212,8 @@ export interface AppearanceControl {
   setEffect: (effect: Effect, patch: Partial<EffectSetting>) => void;
   setAxis: (axis: Axis, value: string | undefined) => void;
   reset: () => void;
+  /** Put a whole earlier appearance back — the palette undoing a preview. */
+  restore: (appearance: Appearance) => void;
 }
 
 /*

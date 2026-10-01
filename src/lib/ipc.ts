@@ -67,6 +67,10 @@ export interface Settings {
   summaryMemory: SummaryMemory;
   defaultMic: string | null;
   miniAuto: MiniAuto;
+  /** The mini window from anywhere, as typed: "Ctrl+Shift+Alt+M". Empty for none. */
+  miniShortcut: string;
+  /** Another app held it when TRACE started, so it does nothing. */
+  miniShortcutTaken: boolean;
 }
 
 export interface SpeechModel {
@@ -370,6 +374,8 @@ export const ipc = {
   setSummaryMemory: (memory: SummaryMemory) => call<Settings>("set_summary_memory", { memory }),
   setDefaultMic: (name: string | null) => call<Settings>("set_default_mic", { name }),
   setMiniAuto: (mode: MiniAuto) => call<Settings>("set_mini_auto", { mode }),
+  /** Refused, keeping the old one, when another app holds the combination. */
+  setMiniShortcut: (shortcut: string) => call<Settings>("set_mini_shortcut", { shortcut }),
   /** Without an id, the speech model meetings will use — what first run wants. */
   installModel: (id?: string) => call<void>("install_model", { id: id ?? null }),
   speechModels: () => call<SpeechModel[]>("speech_models"),
@@ -431,6 +437,8 @@ export const ipc = {
   protectMini: (hidden: boolean) => call<void>("protect_mini", { hidden }),
   /** Closes the mini window. Never stops a meeting. */
   closeMini: () => call<void>("close_mini"),
+  /** Back to its default spot, forgetting where it was left; opens it if closed. */
+  resetMini: () => call<void>("reset_mini"),
   /**
    * The main window, forward or only flashing in the taskbar, opening a note
    * in it if one is named.

@@ -7,9 +7,11 @@ import {
   useRef,
   useState,
 } from "react";
+import { SwitchLook } from "../../components/ui/Switch";
 import { formatElapsed, Prompt } from "../../components/ui/terminal";
 import { type CaptureStatus, hasBackend, ipc, onCaptureChanged } from "../../lib/ipc";
 import { Scope } from "../scope/Scope";
+import { shortcutLabel, useMiniShortcut } from "./shortcut";
 
 /** How long Stop must be held (docs/13 Q26). Long enough to be deliberate. */
 export const HOLD_MS = 600;
@@ -68,6 +70,7 @@ export function MiniWindow({
   const [hidden, setHidden] = usePref("trace.mini.shares-hidden", true);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+  useInputKind();
 
   // Whether a meeting is running, kept current: polled, and asked again the
   // moment either window starts or stops one.
@@ -167,7 +170,7 @@ export function MiniWindow({
   return (
     <div
       ref={root}
-      className="group flex h-full flex-col justify-end overflow-hidden bg-surface-1 text-ink select-none"
+      className="trace-mini group flex h-full flex-col justify-end overflow-hidden bg-surface-1 text-ink select-none"
     >
       <div ref={stack} className="flex shrink-0 flex-col">
         {menu && (
@@ -385,6 +388,7 @@ function OptionsMenu({
   onHidden: (on: boolean) => void;
 }) {
   const first = useRef<HTMLButtonElement>(null);
+  const shortcut = useMiniShortcut();
   useEffect(() => {
     first.current?.focus();
   }, []);
@@ -401,15 +405,15 @@ function OptionsMenu({
         // and the window with it — rather than wrapping a line.
         className="w-max min-w-64 rounded-md border border-line-strong bg-surface-2 py-1 whitespace-nowrap shadow-(--elevation-overlay)"
       >
-        <MenuCheck refTo={first} checked={wave} onChange={onWave}>
+        <MenuSwitch refTo={first} checked={wave} onChange={onWave}>
           Waveform
-        </MenuCheck>
-        <MenuCheck checked={details} onChange={onDetails}>
+        </MenuSwitch>
+        <MenuSwitch checked={details} onChange={onDetails}>
           Details — microphone and model
-        </MenuCheck>
-        <MenuCheck checked={hidden} onChange={onHidden}>
+        </MenuSwitch>
+        <MenuSwitch checked={hidden} onChange={onHidden}>
           Hidden from screen shares
-        </MenuCheck>
+        </MenuSwitch>
         <div aria-hidden className="my-1 border-t border-line" />
         <button
           type="button"
@@ -422,15 +426,22 @@ function OptionsMenu({
         >
           Open TRACE
         </button>
-        <p className="px-3 pt-1 pb-1.5 font-mono text-2xs text-ink-faint">
-          Ctrl+Alt+R opens this from anywhere
-        </p>
+        {shortcut && (
+          <p className="px-3 pt-1 pb-1.5 font-mono text-2xs text-ink-faint">
+            {shortcutLabel(shortcut)} opens this from anywhere
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
-function MenuCheck({
+/**
+ * A setting in the menu: the label, and a switch that says whether it is on.
+ * A switch rather than a tick, because each is a state left on or off, not
+ * an action taken — and a row of ticks reads as a list of choices.
+ */
+function MenuSwitch({
   checked,
   onChange,
   refTo,
@@ -448,15 +459,10 @@ function MenuCheck({
       role="menuitemcheckbox"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-muted trace-press hover:bg-surface-3 hover:text-ink"
+      className="flex w-full items-center justify-between gap-6 px-3 py-2 text-left text-xs text-ink-muted trace-press hover:bg-surface-3 hover:text-ink"
     >
-      <span
-        aria-hidden
-        className={`w-3 font-mono ${checked ? "text-phosphor" : "text-transparent"}`}
-      >
-        ✓
-      </span>
       {children}
+      <SwitchLook on={checked} />
     </button>
   );
 }
@@ -502,6 +508,32 @@ function Details({ status }: { status: CaptureStatus | null }) {
       )}
     </div>
   );
+}
+
+/**
+ * Mark the page with how it was last used, so focus rings show only for the
+ * keyboard. A drag by the grip hands focus back to the window when it ends,
+ * and the browser then rings whatever button last had focus — as if Tab had
+ * been pressed — though nobody touched a key.
+ */
+function useInputKind() {
+  useEffect(() => {
+    const root = document.documentElement;
+    const pointer = () => {
+      root.dataset.input = "pointer";
+    };
+    const keyboard = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Tab" || e.key.startsWith("Arrow") || e.key === "Escape") {
+        root.dataset.input = "keyboard";
+      }
+    };
+    window.addEventListener("pointerdown", pointer, true);
+    window.addEventListener("keydown", keyboard, true);
+    return () => {
+      window.removeEventListener("pointerdown", pointer, true);
+      window.removeEventListener("keydown", keyboard, true);
+    };
+  }, []);
 }
 
 /** A switch remembered between openings; an override wins for the gallery. */

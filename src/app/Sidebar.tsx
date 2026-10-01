@@ -1,6 +1,7 @@
 import { type RefObject, useEffect, useRef } from "react";
 import { formatElapsed, SystemLabel } from "../components/ui/terminal";
 import { MiniIcon } from "../features/mini/MiniIcon";
+import { shortcutLabel, useMiniShortcut } from "../features/mini/shortcut";
 import { ipc } from "../lib/ipc";
 import { Wordmark } from "./Wordmark";
 
@@ -92,19 +93,52 @@ export function Sidebar({
         </NavGroup>
       </nav>
 
-      {/* At the foot, out of the way of the places above. Opens the mini
-          window whatever is happening: idle, it asks for a name; recording,
-          it shows the meeting. */}
+      <MiniFoot />
+    </aside>
+  );
+}
+
+/**
+ * At the foot, out of the way of the places above. Opens the mini window
+ * whatever is happening: idle, it asks for a name; recording, it shows the
+ * meeting. Beside it, on hover, the way back for one lost off a screen.
+ */
+function MiniFoot() {
+  const shortcut = useMiniShortcut();
+  return (
+    <div className="group/mini mx-3 mt-auto mb-3 flex items-center gap-1">
       <button
         type="button"
         onClick={() => void ipc.openMini().catch(() => {})}
-        title="Mini window — floats over everything (Ctrl+Alt+R)"
-        className="mx-3 mt-auto mb-3 flex items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-2xs text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
+        title={`Mini window — floats over everything${shortcut ? ` (${shortcutLabel(shortcut)})` : ""}`}
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-2xs text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
       >
         <MiniIcon />
         Mini window
       </button>
-    </aside>
+      <button
+        type="button"
+        onClick={() => void ipc.resetMini().catch(() => {})}
+        aria-label="Bring the mini window back to its corner"
+        title="Lost it? Bring the mini window back to its corner"
+        className="flex size-7 shrink-0 items-center justify-center rounded-sm text-ink-faint opacity-0 trace-press group-hover/mini:opacity-100 hover:bg-surface-2 hover:text-ink focus-visible:opacity-100"
+      >
+        <svg
+          aria-hidden
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M2.5 7a4.5 4.5 0 1 0 1.3-3.2" />
+          <path d="M2.5 1.8v2.4h2.4" />
+        </svg>
+      </button>
+    </div>
   );
 }
 

@@ -35,6 +35,10 @@ export interface PaletteContext {
   searchLibrary: (query: string) => void;
   stopMeeting: () => void;
   openMini?: (() => void) | undefined;
+  /** Bring a lost mini window back to its corner. */
+  resetMini?: (() => void) | undefined;
+  /** The working shortcut, if there is one to show. */
+  miniShortcut?: string | null | undefined;
   openGallery: () => void;
   recording: boolean;
   appearance: AppearanceControl;
@@ -147,8 +151,17 @@ export function buildCommands(ctx: PaletteContext): Command[] {
       group: "Meeting",
       label: "Open the mini window",
       keywords: "mini floating small always on top compact recorder",
-      hint: "Ctrl+Alt+R",
+      ...(ctx.miniShortcut ? { hint: ctx.miniShortcut.replace(/\bSuper\b/, "Win") } : {}),
       run: ctx.openMini,
+    });
+  }
+  if (ctx.resetMini) {
+    commands.push({
+      id: "app:mini-reset",
+      group: "App",
+      label: "Bring the mini window back",
+      keywords: "mini reset position lost missing corner find off screen",
+      run: ctx.resetMini,
     });
   }
 

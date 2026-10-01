@@ -151,3 +151,10 @@
 .trace-mini-field:focus-visible {
   outline: none;
 }
+
+/* In the mini window, rings for the keyboard only (MiniWindow's
+ * useInputKind): the end of a drag hands focus back to the window, and the
+ * browser rings the last-focused button as though Tab had been pressed. */
+html[data-input="pointer"] .trace-mini :focus-visible {
+  outline: none;
+}

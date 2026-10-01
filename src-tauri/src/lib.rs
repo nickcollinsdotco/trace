@@ -69,21 +69,14 @@ pub fn run() {
                     window.set_title("TRACE (dev)")?;
                 }
             }
+            // The mini window from anywhere, by the shortcut in Settings.
+            windows::register_shortcut(app.handle());
+            // The mini window opening by itself, as the setting says.
+            windows::watch_main(app.handle());
             // The main window is created hidden, so it can be sized to the
             // screen before anyone sees it at the wrong size. It is shown
             // whether or not the sizing worked: a window that never appears
             // is far worse than one that opens too large.
-            // Ctrl+Alt+R, the mini window from anywhere. Another app may own
-            // the combination already; that costs the shortcut, not the app.
-            {
-                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
-                let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyR);
-                if let Err(e) = app.global_shortcut().register(shortcut) {
-                    diagnostics::log(format!("Ctrl+Alt+R is taken; no mini-window shortcut: {e}"));
-                }
-            }
-            // The mini window opening by itself, as the setting says.
-            windows::watch_main(app.handle());
             if let Some(main) = app.get_webview_window("main") {
                 if let Err(e) = windows::fit_and_centre(&main, (1200.0, 840.0)) {
                     diagnostics::log(format!("could not size the main window: {e}"));
@@ -144,6 +137,8 @@ pub fn run() {
             commands::fit_mini,
             commands::protect_mini,
             commands::set_mini_auto,
+            commands::set_mini_shortcut,
+            commands::reset_mini,
             commands::close_mini,
             commands::show_main,
             commands::diagnostics_report,

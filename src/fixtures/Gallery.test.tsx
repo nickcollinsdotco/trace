@@ -1284,4 +1284,18 @@ describe("Gallery", () => {
       expect(within(group).getByRole("radio", { name: /When I switch away/ })).toBeChecked(),
     );
   });
+
+  it("records the mini window's shortcut by having it pressed, and refuses Shift alone", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Settings");
+
+    const field = await screen.findByRole("button", { name: /Shortcut: Ctrl\+Shift\+Alt\+M/ });
+    await user.click(field);
+    await user.keyboard("{Shift>}M{/Shift}");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Hold Ctrl, Alt or the Windows key/);
+
+    await user.keyboard("{Control>}{Alt>}J{/Alt}{/Control}");
+    expect(await screen.findByRole("button", { name: /Shortcut: Ctrl\+Alt\+J/ })).toBeVisible();
+  });
 });

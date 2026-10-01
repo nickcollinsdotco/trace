@@ -23,6 +23,7 @@ import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
 import { Boot, FoundFile, Rain, useSecrets, useWordmarkClicks } from "../features/fun/Eggs";
 import { FunContext, type FunControl, loadFun, saveFun } from "../features/fun/fun";
 import { LibraryScreen } from "../features/library/LibraryScreen";
+import { useMiniShortcut } from "../features/mini/shortcut";
 import { ModelsScreen } from "../features/models/ModelsScreen";
 import { NoteScreen } from "../features/note/NoteScreen";
 import { buildCommands } from "../features/palette/commands";
@@ -58,6 +59,7 @@ export function App() {
   const captureKey = useOtherWindow((path) => setRoute({ name: "note", path }));
   const fun = useFunMode();
   const [egg, setEgg] = useEggs(fun.on);
+  const miniShortcut = useMiniShortcut();
 
   /*
    * First run owns the whole window rather than a corner of the shell.
@@ -87,6 +89,8 @@ export function App() {
     // flushes the notes typed in the last half-second before it stops.
     stopMeeting: () => setRoute({ name: "capture", stop: Date.now() }),
     openMini: () => void ipc.openMini().catch(() => {}),
+    resetMini: () => void ipc.resetMini().catch(() => {}),
+    miniShortcut,
     openGallery: () => {
       if (isDesktop()) void ipc.openGallery().catch(() => {});
       else location.hash = "gallery";

@@ -393,6 +393,12 @@
     box-shadow var(--duration-fast) var(--ease-out);
 }
 
+/* As wide as what it holds. A class of its own because `.trace-field` is
+ * unlayered, so Tailwind's `w-auto` — in a layer — loses to its 100%. */
+.trace-field-fit {
+  width: auto;
+}
+
 .trace-field::placeholder {
   color: var(--color-ink-faint);
 }

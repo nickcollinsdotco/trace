@@ -9,7 +9,9 @@ import {
   type Settings,
   type SummaryMemory,
 } from "../../lib/ipc";
+import { publishShortcut } from "../mini/shortcut";
 import { AudioRetentionField } from "./AudioRetentionField";
+import { ShortcutField } from "./ShortcutField";
 
 const MEMORY_OPTIONS: Array<{ value: SummaryMemory; label: string; note: string }> = [
   {
@@ -33,7 +35,7 @@ const MINI_OPTIONS: Array<{ value: MiniAuto; label: string; note: string }> = [
   {
     value: "off",
     label: "Only when I open it",
-    note: "From the sidebar, Ctrl+K, or Ctrl+Alt+R from anywhere.",
+    note: "From the sidebar, Ctrl+K, or its shortcut from anywhere.",
   },
   {
     value: "minimised",
@@ -67,7 +69,10 @@ export function SettingsScreen() {
     if (!hasBackend()) return;
     void ipc
       .getSettings()
-      .then(setSettings)
+      .then((next) => {
+        setSettings(next);
+        publishShortcut(next);
+      })
       .catch((e) => setError(String(e)));
     void ipc
       .listInputDevices()
@@ -75,7 +80,12 @@ export function SettingsScreen() {
       .catch(() => {});
   }, []);
 
-  const save = (p: Promise<Settings>) => void p.then(setSettings).catch((e) => setError(String(e)));
+  const stored = (next: Settings) => {
+    setSettings(next);
+    // The shortcut is named in hints all over the app; they follow it here.
+    publishShortcut(next);
+  };
+  const save = (p: Promise<Settings>) => void p.then(stored).catch((e) => setError(String(e)));
 
   return (
     <Page className="gap-10">
@@ -143,6 +153,26 @@ export function SettingsScreen() {
                   </label>
                 ))}
               </div>
+            </Field>
+            <Field label="Shortcut">
+              <ShortcutField
+                shortcut={settings.miniShortcut}
+                taken={settings.miniShortcutTaken}
+                // Refusals are said by the field, beside the keys refused.
+                onChange={(next) => ipc.setMiniShortcut(next).then(stored)}
+              />
+            </Field>
+            <Field
+              label="Position"
+              note="Lost off a screen? This brings it back to the right edge of the screen TRACE is on."
+            >
+              <button
+                type="button"
+                onClick={() => void ipc.resetMini().catch((e) => setError(String(e)))}
+                className="self-start rounded-sm border border-line px-3 py-1.5 font-mono text-xs text-ink-muted trace-press hover:border-line-strong hover:text-ink"
+              >
+                Bring it back
+              </button>
             </Field>
           </Section>
 

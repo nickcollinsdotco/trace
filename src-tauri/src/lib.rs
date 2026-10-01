@@ -71,6 +71,7 @@ pub fn run() {
             commands::stop_mic_preview,
             commands::mic_preview_level,
             commands::capture_status,
+            commands::scope_frame,
             commands::update_notes,
             commands::set_title,
             commands::stop_capture,

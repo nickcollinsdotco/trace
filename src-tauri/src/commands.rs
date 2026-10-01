@@ -227,6 +227,16 @@ pub fn capture_status(manager: State<'_, CaptureManager>) -> Option<CaptureStatu
     manager.status()
 }
 
+/// The live scope's waveforms. Capped, so a caller cannot ask the capture
+/// threads' buffers for more than they hold.
+#[tauri::command]
+pub fn scope_frame(
+    manager: State<'_, CaptureManager>,
+    points: Option<usize>,
+) -> Option<Vec<crate::capture_manager::StreamWave>> {
+    manager.scope(points.unwrap_or(512).min(crate::audio::scope::SCOPE_LEN))
+}
+
 #[tauri::command]
 pub fn update_notes(manager: State<'_, CaptureManager>, text: String) -> CmdResult<()> {
     manager.update_notes(text).map_err(err)

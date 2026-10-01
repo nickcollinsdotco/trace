@@ -1184,4 +1184,22 @@ describe("Gallery", () => {
     const file = await screen.findByRole("dialog", { name: "Found file" });
     expect(file).toHaveTextContent("So we kept a trace.");
   });
+
+  it("shows the scope above the notes, and opens it full screen with a line for notes", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Recording");
+    expect(await screen.findByRole("img", { name: /Live scope, wave/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /scope view/ }));
+    const view = await screen.findByRole("dialog", { name: "Scope view" });
+    const prompt = within(view).getByRole("textbox", { name: "Add a line to the notes" });
+    expect(prompt).toHaveFocus();
+
+    // A line typed here lands in the notes, and Escape goes back to them.
+    await user.type(prompt, "ship it friday{Enter}");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Scope view" })).toBeNull());
+    expect(screen.getByPlaceholderText("type only what matters…")).toHaveValue("ship it friday");
+  });
 });

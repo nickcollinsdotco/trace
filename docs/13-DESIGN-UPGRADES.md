@@ -455,6 +455,32 @@ scope view during recording, and quieter versions on the library and idle
 screens (the library already has each meeting's `signal` string to draw
 from).
 
+**Built 2026-10-01 (v0.14.0).** Notes from building it:
+
+- **A command, not an event.** `scope_frame` returns each stream's newest
+  512 samples and the scope asks for it about thirty times a second, only
+  while one is on screen and the window is visible. An event would have
+  streamed samples whether or not anything was drawing them.
+- **The capture side takes no lock.** Every stream already passes its mono
+  samples through `record_level`; that now also writes them, one in four
+  (about 12kHz), into a 1024-sample ring of atomics. A mutex the reader held
+  at the wrong instant would make the microphone drop a buffer.
+- **The FFT is in TypeScript**, 512 points with a Hann window, folded into
+  32 log-spaced bands from 80Hz to 6kHz. The Rust surface stays samples only.
+- **Three modes, remembered:** wave (you above, them below, each with a
+  gain that follows the voice), spectrum (you up, them down) and xy (you
+  across, them up, lightly smoothed so hiss does not drown the figure).
+  You are the accent colour and them the muted ink, as in the transcript.
+- **The strip** sits under the header, 96px, with its controls on a row of
+  their own; **the scope view** covers the recording screen with one line
+  for notes — Enter appends it, Escape goes back.
+- **Found while building it:** the recording screen focused the notes field
+  on every status poll, once a second, pulling focus out of anything else.
+  It now does so once, when recording begins.
+- **Not yet:** quieter versions on the library and idle screens. Those
+  never open the microphone (Q30), so they want a design for drawing from
+  stored envelopes rather than this live path.
+
 ### Stage 7 — mini window
 
 A second Tauri window: frameless, always on top, small. It shares capture

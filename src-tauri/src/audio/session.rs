@@ -182,6 +182,14 @@ impl CaptureSession {
             .collect()
     }
 
+    /// The newest `points` samples of each stream, for the live scope.
+    pub fn scope(&self, points: usize) -> Vec<(StreamSource, Vec<f32>)> {
+        self.threads
+            .iter()
+            .map(|t| (t.source, t.stats.scope.latest(points)))
+            .collect()
+    }
+
     pub fn elapsed_ms(&self) -> u64 {
         self.clock.elapsed().as_millis() as u64
     }

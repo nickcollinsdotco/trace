@@ -13,6 +13,7 @@ import {
   SystemLabel,
 } from "../../components/ui/terminal";
 import { type DeviceInfo, hasBackend, ipc, type LiveSegment } from "../../lib/ipc";
+import { ScopeStrip, ScopeView, useScopeMode } from "../scope/ScopePanels";
 import { AudioRetentionField } from "../settings/AudioRetentionField";
 import { MicCheck } from "./MicCheck";
 import { useCapture } from "./useCapture";
@@ -27,13 +28,18 @@ import { useCapture } from "./useCapture";
 export function CaptureScreen({
   onFinish,
   stopRequest,
+  initialScopeView = false,
 }: {
   onFinish: (notePath?: string) => void;
+  /** Open on the full-screen scope — the gallery's scenario for it. */
+  initialScopeView?: boolean;
   /** Stop the meeting as soon as it is known to be running — the palette's Stop. */
   stopRequest?: number | undefined;
 }) {
   const capture = useCapture();
   const confirm = useConfirm();
+  const [scopeMode, setScopeMode] = useScopeMode();
+  const [scopeOpen, setScopeOpen] = useState(initialScopeView);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
@@ -59,12 +65,15 @@ export function CaptureScreen({
     void ipc.setDefaultMic(name).catch(() => {});
   }
 
-  // "Just start typing" — focus the notes field the moment recording begins.
-  useEffect(() => {
-    if (capture.status) notesRef.current?.focus();
-  }, [capture.status]);
-
   const recording = capture.status !== null;
+
+  // "Just start typing" — focus the notes field the moment recording begins.
+  // Keyed on whether it is recording, not on the status itself: the status is
+  // a new object every second, and keyed on that this pulled focus back to the
+  // notes once a second, out of anything else the user was typing into.
+  useEffect(() => {
+    if (recording) notesRef.current?.focus();
+  }, [recording]);
   // The dot reports what the *recorder* is doing. Audio is being captured
   // whether or not a transcript is being produced alongside it.
   const state: CaptureState = capture.stopping ? "processing" : recording ? "capturing" : "idle";
@@ -118,12 +127,18 @@ export function CaptureScreen({
     );
   }
 
+  const appendNote = (line: string) => {
+    const next = notes && !notes.endsWith("\n") ? `${notes}\n${line}` : `${notes}${line}`;
+    setNotes(next);
+    capture.setNotes(next);
+  };
+
   const levels = capture.status?.levels ?? [];
   const mic = levels.find((l) => l.source === "microphone")?.level ?? 0;
   const system = levels.find((l) => l.source === "system")?.level ?? 0;
 
   return (
-    <div data-mode="capture" className="flex h-full flex-col">
+    <div data-mode="capture" className="relative flex h-full flex-col">
       <div className="flex shrink-0 items-baseline gap-4 border-b border-line px-5 py-3">
         <h1 className="font-mono text-sm uppercase tracking-wide text-ink">
           {capture.status?.title}
@@ -145,6 +160,8 @@ export function CaptureScreen({
         </Banner>
       )}
       {capture.error && <Banner tone="error">{capture.error}</Banner>}
+
+      <ScopeStrip mode={scopeMode} onMode={setScopeMode} onExpand={() => setScopeOpen(true)} />
 
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-5">
         {/* Notes get the most room. This ordering is the product's opinion. */}
@@ -212,6 +229,22 @@ export function CaptureScreen({
           </button>
         </div>
       </div>
+
+      {scopeOpen && (
+        <ScopeView
+          mode={scopeMode}
+          onMode={setScopeMode}
+          onClose={() => {
+            setScopeOpen(false);
+            // Back to writing where the user left off.
+            requestAnimationFrame(() => notesRef.current?.focus());
+          }}
+          title={capture.status?.title ?? ""}
+          elapsedMs={capture.status?.elapsedMs ?? 0}
+          notes={notes}
+          onAppendNote={appendNote}
+        />
+      )}
     </div>
   );
 }

@@ -110,6 +110,14 @@ from the user, to design together rather than build piecemeal:
 Rules carried over: nothing changes a control's size; motion respects
 reduced motion; anything ambient has an Appearance control and an off.
 
+5. **The xy mode reads as a scribble.** Even on the gallery's synthetic
+   voices it is a flat band of jagged loops in the strip, which says little
+   about the meeting. Judge it on real audio first; then either replace it
+   or add something more traditional beside it: a classic line waveform, or
+   a spectrograph — a scrolling waterfall of the spectrum over time, which
+   shows speech as recognisable striped shapes and the two voices taking
+   turns.
+
 ## Hover and press motion — parked 2026-10-01
 
 Asked for in the design upgrades: something better than the 0.97 push-in,

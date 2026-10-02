@@ -1,4 +1,5 @@
 import type { Page } from "../../app/Sidebar";
+import { CHANGELOG } from "../../changelog";
 import type { AppearanceControl } from "../../design/appearance";
 import { PRESET_NOTES, PRESETS } from "../../design/screen";
 import { FAMILIES, THEME_NOTES, THEMES } from "../../design/theme";
@@ -43,6 +44,8 @@ export interface PaletteContext {
   recording: boolean;
   appearance: AppearanceControl;
   fun?: FunControl | undefined;
+  /** About, scrolled to What's new. */
+  openChangelog?: (() => void) | undefined;
 }
 
 const PLACES: Array<{ page: Page; label: string; keywords?: string }> = [
@@ -165,6 +168,17 @@ export function buildCommands(ctx: PaletteContext): Command[] {
     });
   }
 
+  if (ctx.openChangelog) {
+    commands.push({
+      id: "app:changelog",
+      group: "App",
+      label: "What's new",
+      keywords: "changelog changes updates release notes version history",
+      hint: CHANGELOG[0]?.version ?? "",
+      run: ctx.openChangelog,
+    });
+  }
+
   commands.push({
     id: "app:gallery",
     group: "App",
@@ -241,7 +255,26 @@ const HIDDEN: Record<string, string[]> = {
   "sudo trace": ["nice try.", "TRACE has no root. only roots."],
 };
 
+function normalise(query: string): string {
+  return query.trim().replace(/^>\s*/, "").replace(/\s+/g, " ").toLowerCase();
+}
+
 export function hiddenReply(query: string): string[] | null {
-  const q = query.trim().replace(/^>\s*/, "").replace(/\s+/g, " ").toLowerCase();
+  const q = normalise(query);
+  // Printed, as the terminal would; Enter goes on to the whole log.
+  if (q === "trace --changelog") {
+    const latest = CHANGELOG[0];
+    if (!latest) return null;
+    return [
+      `${latest.version} — ${latest.title}`,
+      ...latest.notes.map((n) => `· ${n}`),
+      "enter: the whole log",
+    ];
+  }
   return HIDDEN[q] ?? null;
+}
+
+/** A hidden answer that leads somewhere on Enter: the command it runs. */
+export function hiddenAction(query: string): string | null {
+  return normalise(query) === "trace --changelog" ? "app:changelog" : null;
 }

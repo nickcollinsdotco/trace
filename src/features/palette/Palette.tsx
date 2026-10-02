@@ -2,7 +2,7 @@ import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { Prompt, SystemLabel } from "../../components/ui/terminal";
 import type { AppearanceControl } from "../../design/appearance";
 import { hasBackend, ipc, type SearchHit } from "../../lib/ipc";
-import { type Command, hiddenReply, rankCommands } from "./commands";
+import { type Command, hiddenAction, hiddenReply, rankCommands } from "./commands";
 
 /** Meetings shown under the commands. More belongs on the library page. */
 const MAX_HITS = 5;
@@ -163,8 +163,11 @@ export function Palette({
       setActive((a) => (a <= 0 ? items.length - 1 : a - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (reply) onClose();
-      else run(items[active]);
+      if (reply) {
+        const next = commands.find((c) => c.id === hiddenAction(query));
+        if (next) run({ kind: "command", command: next });
+        else onClose();
+      } else run(items[active]);
     }
   }
 
@@ -213,7 +216,10 @@ export function Palette({
           className="block px-5 py-5 font-mono text-sm leading-relaxed text-phosphor"
         >
           {reply.map((line) => (
-            <span key={line} className="block">
+            <span
+              key={line}
+              className={`block ${line.startsWith("enter:") ? "pt-3 text-ink-faint" : ""}`}
+            >
               {line}
             </span>
           ))}

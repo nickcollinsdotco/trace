@@ -185,3 +185,30 @@
 html[data-input="pointer"] .trace-mini :focus-visible {
   outline: none;
 }
+
+/* The gallery's unread badge, coming on like a tube warming: a flicker, once,
+ * when it is first drawn. Reduced motion (tokens.css) cuts it to nothing. */
+@keyframes trace-badge-on {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.9;
+  }
+  26% {
+    opacity: 0.15;
+  }
+  40% {
+    opacity: 1;
+  }
+  52% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.trace-badge-on {
+  animation: trace-badge-on 700ms steps(1, end) 1;
+}

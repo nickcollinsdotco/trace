@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { isTypingTarget } from "../../design/theme";
+import { unseenChanges } from "../about/changesSeen";
 
 /*
  * The big easter eggs (docs/09-EASTER-EGGS.md). Each takes the whole
@@ -28,6 +29,15 @@ const BOOT_STEP_MS = 140;
  */
 export function Boot({ onDone }: { onDone: () => void }) {
   const instant = reducedMotion();
+  // After an update, the boot owns up to it — counted from what has not been
+  // read on About yet, so it says so once per update, not every launch.
+  const [patch] = useState(() => {
+    const unseen = unseenChanges();
+    const version = unseen[0]?.version;
+    if (!version) return null;
+    const count = unseen.reduce((n, c) => n + c.notes.length, 0);
+    return `patch ${version} applied · ${count} ${count === 1 ? "change" : "changes"}`;
+  });
   const [shown, setShown] = useState(instant ? BOOT_LINES.length + 1 : 0);
   const done = useRef(onDone);
   done.current = onDone;
@@ -65,8 +75,14 @@ export function Boot({ onDone }: { onDone: () => void }) {
             <span className="text-phosphor"> OK</span>
           </span>
         ))}
+        {shown > BOOT_LINES.length && patch && (
+          <span className="block pt-4 text-ink-muted">
+            <span className="text-phosphor">+ </span>
+            {patch}
+          </span>
+        )}
         {shown > BOOT_LINES.length && (
-          <span className="block pt-4 text-phosphor">
+          <span className={`block text-phosphor ${patch ? "pt-2" : "pt-4"}`}>
             READY.
             <span aria-hidden className="trace-cursor" />
           </span>

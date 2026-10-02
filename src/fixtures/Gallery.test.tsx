@@ -1285,6 +1285,18 @@ describe("Gallery", () => {
     );
   });
 
+  it("marks what changed lately, and keeps the marks once everything is read", async () => {
+    localStorage.removeItem("trace.gallery.seen");
+    const user = userEvent.setup();
+    render(<Gallery />);
+
+    expect(await screen.findByText(/unread/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "mark all read" }));
+    expect(await screen.findByText(/all read/)).toBeVisible();
+    // Read, the badges stay: the list still says what changed.
+    expect(screen.getByRole("button", { name: "About, what's new" }).title).toMatch(/^0\.18\.0: /);
+  });
+
   it("records the mini window's shortcut by having it pressed, and refuses Shift alone", async () => {
     const user = userEvent.setup();
     render(<Gallery />);

@@ -26,6 +26,25 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.25.0",
+    date: "2026-10-03",
+    title: "A calmer scope, and the narrator centre stage",
+    notes: [
+      "Wave shows how loud each voice is, rolling slowly past — a pause is a flat line, a sentence a ridge — instead of a raw trace redrawn thirty times a second.",
+      "Spectrum's bars rise at once and settle slowly, like a meter's needle.",
+      "XY is gone. Spectrograph takes its place: each voice's pitch over time, rolling past.",
+      "On the recording screen, the scope, notes and transcript sit in the page column, so the scope's modes are close to hand.",
+      "The status bar names both models on one chip — Parakeet v3 · qwen3:14b — with one picker for both. The narrator sits in the middle.",
+    ],
+    screens: {
+      "capture-live": "The scope in the column; wave rolls; spectrograph replaces XY.",
+      "capture-scope": "Full screen: the rolling wave and the spectrograph.",
+      "mini-live": "The waveform rolls, calmly.",
+      "fun-narrator": "The narrator centred; one models chip on the left.",
+      library: "One models chip in the status bar.",
+    },
+  },
+  {
     version: "0.24.0",
     date: "2026-10-03",
     title: "The mini window, floating",

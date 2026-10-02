@@ -174,46 +174,53 @@ export function CaptureScreen({
       )}
       {capture.error && <Banner tone="error">{capture.error}</Banner>}
 
-      <ScopeStrip mode={scopeMode} onMode={setScopeMode} onExpand={() => setScopeOpen(true)} />
+      {/* The strip, the notes and the transcript in the page column, as
+          every other page has them: across the whole window the scope's
+          modes sat a long way from anything, and lines ran too long. */}
+      <div className="trace-column shrink-0 pt-4">
+        <ScopeStrip mode={scopeMode} onMode={setScopeMode} onExpand={() => setScopeOpen(true)} />
+      </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-5">
-        {/* Notes get the most room. This ordering is the product's opinion. */}
-        <Section title="Notes">
-          <textarea
-            ref={notesRef}
-            value={notes}
-            onChange={(e) => {
-              setNotes(e.target.value);
-              capture.setNotes(e.target.value);
-            }}
-            placeholder="type only what matters…"
-            spellCheck={false}
-            data-selectable
-            className="trace-field min-h-40 resize-none text-base leading-relaxed"
-          />
-        </Section>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="trace-column flex flex-col gap-6 py-5">
+          {/* Notes get the most room. This ordering is the product's opinion. */}
+          <Section title="Notes">
+            <textarea
+              ref={notesRef}
+              value={notes}
+              onChange={(e) => {
+                setNotes(e.target.value);
+                capture.setNotes(e.target.value);
+              }}
+              placeholder="type only what matters…"
+              spellCheck={false}
+              data-selectable
+              className="trace-field min-h-40 resize-none text-base leading-relaxed"
+            />
+          </Section>
 
-        <Section
-          title="Transcript"
-          actions={
-            capture.segments.length > 0 ? (
-              <SystemLabel>{capture.segments.length} segments</SystemLabel>
-            ) : undefined
-          }
-        >
-          <TranscriptView
-            segments={capture.segments}
-            pendingSpeechMs={capture.status?.pendingSpeechMs ?? 0}
-            inFlight={capture.status?.inFlight ?? 0}
-          />
-        </Section>
+          <Section
+            title="Transcript"
+            actions={
+              capture.segments.length > 0 ? (
+                <SystemLabel>{capture.segments.length} segments</SystemLabel>
+              ) : undefined
+            }
+          >
+            <TranscriptView
+              segments={capture.segments}
+              pendingSpeechMs={capture.status?.pendingSpeechMs ?? 0}
+              inFlight={capture.status?.inFlight ?? 0}
+            />
+          </Section>
 
-        <Section title="Signal">
-          <div className="flex flex-col gap-1.5">
-            <Meter label="Mic" level={mic} db={toDb(mic)} />
-            <Meter label="System" level={system} db={toDb(system)} />
-          </div>
-        </Section>
+          <Section title="Signal">
+            <div className="flex flex-col gap-1.5">
+              <Meter label="Mic" level={mic} db={toDb(mic)} />
+              <Meter label="System" level={system} db={toDb(system)} />
+            </div>
+          </Section>
+        </div>
       </div>
 
       <div className="flex shrink-0 items-center justify-between border-t border-line px-5 py-3">

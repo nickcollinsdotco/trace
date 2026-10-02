@@ -83,7 +83,7 @@ export function ScopeStrip({
     // Controls on a row of their own: laid over the canvas, the traces ran
     // straight through them and neither could be read.
     <div
-      className="flex h-24 shrink-0 flex-col border-b border-line bg-surface-1"
+      className="flex h-28 shrink-0 flex-col overflow-hidden rounded-md border border-line bg-surface-1"
       style={{ "--scope-ground": "var(--color-surface-1)" } as CSSProperties}
     >
       <div className="flex h-7 shrink-0 items-center justify-between px-3">

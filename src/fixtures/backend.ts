@@ -237,28 +237,32 @@ function levels(t: number): Array<{ source: AudioSource; level: number }> {
 
 /**
  * Waveforms for the scope, from the same clock as the levels: a voice is a
- * fundamental with a couple of harmonics under a syllable-rate envelope. The
- * two streams differ in pitch and rhythm, so the mic-against-system figure
- * draws something with shape rather than a diagonal line.
+ * fundamental with a couple of harmonics under a syllable-rate envelope,
+ * its pitch rising and falling as speech does. The two take turns, with a
+ * little overlap and room noise between, at a conversation's level rather
+ * than a shout — a scope that is always full teaches nothing about what a
+ * real meeting looks like on it.
  */
 function waves(t: number, points: number): Array<{ source: AudioSource; samples: number[] }> {
-  const voice = (f0: number, syllable: number, phase: number, gain: number) =>
+  const voice = (f0: number, syllable: number, phase: number, gain: number, turn: number) =>
     Array.from({ length: points }, (_, i) => {
       const s = t / 1000 + i / 12_000;
-      const envelope = gain * (0.35 + 0.65 * Math.abs(Math.sin(s * syllable + phase)));
+      // Speaking for about four seconds in eight, fading in and out.
+      const talking = Math.max(0, Math.min(1, 0.5 + 2 * Math.sin((s * Math.PI) / 4 + turn)));
+      const envelope = gain * talking * (0.35 + 0.65 * Math.abs(Math.sin(s * syllable + phase)));
+      const pitch = f0 * (1 + 0.08 * Math.sin(s * 0.9 + phase));
       // Harmonics up to about 3kHz, falling away, and a little breath noise:
-      // pure tones lit only the bottom of the spectrum, and a scenario that
-      // looks broken teaches nothing about the real thing.
+      // pure tones lit only the bottom of the spectrum.
       let tone = 0;
-      for (let k = 1; k * f0 < 3_200; k++) {
-        tone += Math.sin(2 * Math.PI * f0 * k * s + k * 0.7) / (k * 0.9);
+      for (let k = 1; k * pitch < 3_200; k++) {
+        tone += Math.sin(2 * Math.PI * pitch * k * s + k * 0.7) / (k * 0.9);
       }
-      const breath = (Math.random() - 0.5) * 0.18;
-      return envelope * (tone * 0.32 + breath);
+      const room = (Math.random() - 0.5) * 0.004;
+      return envelope * (tone * 0.08 + (Math.random() - 0.5) * 0.05) + room;
     });
   return [
-    { source: "microphone", samples: voice(118, 5.1, 0, 0.8) },
-    { source: "system", samples: voice(196, 3.7, 1.1, 0.65) },
+    { source: "microphone", samples: voice(118, 5.1, 0, 0.8, 0) },
+    { source: "system", samples: voice(196, 3.7, 1.1, 0.65, Math.PI) },
   ];
 }
 

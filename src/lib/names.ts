@@ -1,5 +1,6 @@
 /**
- * Device and model names, short enough for the mini window's details row.
+ * Device and model names, short enough for the mini window's details row
+ * and the status bar.
  *
  * Windows names a microphone by its role and then the device, with the
  * device in brackets — "Microphone (3- Razer Seiren V3 Mini)" — so the part

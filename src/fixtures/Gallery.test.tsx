@@ -220,8 +220,12 @@ describe("Gallery", () => {
     await openScenario(user, "Meetings");
 
     const bar = await screen.findByRole("contentinfo");
-    await waitFor(() => expect(bar).toHaveTextContent("Parakeet TDT 0.6B v3 (int8)"));
-    expect(bar).toHaveTextContent("qwen3:14b");
+    // One chip, by short name; the full names are in its tooltip.
+    await waitFor(() => expect(bar).toHaveTextContent("Parakeet v3·qwen3:14b"));
+    expect(within(bar).getByRole("button", { name: /Parakeet v3/ })).toHaveAttribute(
+      "title",
+      "Transcribes: Parakeet TDT 0.6B v3 (int8)\nSummarises: qwen3:14b",
+    );
     expect(bar).toHaveTextContent("v0.1.0");
     expect(bar).toHaveTextContent("dev");
   });
@@ -263,13 +267,13 @@ describe("Gallery", () => {
     await openScenario(user, "Meetings");
 
     const bar = await screen.findByRole("contentinfo");
-    const trigger = await within(bar).findByRole("button", { name: /Parakeet TDT 0.6B v3/ });
+    const trigger = await within(bar).findByRole("button", { name: /Parakeet v3/ });
     await user.click(trigger);
-    const panel = screen.getByRole("dialog", { name: "Transcription model" });
+    const panel = screen.getByRole("dialog", { name: "Models" });
     expect(within(panel).getByRole("button", { name: /Manage models/ })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog", { name: "Transcription model" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Models" })).toBeNull();
     expect(trigger).toHaveFocus();
   });
 
@@ -280,11 +284,11 @@ describe("Gallery", () => {
 
     const bar = await screen.findByRole("contentinfo");
     await user.click(await within(bar).findByRole("button", { name: /qwen3:14b/ }));
-    const panel = screen.getByRole("dialog", { name: "Summary model" });
+    const panel = screen.getByRole("dialog", { name: "Models" });
     await user.click(await within(panel).findByRole("button", { name: /qwen3:8b/ }));
 
     await waitFor(() => expect(bar).toHaveTextContent("qwen3:8b"));
-    expect(screen.queryByRole("dialog", { name: "Summary model" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Models" })).toBeNull();
   });
 
   it("downloads a speech model with progress, then offers to use it", async () => {
@@ -582,7 +586,7 @@ describe("Gallery", () => {
 
     const bar = await screen.findByRole("contentinfo");
     await user.click(await within(bar).findByRole("button", { name: /qwen3:14b/ }));
-    const panel = screen.getByRole("dialog", { name: "Summary model" });
+    const panel = screen.getByRole("dialog", { name: "Models" });
     expect(await within(panel).findByText(/in memory · 10\.5 GiB/)).toBeInTheDocument();
     expect(within(panel).getByText(/until \d/)).toBeInTheDocument();
   });
@@ -594,7 +598,7 @@ describe("Gallery", () => {
 
     const bar = await screen.findByRole("contentinfo");
     await user.click(await within(bar).findByRole("button", { name: /qwen3:14b/ }));
-    const panel = screen.getByRole("dialog", { name: "Summary model" });
+    const panel = screen.getByRole("dialog", { name: "Models" });
     // The installed list and what is in memory arrive in one answer, so the
     // list being there means the absence below is real, not still loading.
     await within(panel).findByRole("button", { name: /qwen3:14b/ });

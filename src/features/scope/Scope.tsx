@@ -1,12 +1,21 @@
 import { useEffect, useRef } from "react";
 import { hasBackend, ipc, type StreamWave } from "../../lib/ipc";
-import { bands, followGain, type ScopeMode } from "./spectrum";
+import { bands, ease, loudness, type ScopeMode } from "./spectrum";
 
 const POINTS = 512;
-const FRAME_MS = 33;
+/**
+ * Twenty frames a second. Each is a new 43ms window with no relation to
+ * the last, so drawn faster than this — it was thirty — a raw trace only
+ * flickered harder. The modes that roll move one column a frame.
+ */
+const FRAME_MS = 50;
 /** Under reduced motion it still shows the signal, just not in motion. */
 const STILL_MS = 500;
 const BANDS = 32;
+/** The spectrograph's rows per voice: fine enough to see a voice's pitch. */
+const ROWS = 40;
+/** CSS pixels a rolling mode moves each frame: 60px a second. */
+const COLUMN = 3;
 /** Idle static is a texture, not a signal: a dozen frames a second is plenty. */
 const IDLE_MS = 80;
 
@@ -23,10 +32,20 @@ const canDraw = (): boolean =>
 /**
  * The live scope: both streams, drawn from the capture threads' own samples.
  *
+ * Calm by design (docs/13, phase 7). The raw waveform it began as was
+ * honest and unwatchable: every frame a fresh, unrelated 43ms of signal,
+ * at thirty frames a second, scaled by a gain that chased it. Now:
+ *
+ *   wave          each voice's loudness, rolling right to left — a pause is
+ *                 a flat line, a sentence a ridge
+ *   spectrum      where each voice's energy sits, each band rising at once
+ *                 and settling slowly, as a meter's needle does
+ *   spectrograph  the spectrum over time, rolling — pitch and rhythm, the
+ *                 picture the old XY figure was reaching for
+ *
  * Polls at drawing speed while it is on screen and stops when it is not —
  * hidden window, unmounted screen — so a meeting recorded with the scope
- * folded away costs nothing. Each frame is painted over the last with a
- * little of the background, so traces leave a brief phosphor afterglow.
+ * folded away costs nothing.
  *
  * You are the accent colour; them, the muted ink. The same two colours mean
  * the same two people in the transcript.
@@ -59,12 +78,17 @@ export function Scope({
     const ctx = el.getContext("2d");
     if (!ctx) return;
 
-    let gainYou = 0.04;
-    let gainThem = 0.04;
     let busy = false;
     let last = 0;
     let frame = 0;
     let stopped = false;
+    // What was drawn last, so a change of mode or size starts clean rather
+    // than rolling the old picture along.
+    let drawn: ScopeMode | null = null;
+    let levelYou = 0;
+    let levelThem = 0;
+    let barsYou = new Array<number>(BANDS).fill(0);
+    let barsThem = new Array<number>(BANDS).fill(0);
 
     // Sized in device pixels, so lines stay sharp at any display scaling.
     const resize = () => {
@@ -72,6 +96,7 @@ export function Scope({
       const { width, height } = el.getBoundingClientRect();
       el.width = Math.max(1, Math.round(width * scale));
       el.height = Math.max(1, Math.round(height * scale));
+      drawn = null;
     };
     resize();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(resize);
@@ -87,8 +112,17 @@ export function Scope({
         ground: v("--scope-ground", v("--color-surface-1", "#101216")),
       };
     };
+    type Colours = ReturnType<typeof colours>;
 
-    const graticule = (c: ReturnType<typeof colours>, w: number, h: number, scale: number) => {
+    const clear = (c: Colours) => {
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = c.ground;
+      ctx.fillRect(0, 0, el.width, el.height);
+    };
+
+    /** A centre line, and quarters across. */
+    const graticule = (c: Colours, scale: number) => {
+      const { width: w, height: h } = el;
       ctx.strokeStyle = c.grid;
       ctx.lineWidth = scale;
       ctx.beginPath();
@@ -101,17 +135,13 @@ export function Scope({
       ctx.stroke();
     };
 
-    // A pixel or so of noise on each voice's line, at a fixed size: the gain
-    // that follows a real signal would blow hiss up to full height.
+    // A pixel or so of noise on each voice's line, at a fixed size.
     const drawIdle = () => {
-      const w = el.width;
-      const h = el.height;
+      const { width: w, height: h } = el;
       const c = colours();
       const scale = window.devicePixelRatio || 1;
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = c.ground;
-      ctx.fillRect(0, 0, w, h);
-      graticule(c, w, h, scale);
+      clear(c);
+      graticule(c, scale);
       ctx.lineWidth = scale;
       const hiss = (mid: number, colour: string) => {
         ctx.strokeStyle = colour;
@@ -126,95 +156,98 @@ export function Scope({
         ctx.stroke();
         ctx.globalAlpha = 1;
       };
-      hiss(h * 0.27, c.you);
-      hiss(h * 0.73, c.them);
+      hiss(h * 0.25, c.you);
+      hiss(h * 0.75, c.them);
+    };
+
+    /**
+     * Move what is drawn one column left and hand back the new column's
+     * left edge. The canvas is copied onto itself, which the 2D context
+     * allows: the source is read before anything is written.
+     */
+    const roll = (c: Colours, scale: number): { x: number; col: number } => {
+      const col = Math.max(1, Math.round(COLUMN * scale));
+      const { width: w, height: h } = el;
+      ctx.globalAlpha = 1;
+      ctx.drawImage(el, -col, 0);
+      ctx.fillStyle = c.ground;
+      ctx.fillRect(w - col, 0, col, h);
+      // The centre line, a column at a time, so it rolls with the picture.
+      ctx.fillStyle = c.grid;
+      ctx.fillRect(w - col, Math.round(h / 2), col, Math.max(1, Math.round(scale)));
+      return { x: w - col, col };
     };
 
     const draw = (waves: StreamWave[]) => {
-      const w = el.width;
-      const h = el.height;
+      const { width: w, height: h } = el;
       const c = colours();
       const you = waves.find((s) => s.source === "microphone")?.samples ?? [];
       const them = waves.find((s) => s.source === "system")?.samples ?? [];
       const scale = window.devicePixelRatio || 1;
-
-      // The afterglow: last frame fades rather than vanishing.
-      ctx.globalAlpha = 0.45;
-      ctx.fillStyle = c.ground;
-      ctx.fillRect(0, 0, w, h);
-      ctx.globalAlpha = 1;
-
-      // A graticule, faint: a centre line, and quarters across.
-      graticule(c, w, h, scale);
-
-      ctx.lineWidth = 1.5 * scale;
-      ctx.lineJoin = "round";
-      gainYou = followGain(gainYou, you);
-      gainThem = followGain(gainThem, them);
       const m = modeRef.current;
+      if (drawn !== m) {
+        clear(c);
+        // The line the picture will roll along, there from the start, so
+        // the part not yet drawn reads as waiting rather than broken.
+        if (m !== "spectrum") {
+          ctx.fillStyle = c.grid;
+          ctx.fillRect(0, Math.round(h / 2), w, Math.max(1, Math.round(scale)));
+        }
+        drawn = m;
+      }
 
       if (m === "wave") {
-        // You in the top half, them in the bottom, each with its own gain.
-        const trace = (
-          samples: number[],
-          gain: number,
-          mid: number,
-          span: number,
-          colour: string,
-        ) => {
-          if (samples.length < 2) return;
-          ctx.strokeStyle = colour;
-          ctx.beginPath();
-          samples.forEach((s, i) => {
-            const x = (i / (samples.length - 1)) * w;
-            const y = mid - (s / gain) * span;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          });
-          ctx.stroke();
+        // Each voice a ridge about its own line, its height its loudness.
+        // A one-pixel floor, so silence still reads as a line that is on.
+        levelYou = ease(levelYou, loudness(you));
+        levelThem = ease(levelThem, loudness(them));
+        const { x, col } = roll(c, scale);
+        // A sliver of ground between columns: ruled, like a level meter,
+        // rather than one solid mass.
+        const bar = Math.max(1, col - Math.round(scale));
+        const ridge = (level: number, mid: number, colour: string) => {
+          const half = Math.max(scale / 2, level * (h / 4 - 2 * scale));
+          ctx.fillStyle = colour;
+          ctx.fillRect(x, mid - half, bar, half * 2);
         };
-        trace(you, gainYou, h * 0.27, h * 0.22, c.you);
-        trace(them, gainThem, h * 0.73, h * 0.22, c.them);
+        ridge(levelYou, h * 0.25, c.you);
+        ridge(levelThem, h * 0.75, c.them);
       } else if (m === "spectrum") {
         // Mirrored bars: you rising from the centre, them hanging below it.
         const up = bands(you, BANDS);
         const down = bands(them, BANDS);
+        barsYou = barsYou.map((b, i) => ease(b, up[i] ?? 0));
+        barsThem = barsThem.map((b, i) => ease(b, down[i] ?? 0));
+        clear(c);
+        graticule(c, scale);
         const slot = w / BANDS;
         const bar = Math.max(scale, slot * 0.62);
         for (let b = 0; b < BANDS; b++) {
           const x = b * slot + (slot - bar) / 2;
+          const rise = (barsYou[b] ?? 0) * (h / 2 - scale);
+          const fall = (barsThem[b] ?? 0) * (h / 2 - 2 * scale);
           ctx.fillStyle = c.you;
-          ctx.fillRect(
-            x,
-            h / 2 - (up[b] ?? 0) * (h / 2 - scale),
-            bar,
-            (up[b] ?? 0) * (h / 2 - scale),
-          );
+          ctx.fillRect(x, h / 2 - rise, bar, rise);
           ctx.fillStyle = c.them;
-          ctx.fillRect(x, h / 2 + scale, bar, (down[b] ?? 0) * (h / 2 - 2 * scale));
+          ctx.fillRect(x, h / 2 + scale, bar, fall);
         }
       } else {
-        // You across, them up: one voice draws a line, both a figure.
-        // Stretched to the space rather than kept square: in the strip a
-        // square figure was a scribble in the middle of a long dark band.
-        const n = Math.min(you.length, them.length);
-        // Smoothed a little first: breath and room noise turn the figure into
-        // a hairball, and the shape is in the voices, not the hiss.
-        const sx = smooth(you);
-        const sy = smooth(them);
-        const rx = w * 0.46;
-        const ry = h * 0.44;
-        ctx.strokeStyle = c.you;
-        ctx.globalAlpha = 0.85;
-        ctx.beginPath();
-        for (let i = 0; i < n; i++) {
-          const x = w / 2 + ((sx[i] ?? 0) / gainYou) * rx;
-          const y = h / 2 - ((sy[i] ?? 0) / gainThem) * ry;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-        ctx.globalAlpha = 1;
+        // Low pitches meet at the centre line, high ones reach the edges —
+        // the spectrum's shape, laid on its side and rolled along.
+        const { x, col } = roll(c, scale);
+        const row = h / 2 / ROWS;
+        const paint = (levels: number[], colour: string, upward: boolean) => {
+          ctx.fillStyle = colour;
+          levels.forEach((v, i) => {
+            if (v <= 0.02) return;
+            ctx.globalAlpha = v ** 1.6;
+            const y = upward ? h / 2 - (i + 1) * row : h / 2 + i * row;
+            ctx.fillRect(x, y, col, Math.ceil(row));
+          });
+          ctx.globalAlpha = 1;
+        };
+        paint(bands(you, ROWS), c.you, true);
+        paint(bands(them, ROWS), c.them, false);
       }
     };
 
@@ -253,17 +286,4 @@ export function Scope({
   }, [idle]);
 
   return <canvas ref={canvas} role="img" aria-label={label} className={`block ${className}`} />;
-}
-
-/** A four-sample moving average: enough to lose hiss, not a voice's shape. */
-function smooth(samples: number[]): number[] {
-  return samples.map((_, i) => {
-    let sum = 0;
-    let count = 0;
-    for (let k = Math.max(0, i - 3); k <= i; k++) {
-      sum += samples[k] ?? 0;
-      count++;
-    }
-    return sum / count;
-  });
 }

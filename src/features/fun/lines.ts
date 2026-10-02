@@ -7,6 +7,23 @@ import type { Page } from "../../app/Sidebar";
  * because it is so literal. Never a word of what anyone said — the same
  * rule diagnostics.rs keeps for the log. Pure, so every line can be tested.
  */
+/**
+ * What each theme is, said as the narrator says everything: flatly, in a
+ * few words, never about what anyone said.
+ */
+const THEME_LINES: Record<string, string> = {
+  carbon: "the default, pressed and starched.",
+  report: "minutes, as they ought to be kept.",
+  industrial: "heavy plant. mind your fingers.",
+  termcn: "every colour at full volume.",
+  graphite: "quiet greys. nothing but the words.",
+  shell: "amber, the way the night shift had it.",
+  index: "everything filed. nothing lost.",
+  vault: "rations counted. notes kept.",
+  teletext: "page 100. meetings on 101.",
+  scope: "signal acquired.",
+};
+
 export type NarratorEvent =
   | { kind: "page"; page: Page }
   | { kind: "theme"; theme: string }
@@ -46,7 +63,7 @@ export function narrate(event: NarratorEvent): string {
     case "page":
       return PAGE_LINES[event.page];
     case "theme":
-      return `theme: ${event.theme}. same words, different light.`;
+      return `theme: ${event.theme}. ${THEME_LINES[event.theme] ?? "same words, different light."}`;
     case "started":
       // After midnight and before dawn, the meeting gets a remark of its own.
       return event.hour < 5

@@ -60,6 +60,12 @@ async function openEvery() {
   }
 }
 
+/** The theme the preview's shell is wearing — not a swatch's or a sample's. */
+function lookOf(container: HTMLElement): string | null {
+  const themed = container.querySelector(".trace-shell")?.closest("[data-family]");
+  return themed ? (themed.getAttribute("data-theme") ?? "carbon") : null;
+}
+
 describe("Gallery", () => {
   it("renders every scenario without logging an error", async () => {
     const errors: unknown[] = [];
@@ -315,43 +321,43 @@ describe("Gallery", () => {
     await openScenario(user, "Appearance");
 
     const main = await screen.findByRole("main");
-    // Carbon, the default, is Modern; Industrial is on the Retro side.
-    await user.click(await within(main).findByRole("button", { name: "retro" }));
-    const card = await within(main).findByRole("button", { name: /industrial/ });
-    await user.click(card);
+    const row = await within(main).findByRole("button", { name: /industrial/ });
+    await user.click(row);
 
-    await waitFor(() => {
-      expect(container.querySelector('[data-theme="industrial"]')).not.toBeNull();
-    });
-    expect(card).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(lookOf(container)).toBe("industrial"));
+    expect(row).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("flips families, and comes back to the theme last used in each", async () => {
+  it("names each theme's own choice first under Adjust, and does not offer it twice", async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Appearance");
+    const main = await screen.findByRole("main");
+
+    const mono = await within(main).findByRole("group", { name: "Mono font" });
+    expect(within(mono).getByRole("button", { name: "Theme · geist" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(mono).queryByRole("button", { name: "geist" })).toBeNull();
+    expect(within(mono).getByRole("button", { name: "plex" })).toBeVisible();
+  });
+
+  it("previews a theme pointed at, and changes nothing until one is chosen", async () => {
     localStorage.clear();
     const user = userEvent.setup();
     const { container } = render(<Gallery />);
     await openScenario(user, "Appearance");
-
     const main = await screen.findByRole("main");
-    // Retro's themes, and no modern one, until the family changes.
-    await user.click(await within(main).findByRole("button", { name: "retro" }));
-    await user.click(await within(main).findByRole("button", { name: /industrial/ }));
-    expect(within(main).queryByRole("button", { name: /graphite/ })).toBeNull();
 
-    // Back on Modern: Carbon, where it started — the default, so no attribute.
-    await user.click(within(main).getByRole("button", { name: "modern" }));
-    await waitFor(() => {
-      expect(container.querySelector('[data-family="modern"]:not([data-theme])')).not.toBeNull();
-    });
-    expect(within(main).queryByRole("button", { name: /termcn/ })).toBeNull();
+    await user.hover(await within(main).findByRole("button", { name: /teletext/ }));
+    expect(await within(main).findByText(/click, or press Enter, to use it/)).toBeVisible();
+    expect(lookOf(container)).toBe("carbon");
 
-    // Back to industrial, not to the family's first theme.
-    await user.click(within(main).getByRole("button", { name: "retro" }));
-    await waitFor(() => {
-      expect(
-        container.querySelector('[data-family="retro"][data-theme="industrial"]'),
-      ).not.toBeNull();
-    });
+    await user.click(within(main).getByRole("button", { name: /teletext/ }));
+    await waitFor(() => expect(lookOf(container)).toBe("teletext"));
+    expect(within(main).getByText("· in use")).toBeVisible();
   });
 
   it("keeps a screen per family, and mixes it effect by effect", async () => {
@@ -363,7 +369,7 @@ describe("Gallery", () => {
 
     // Retro starts on soft lines; Modern, where Carbon is, on clean glass.
     expect(container.querySelector("[data-fx-scanlines]")).toBeNull();
-    await user.click(await within(main).findByRole("button", { name: "retro" }));
+    await user.click(await within(main).findByRole("button", { name: /shell/ }));
     await waitFor(() =>
       expect(container.querySelector('[data-fx-scanlines="over"]')).not.toBeNull(),
     );
@@ -372,9 +378,9 @@ describe("Gallery", () => {
       expect(container.querySelector('[data-screen-preset="crt"][data-fx-roll]')).not.toBeNull(),
     );
 
-    await user.click(within(main).getByRole("button", { name: "modern" }));
+    await user.click(within(main).getByRole("button", { name: /graphite/ }));
     await waitFor(() => expect(container.querySelector("[data-fx-scanlines]")).toBeNull());
-    await user.click(within(main).getByRole("button", { name: "retro" }));
+    await user.click(within(main).getByRole("button", { name: /shell/ }));
     await waitFor(() =>
       expect(container.querySelector('[data-screen-preset="crt"]')).not.toBeNull(),
     );

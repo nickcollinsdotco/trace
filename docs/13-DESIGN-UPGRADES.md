@@ -689,6 +689,33 @@ classes, and with them the size and the capitals ladder.
   they disagreed before.
 - First run keeps its all-capitals machine report by saying so itself.
 
+**The specimen (v0.20.1):** a gallery page with one of every kind of element
+— type and hierarchy, the capitals ladder, buttons, fields, state, a boxed
+section's corner, a menu, a transcript — from the app's own components,
+each captioned with the role or token that styles it, under a header that
+reads the look as it changes. For judging a theme before living with it.
+
+**Phase 4, built (v0.21.0):**
+
+- **Why every preview wore the current theme.** A theme's rules are
+  written against its ancestors — `[data-theme="teletext"]
+  .trace-section-head` — so they reached every element below the page's
+  root, previews included; frame, family, capitals and field rules alike.
+  Carbon, being no attribute at all, inherited the page's whole theme.
+  Previews now render in a shadow root (`ThemeScope`), which selectors do
+  not cross; Tailwind sets every token's default on `:host`, so each starts
+  from Carbon and takes only its own theme. One constructed copy of the
+  app's styles is shared by every preview. Measured in the build: on a
+  Teletext page, the Carbon preview's section head has no blue band, its
+  title is Geist in Carbon's ink.
+- **A list and one preview** replace the ten cards and the family switch:
+  themes grouped Modern and Retro, each with a swatch in its own scope, and
+  one large preview following pointer, focus and the arrow keys — the
+  palette's look-then-choose. The theme in use is ticked and says "in use".
+- **Adjust names the theme's own choice** — "Theme · geist" — and does not
+  offer it again among the rest.
+- **Flavour text:** the narrator has a line for each theme.
+
 ## Press effects
 
 The current press is `scale(0.97)` on `.trace-press`. The replacement varies

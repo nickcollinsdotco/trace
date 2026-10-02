@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { THEMES } from "../../design/theme";
 import { secretFor } from "./Eggs";
 import { freshEar, listen, narrate, segmentMilestone } from "./lines";
 
 describe("the narrator's lines", () => {
+  it("has a line of its own for every theme, and a plain one for anything else", () => {
+    const lines = THEMES.map((theme) => narrate({ kind: "theme", theme }));
+    for (const [i, line] of lines.entries())
+      expect(line).toMatch(new RegExp(`^theme: ${THEMES[i]}\\. `));
+    expect(new Set(lines).size).toBe(THEMES.length);
+    expect(narrate({ kind: "theme", theme: "custom" })).toBe(
+      "theme: custom. same words, different light.",
+    );
+  });
+
   it("remarks on a meeting started after midnight", () => {
     expect(narrate({ kind: "started", hour: 1 })).toMatch(/midnight oil/);
     expect(narrate({ kind: "started", hour: 14 })).not.toMatch(/midnight/);

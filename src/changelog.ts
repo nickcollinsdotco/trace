@@ -26,6 +26,20 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.23.0",
+    date: "2026-10-03",
+    title: "The library on one bar",
+    notes: [
+      "Tags, sort, filters and the view switch share one bar; the meeting count sits quietly beneath.",
+      "Sort reverses with one click — newest to oldest, longest to shortest. Its arrow chooses date or length.",
+      "As many tags as fit are shown; the rest fold into +N more, which opens Filters, where every tag is. A tag you pick stays on the bar.",
+    ],
+    screens: {
+      library: "One bar: tags left; sort, Filters and view right; the count beneath.",
+      "library-many-tags": "New: tags that do not fit fold into +N more, which opens Filters.",
+    },
+  },
+  {
     version: "0.22.2",
     date: "2026-10-03",
     title: "Fewer, better delights",

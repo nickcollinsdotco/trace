@@ -962,13 +962,35 @@ describe("Gallery", () => {
     const titles = () => [...document.querySelectorAll(ROW)].map((e) => e.textContent);
     expect(titles()[0]).toBe("Catch-up with Dev");
 
-    await user.click(screen.getByRole("button", { name: /Newest/ }));
-    await user.click(screen.getByRole("button", { name: "Oldest" }));
-    expect(screen.getByRole("combobox", { name: "Search meetings and transcripts" })).toHaveValue(
-      "sort:oldest",
-    );
+    // One click reverses: the face of the sort button turns the order round.
+    await user.click(screen.getByRole("button", { name: /Newest first/ }));
+    const line = screen.getByRole("combobox", { name: "Search meetings and transcripts" });
+    expect(line).toHaveValue("sort:oldest");
     await waitFor(() => expect(titles()[0]).toBe("Acme discovery call"));
     expect(titles().at(-1)).toBe("Catch-up with Dev");
+
+    // The arrow changes what is ordered and keeps the direction.
+    await user.click(screen.getByRole("button", { name: "Sort by" }));
+    await user.click(screen.getByRole("button", { name: /Length/ }));
+    expect(line).toHaveValue("sort:shortest");
+    await user.click(screen.getByRole("button", { name: /Shortest first/ }));
+    expect(line).toHaveValue("sort:longest");
+  });
+
+  it("lists every tag under Filters", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Meetings");
+    await screen.findByText("Monday standup", { selector: ROW });
+
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    const panel = screen.getByRole("dialog", { name: "Filters" });
+    await user.click(within(panel).getByRole("button", { name: "internal 1" }));
+    expect(screen.getByRole("combobox", { name: "Search meetings and transcripts" })).toHaveValue(
+      "tag:internal",
+    );
+    // The tag is a tag, not a filter: the badge counts length, summary, type.
+    expect(screen.getByRole("button", { name: /Filters/ })).toHaveAccessibleName("Filters");
   });
 
   it("frames each section of a note so it can be closed, with the transcript closed", async () => {

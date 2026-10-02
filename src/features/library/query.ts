@@ -18,6 +18,36 @@ export type Sort = "newest" | "oldest" | "longest" | "shortest";
 
 export const SORTS: Sort[] = ["newest", "oldest", "longest", "shortest"];
 
+/**
+ * Sort is two choices, not four: what to order by, and which way. The sort
+ * button's face reverses the way; its arrow picks the key. Cycling through
+ * all four on one button meant three clicks to undo one.
+ */
+export type SortKey = "date" | "length";
+
+export function sortKey(sort: Sort): SortKey {
+  return sort === "newest" || sort === "oldest" ? "date" : "length";
+}
+
+const REVERSED: Record<Sort, Sort> = {
+  newest: "oldest",
+  oldest: "newest",
+  longest: "shortest",
+  shortest: "longest",
+};
+
+export function reverseSort(sort: Sort): Sort {
+  return REVERSED[sort];
+}
+
+/** Another key, the same way round: biggest first stays biggest first. */
+export function withKey(sort: Sort, key: SortKey): Sort {
+  if (sortKey(sort) === key) return sort;
+  const descending = sort === "newest" || sort === "longest";
+  if (key === "date") return descending ? "newest" : "oldest";
+  return descending ? "longest" : "shortest";
+}
+
 /** Length buckets offered in the filter menu, as they are written. */
 export const LENGTHS = [
   { token: "<15m", label: "Under 15 min" },

@@ -5,9 +5,12 @@ import {
   filterCount,
   lengthRange,
   parseQuery,
+  reverseSort,
   searchText,
   setToken,
+  sortKey,
   tagCounts,
+  withKey,
 } from "./query";
 
 const MIN = 60_000;
@@ -105,5 +108,22 @@ describe("tagCounts", () => {
       { tag: "b", count: 2 },
       { tag: "a", count: 1 },
     ]);
+  });
+});
+
+describe("sort as a key and a direction", () => {
+  it("reverses within its key", () => {
+    expect(reverseSort("newest")).toBe("oldest");
+    expect(reverseSort("oldest")).toBe("newest");
+    expect(reverseSort("longest")).toBe("shortest");
+    expect(reverseSort("shortest")).toBe("longest");
+  });
+
+  it("keeps the direction when the key changes", () => {
+    expect(withKey("newest", "length")).toBe("longest");
+    expect(withKey("oldest", "length")).toBe("shortest");
+    expect(withKey("shortest", "date")).toBe("oldest");
+    expect(withKey("longest", "length")).toBe("longest");
+    expect(sortKey("shortest")).toBe("length");
   });
 });

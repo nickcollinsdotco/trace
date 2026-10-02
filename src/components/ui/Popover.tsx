@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
 
 /**
  * A button that shows a panel, dismissed by Escape or a click outside.
@@ -18,6 +18,8 @@ export function Popover({
   align = "start",
   wide = false,
   onOpen,
+  open: openProp,
+  onOpenChange,
   children,
 }: {
   /** Accessible name for the panel. */
@@ -31,9 +33,22 @@ export function Popover({
   /** For panels showing listings with a column of figures, not a list of choices. */
   wide?: boolean;
   onOpen?: () => void;
+  /** Held by the caller when something else can open it too — the
+   *  library's "+N more" opens Filters. Left out, it holds its own. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: (close: () => void) => ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = openProp ?? ownOpen;
+  const setOpen = useCallback(
+    (next: boolean | ((o: boolean) => boolean)) => {
+      const value = typeof next === "function" ? next(open) : next;
+      setOwnOpen(value);
+      onOpenChange?.(value);
+    },
+    [open, onOpenChange],
+  );
   const panelId = useId();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -56,7 +71,7 @@ export function Popover({
       window.removeEventListener("pointerdown", onPointer);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, setOpen]);
 
   return (
     <div ref={root} className="relative min-w-0">

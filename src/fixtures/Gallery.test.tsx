@@ -365,7 +365,7 @@ describe("Gallery", () => {
     );
     await user.click(within(main).getByRole("button", { name: "crt" }));
     await waitFor(() =>
-      expect(container.querySelector('[data-screen-preset="crt"][data-fx-flicker]')).not.toBeNull(),
+      expect(container.querySelector('[data-screen-preset="crt"][data-fx-roll]')).not.toBeNull(),
     );
 
     await user.click(within(main).getByRole("button", { name: "modern" }));

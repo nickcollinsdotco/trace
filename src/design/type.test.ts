@@ -51,6 +51,16 @@ describe("type.css", () => {
     expect(css).not.toMatch(/\[data-case="normal"\]/);
   });
 
+  it("leaves every theme a proportional face, or Type has nothing to switch to", () => {
+    // Shell, Teletext, Index and Scope once set `--font-sans` to their own
+    // monospace face. Type moves text between the sans and mono families, so
+    // with both the same face every choice looked identical. A theme that
+    // wants monospace everywhere says so with its default role instead.
+    const themes = readFileSync(join(process.cwd(), "src/design/themes.css"), "utf8");
+    const sans = [...themes.matchAll(/--font-sans:\s*([^;]+);/g)].map((m) => m[1] ?? "");
+    for (const stack of sans) expect(stack).not.toMatch(/monospace|VT323|Share Tech Mono/);
+  });
+
   it("orders the role axis after the family axis", () => {
     // Same specificity, so source order decides. If `[data-mono]` came last
     // it would win and `sans` mode would keep a monospace face.

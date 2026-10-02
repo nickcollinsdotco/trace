@@ -45,6 +45,33 @@
   overflow-y: auto;
 }
 
+/*
+ * The top bar, stuck over the scrolling page. Translucent and blurred in the
+ * modern family, so what passes under it is seen going rather than sliced
+ * off at an invisible edge. A blur is a modern material, though; the retro
+ * family keeps a solid ground, and the page fades into it instead.
+ */
+.trace-topbar {
+  position: sticky;
+  top: 0;
+  background: color-mix(in srgb, var(--color-surface-0) 70%, transparent);
+  backdrop-filter: blur(12px) saturate(1.2);
+}
+
+[data-family="retro"] .trace-topbar {
+  background: var(--color-surface-0);
+  backdrop-filter: none;
+}
+
+[data-family="retro"] .trace-topbar::after {
+  content: "";
+  position: absolute;
+  inset: 100% 0 auto;
+  height: 0.75rem;
+  background: linear-gradient(var(--color-surface-0), transparent);
+  pointer-events: none;
+}
+
 .trace-column {
   width: 100%;
   max-width: var(--column);

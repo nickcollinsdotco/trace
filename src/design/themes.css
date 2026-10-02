@@ -377,8 +377,6 @@
   --radius-lg: 0px;
   --radius-pill: 0px;
 
-  --font-sans: "VT323", ui-monospace, monospace;
-
   --text-2xs: 1rem;
   --text-xs: 1.0625rem;
   --text-sm: 1.1875rem;
@@ -461,8 +459,6 @@
   --radius-md: 0px;
   --radius-lg: 0px;
   --radius-pill: 0px;
-
-  --font-sans: "Share Tech Mono", ui-monospace, monospace;
 
   --label-font: "Silkscreen", var(--font-mono);
   --label-transform: uppercase;
@@ -657,8 +653,6 @@
   --radius-lg: 0px;
   --radius-pill: 0px;
 
-  --font-sans: "VT323", ui-monospace, monospace;
-
   --text-2xs: 1rem;
   --text-xs: 1.0625rem;
   --text-sm: 1.1875rem;
@@ -705,11 +699,8 @@
   visibility: hidden;
 }
 
-/* The page number, where Ceefax put it. */
-[data-theme="teletext"] .trace-topbar {
-  position: relative;
-}
-
+/* The page number, where Ceefax put it. The bar is sticky, which anchors
+   it as `relative` would — and setting `relative` here stopped it sticking. */
 [data-theme="teletext"] .trace-topbar::before {
   content: "P100";
   position: absolute;
@@ -782,8 +773,6 @@
   --radius-md: 2px;
   --radius-lg: 3px;
   --radius-pill: 2px;
-
-  --font-sans: "Share Tech Mono", ui-monospace, monospace;
 
   --label-font: var(--font-mono);
   --label-transform: uppercase;

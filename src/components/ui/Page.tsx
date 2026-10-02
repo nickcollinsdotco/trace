@@ -12,10 +12,12 @@ import type { ReactNode, Ref } from "react";
  * The bar's height is reserved even on pages with nothing to put in it. That
  * is what makes every page start at the same height.
  *
- * The bar sits above the scroller rather than stuck inside it. Nothing ever
- * passes beneath it, so it needs no fill of its own — and so a screen effect
- * placed behind the content shows under the bar as it does everywhere else,
- * instead of stopping at a solid band across the top of every page.
+ * Both live inside the scroller. The bar sticks, and content passes under
+ * it, through a translucent fill (layout.css), so what it cuts off is seen
+ * going. On a page without one, the reserved height scrolls away with the
+ * content. It used to sit above the scroller, which on a page with no bar
+ * left an empty band that sliced every line passing under it with no
+ * visible reason.
  */
 export function Page({
   ref,
@@ -41,8 +43,8 @@ export function Page({
 }) {
   return (
     <div data-mode={mode} data-page={kind} className="trace-page">
-      {bar ?? <div aria-hidden className="h-12 shrink-0" />}
       <div ref={ref} className="trace-scroll">
+        {bar ?? <div aria-hidden className="h-12 shrink-0" />}
         <div className={`trace-column flex flex-col ${className}`}>{children}</div>
       </div>
     </div>

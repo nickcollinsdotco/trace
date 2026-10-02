@@ -145,7 +145,9 @@ export function SectionHead({
         )}
       </Heading>
       <span aria-hidden className="trace-rule" />
-      {actions}
+      {actions && (
+        <span className="trace-section-actions flex shrink-0 items-center gap-2">{actions}</span>
+      )}
     </header>
   );
 }

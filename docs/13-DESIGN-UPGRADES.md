@@ -615,6 +615,35 @@ what to sort by, rather than cycling through four.
 - **TRACE was already in the taskbar** when minimised; nothing hides the
   main window. Checked rather than built.
 
+**Phase 2, built (v0.17.1):**
+
+- **The black band under the app** was the refresh bar. It rolls down to
+  140% of the page, and moved content still counts towards what can be
+  scrolled, so the whole window grew a scrollable tail. The canvas clips
+  now (`overflow: clip`, which does not make it a scroll container).
+  Measured in the build: 16px of overflow without the clip at one moment of
+  the roll, none with it.
+- **The top bar lives inside the scroller.** Where a page has one, it
+  sticks and the page passes beneath it — translucent and blurred in the
+  modern family, a solid ground the page fades into in the retro one. Where
+  a page has none, its reserved height scrolls away with the content, so
+  nothing is sliced off at an invisible edge. Teletext's `position:
+  relative` on the bar had to go: it beat `sticky`.
+- **Type does something in Shell, Teletext, Index and Scope.** Each set its
+  *sans* family to its own monospace face, so moving text between sans and
+  mono changed nothing. Their default role is already mono, which looks the
+  same; hybrid and sans now reach a proportional face. A test keeps any
+  theme from doing it again.
+- **The found file's frame is a border.** Most themes' fonts have no
+  box-drawing characters; the fallback's were another width, and the right
+  edge came out ragged.
+- **Cursors that speak rather than ask** — the narrator's, the SIGNAL
+  caption's — blink in their own text's colour, not the accent.
+- **A section's actions sit at the box's other corner**, cut into the
+  border like its title, instead of beside the title where Reset was easy to
+  miss.
+- **Scanlines go to 24px; flicker is gone.**
+
 ## Press effects
 
 The current press is `scale(0.97)` on `.trace-press`. The replacement varies

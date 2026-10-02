@@ -35,6 +35,13 @@
   animation: trace-cursor-blink 1.06s steps(1) infinite;
 }
 
+/* The same cursor in its line's own colour, for lines that speak rather
+ * than ask — the narrator, a panel's caption. In the accent, it was the
+ * loudest thing on screen beside the quietest text. */
+.trace-cursor-quiet::after {
+  background: currentColor;
+}
+
 /* ---------------------------------------------------------------------
  * Recording pulse. Communicates one thing: audio is being captured.
  * Deliberately slow — a fast blink reads as an error, not a state.
@@ -213,6 +220,25 @@
   max-width: 100%;
   margin-top: -1.75rem;
   margin-left: -0.35rem;
+  padding-inline: 0.4rem;
+  background: var(--color-surface-0);
+}
+
+/*
+ * The heading shrinks to its title so the border runs on past it, which
+ * left a section's actions — Reset, a month — sitting beside the title,
+ * where they were easy to miss. They go to the box's other corner, cut into
+ * the border the same way.
+ */
+[data-frame="box"] .trace-section {
+  position: relative;
+}
+
+[data-frame="box"] .trace-section-actions {
+  position: absolute;
+  top: 0;
+  right: 0.65rem;
+  transform: translateY(-50%);
   padding-inline: 0.4rem;
   background: var(--color-surface-0);
 }

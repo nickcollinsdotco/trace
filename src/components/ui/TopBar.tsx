@@ -29,9 +29,9 @@ export function TopBar({
 
   return (
     <div
-      // No fill: it sits above the scroller (Page.tsx), so nothing passes
-      // beneath it, and a screen effect behind the page shows through.
-      className={`trace-topbar shrink-0 border-b transition-colors ${
+      // Stuck to the top of the scroller, with the page passing beneath it
+      // through a translucent fill (layout.css).
+      className={`trace-topbar sticky top-0 z-10 shrink-0 border-b transition-colors ${
         showCurrent ? "border-line" : "border-transparent"
       }`}
     >

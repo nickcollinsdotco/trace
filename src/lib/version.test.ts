@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CHANGELOG, compareVersions } from "../changelog";
 
 /**
  * The version lives in five files, and `pnpm bump` keeps them in step.
@@ -29,6 +30,21 @@ describe("version", () => {
       installer,
     );
     expect(versionIn("README.md", /TRACE \/\/ BUILD (\d+\.\d+\.\d+)/)).toBe(installer);
+  });
+});
+
+describe("the changelog", () => {
+  it("leads with the version being built", () => {
+    // Written by hand beside `pnpm bump`; this is what stops it falling behind.
+    const built = versionIn("package.json", /"version":\s*"(\d+\.\d+\.\d+)"/);
+    expect(CHANGELOG[0]?.version).toBe(built);
+  });
+
+  it("runs newest first", () => {
+    for (let i = 1; i < CHANGELOG.length; i++) {
+      const [a, b] = [CHANGELOG[i - 1], CHANGELOG[i]];
+      expect(compareVersions(a?.version ?? "", b?.version ?? ""), b?.version).toBeGreaterThan(0);
+    }
   });
 });
 

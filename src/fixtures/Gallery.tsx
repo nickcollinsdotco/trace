@@ -17,9 +17,10 @@
  *      tooling.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Shell } from "../app/Shell";
 import type { Page } from "../app/Sidebar";
+import { CHANGELOG, type Freshness, freshness } from "../changelog";
 import { type ConfirmOptions, useConfirm } from "../components/ui/Confirm";
 import {
   type Appearance,
@@ -212,7 +213,22 @@ export function Gallery() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const groups = [...new Set(SCENARIOS.map((s) => s.group))];
+  // What changed lately, for someone back after an update: the badges in
+  // the list clear as each is opened; the line in the header does not, so
+  // it still says what to look for while looking.
+  const [seen, markSeen] = useSeen();
+  const [onlyChanged, setOnlyChanged] = useState(false);
+  const fresh = useMemo(() => freshness(CHANGELOG, seen), [seen]);
+  const changed = useMemo(() => freshness(CHANGELOG), []);
+  const scenarioIdNow = scenario?.id;
+  useEffect(() => {
+    if (scenarioIdNow) markSeen(scenarioIdNow);
+  }, [scenarioIdNow, markSeen]);
+  const counts = { new: 0, recent: 0 };
+  for (const f of fresh.values()) counts[f.tier] += 1;
+
+  const listed = onlyChanged ? SCENARIOS.filter((s) => changed.has(s.id)) : SCENARIOS;
+  const groups = [...new Set(listed.map((s) => s.group))];
   const px = WIDTHS.find((w) => w.id === width)?.px ?? 0;
 
   return (
@@ -228,6 +244,22 @@ export function Gallery() {
           <p className="mt-1 text-[11px] leading-snug text-white/30">
             Real screens, invented data. Nothing here touches your meetings.
           </p>
+          <label className="mt-3 flex cursor-pointer items-center gap-2 text-[11px] text-white/50 hover:text-white/80">
+            <input
+              type="checkbox"
+              checked={onlyChanged}
+              onChange={(e) => setOnlyChanged(e.target.checked)}
+              className="size-3 accent-emerald-400"
+            />
+            Only what changed lately
+          </label>
+          {counts.new + counts.recent > 0 && (
+            <p className="mt-1 pl-5 font-mono text-[10px] text-white/35">
+              {counts.new > 0 && <span className="text-emerald-300/90">{counts.new} new</span>}
+              {counts.new > 0 && counts.recent > 0 && " · "}
+              {counts.recent > 0 && `${counts.recent} recent`} to look at
+            </p>
+          )}
         </div>
 
         {groups.map((group) => (
@@ -235,20 +267,32 @@ export function Gallery() {
             <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-white/30">
               {group}
             </p>
-            {SCENARIOS.filter((s) => s.group === group).map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setScenarioId(s.id)}
-                className={`rounded px-2 py-1.5 text-left text-[12px] transition-colors ${
-                  s.id === scenario?.id
-                    ? "bg-white/10 text-white"
-                    : "text-white/55 hover:bg-white/5 hover:text-white/85"
-                }`}
-              >
-                {s.name}
-              </button>
-            ))}
+            {listed
+              .filter((s) => s.group === group)
+              .map((s) => {
+                const f = fresh.get(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setScenarioId(s.id)}
+                    title={f ? `${f.version}: ${f.what}` : undefined}
+                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] transition-colors ${
+                      s.id === scenario?.id
+                        ? "bg-white/10 text-white"
+                        : "text-white/55 hover:bg-white/5 hover:text-white/85"
+                    }`}
+                  >
+                    <span data-name className="min-w-0 flex-1 truncate">
+                      {s.name}
+                    </span>
+                    {/* Hidden from the accessible name, which tests and
+                        screen readers find the scenario by; the title says
+                        what changed. */}
+                    {f && <FreshBadge tier={f.tier} />}
+                  </button>
+                );
+              })}
           </section>
         ))}
       </nav>
@@ -347,6 +391,11 @@ export function Gallery() {
             {scenario && (
               <p className="ml-auto max-w-md text-right text-[11px] leading-snug text-white/40">
                 {scenario.note}
+                {changed.get(scenario.id) && (
+                  <span className="mt-0.5 block text-emerald-300/80">
+                    Changed in {changed.get(scenario.id)?.version}: {changed.get(scenario.id)?.what}
+                  </span>
+                )}
               </p>
             )}
           </div>
@@ -486,6 +535,54 @@ function AskOnMount({ options }: { options: ConfirmOptions }) {
     void confirm(options);
   }, [confirm, options]);
   return null;
+}
+
+const SEEN_KEY = "trace.gallery.seen";
+
+/**
+ * The version each scenario was last opened at, so a badge clears once its
+ * change has been looked at and comes back only when it changes again.
+ */
+function useSeen(): [Record<string, string>, (id: string) => void] {
+  const [seen, setSeen] = useState<Record<string, string>>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(SEEN_KEY) ?? "{}");
+      return raw && typeof raw === "object" ? raw : {};
+    } catch {
+      return {};
+    }
+  });
+  const mark = useCallback((id: string) => {
+    const now = CHANGELOG[0]?.version;
+    if (!now) return;
+    setSeen((prev) => {
+      if (prev[id] === now) return prev;
+      const next = { ...prev, [id]: now };
+      try {
+        localStorage.setItem(SEEN_KEY, JSON.stringify(next));
+      } catch {
+        // Not worth surfacing: the badges simply come back next time.
+      }
+      return next;
+    });
+  }, []);
+  return [seen, mark];
+}
+
+/** New: the latest update changed it. Recent: the one before. */
+function FreshBadge({ tier }: { tier: Freshness }) {
+  return (
+    <span
+      aria-hidden
+      className={`shrink-0 rounded-sm px-1 font-mono text-[9px] uppercase tracking-[0.08em] ${
+        tier === "new"
+          ? "bg-emerald-400/15 text-emerald-300"
+          : "border border-white/15 text-white/40"
+      }`}
+    >
+      {tier}
+    </span>
+  );
 }
 
 function Switcher({

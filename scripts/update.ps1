@@ -251,16 +251,32 @@ if ($running.Count -eq 0) {
     }
 
     foreach ($process in $running) {
+        # The list was taken before the question, and TRACE may have gone
+        # since - closed by hand while it was asked, or gone with its window.
+        # Gone is what this step wants, so it is not an error: stopping one
+        # that had already exited used to end the whole update here.
+        $process.Refresh()
+        if ($process.HasExited) { continue }
+
         # Ask first, as clicking the close button would, and force only if it
         # is still there after a grace period. One with no window to ask - in
         # the tray, or hidden - is stopped straight away.
         if ($process.CloseMainWindow()) {
             if (-not $process.WaitForExit(10000)) {
-                Stop-Process -Id $process.Id -Force
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
             }
         } else {
-            Stop-Process -Id $process.Id -Force
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
         }
+    }
+
+    # Errors above are allowed to pass, so check the outcome rather than the
+    # steps: the installer cannot replace a TRACE that is still running.
+    $still = @(Get-Process -Name 'TRACE' -ErrorAction SilentlyContinue | Where-Object {
+        -not ($_.Path -and $_.Path.StartsWith($repo, [System.StringComparison]::OrdinalIgnoreCase))
+    })
+    if ($still.Count -gt 0) {
+        Stop-Update "TRACE is still running and could not be closed. Close it, then run 'pnpm open-installers'."
     }
     Write-Host 'TRACE closed.'
 }

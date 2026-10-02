@@ -173,17 +173,6 @@ function ThemePicker({
   const shift = useShiftHeld();
   const compare = shift && shown !== current;
 
-  // Counts the changes of picture, for the static that plays between them.
-  const [tuned, setTuned] = useState(0);
-  const first = useRef(true);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: on each new picture
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    setTuned((n) => n + 1);
-  }, [shown]);
   const list = useRef<HTMLDivElement>(null);
 
   // Up and down walk the list, as in the palette; Tab still leaves it.
@@ -232,48 +221,67 @@ function ThemePicker({
       {/* minmax(0, 1fr) and min-w-0: a theme with wide, unwrapping type would
           otherwise push the preview out of its card. */}
       <div className="flex min-w-0 flex-col gap-2 md:sticky md:top-16 md:self-start">
-        {compare ? (
-          // Shift held over another theme: the one in use beside it.
-          <div className="grid grid-cols-2 gap-2">
-            {[current, shown].map((t) => (
-              <ThemeScope
-                key={t}
-                theme={t}
-                overrides={adjustments[t]}
-                className="overflow-hidden rounded-md border border-line"
-              >
-                <ThemeSample />
-              </ThemeScope>
-            ))}
-          </div>
-        ) : (
-          <div className="relative overflow-hidden rounded-md border border-line">
-            <ThemeScope theme={shown} overrides={adjustments[shown]}>
-              <ThemeSample />
-            </ThemeScope>
-            {/* A burst of static as the channel changes. Keyed, so each
-                change plays it once; none for the first picture. */}
-            {tuned > 0 && (
-              <span
-                key={tuned}
-                aria-hidden
-                className="trace-tune pointer-events-none absolute inset-0"
-              />
-            )}
-          </div>
-        )}
+        <ThemeScope
+          theme={shown}
+          overrides={adjustments[shown]}
+          className="overflow-hidden rounded-md border border-line"
+        >
+          <ThemeSample />
+        </ThemeScope>
         <p className="flex items-baseline gap-2 font-mono text-xs">
-          <span className="text-ink">{compare ? `${current} · ${shown}` : shown}</span>
+          <span className="text-ink">{shown}</span>
           <span className="text-ink-faint">
-            {compare
-              ? "· in use, and pointed at"
-              : shown === current
-                ? "· in use"
-                : "· click, or press Enter, to use it — hold Shift to compare"}
+            {shown === current
+              ? "· in use"
+              : "· click, or press Enter, to use it — hold Shift to compare"}
           </span>
         </p>
         <p className="text-2xs text-ink-muted">{THEME_NOTES[shown]}</p>
       </div>
+
+      {compare && <Compare left={current} right={shown} adjustments={adjustments} />}
+    </div>
+  );
+}
+
+/**
+ * Shift held over another theme: the one in use and the one pointed at, side
+ * by side, each at the preview's full width, over the page for as long as
+ * Shift is down. Side by side in the column, each half the width of one
+ * preview, they wrapped and squeezed until they could not be compared.
+ */
+function Compare({
+  left,
+  right,
+  adjustments,
+}: {
+  left: Theme;
+  right: Theme;
+  adjustments: Partial<Record<Theme, Overrides>>;
+}) {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none fixed inset-x-6 top-1/2 z-50 mx-auto grid max-w-[68rem] -translate-y-1/2 grid-cols-2 gap-4 rounded-lg border border-line-strong bg-surface-1 p-4 shadow-(--elevation-overlay)"
+    >
+      {[
+        { theme: left, label: "in use" },
+        { theme: right, label: "pointed at" },
+      ].map(({ theme, label }) => (
+        <div key={theme} className="flex min-w-0 flex-col gap-2">
+          <p className="flex items-baseline gap-2 font-mono text-xs">
+            <span className="text-ink">{theme}</span>
+            <span className="text-ink-faint">· {label}</span>
+          </p>
+          <ThemeScope
+            theme={theme}
+            overrides={adjustments[theme]}
+            className="overflow-hidden rounded-md border border-line"
+          >
+            <ThemeSample />
+          </ThemeScope>
+        </div>
+      ))}
     </div>
   );
 }

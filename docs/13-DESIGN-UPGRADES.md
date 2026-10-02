@@ -719,9 +719,11 @@ reads the look as it changes. For judging a theme before living with it.
 **Delights from phases 3 and 4, to try (v0.22.0)** — each small and on its
 own, so any that do not earn their place come out cleanly:
 
-- **Split-flap capitals:** moving the ladder on the same theme flickers
-  every role it reaches, in steps, for 420ms (`data-case-flap`, type.css).
-  Opacity only; nothing resizes. Not on a theme change.
+- **Split-flap capitals — replaced (v0.22.1).** Flickering every role the
+  ladder reaches read as a fault, not a departures board. Moving the ladder
+  on the same theme now redraws the screen instead: one phosphor line
+  sweeps down the canvas in 420ms (`data-redraw`, type.css). Not on a theme
+  change.
 - **The narrator on capitals:** "inside voices." to "shouting enabled."
 - **Seated press:** a retro `.trace-btn` drops a pixel with a top shadow
   while pressed (family.css).

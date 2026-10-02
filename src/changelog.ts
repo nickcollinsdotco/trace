@@ -26,6 +26,17 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.22.1",
+    date: "2026-10-03",
+    title: "A redraw instead of the flap",
+    notes: [
+      "Changing the capitals step now sweeps one line down the screen as it redraws, in place of the flickering letters.",
+    ],
+    screens: {
+      appearance: "Letter case: a redraw line sweeps the page; the letters no longer flicker.",
+    },
+  },
+  {
     version: "0.22.0",
     date: "2026-10-02",
     title: "A few things to try",

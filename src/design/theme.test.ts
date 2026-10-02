@@ -134,14 +134,14 @@ describe("themes", () => {
     expect(el.getAttribute("data-case")).toBe("none");
   });
 
-  it("flaps the letters when capitals move on the same theme, not when the theme changes", () => {
+  it("redraws the screen when capitals move on the same theme, not when the theme changes", () => {
     const el = document.createElement("div");
     applyTheme("report", el);
     applyTheme("carbon", el);
-    // A new theme with another default step: a new look, no flap.
-    expect(el.hasAttribute("data-case-flap")).toBe(false);
+    // A new theme with another default step: a new look, no redraw.
+    expect(el.hasAttribute("data-redraw")).toBe(false);
     applyTheme("carbon", el, { case: "headings" });
-    expect(el.hasAttribute("data-case-flap")).toBe(true);
+    expect(el.hasAttribute("data-redraw")).toBe(true);
   });
 
   it("overrides case without disturbing the other axes", () => {

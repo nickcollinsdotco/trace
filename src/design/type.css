@@ -153,42 +153,31 @@
 }
 
 /*
- * The ladder moving, seen: every role it can reach flickers over in
- * steps, like the flaps of a departures board settling. Opacity only —
- * nothing changes size, which is what sank the scramble (docs/10). Set for
- * a moment by theme.ts; reduced motion (tokens.css) stills it.
+ * The ladder moving, seen: the screen redraws. One phosphor line sweeps
+ * down the page, as a terminal repaints, and the new capitals are behind
+ * it. One overlay, so nothing blinks or resizes — the split-flap that was
+ * here flickered every capitalised element on and off, and read as a
+ * fault. Set for a moment by theme.ts; reduced motion (tokens.css) stills it.
  */
-@keyframes trace-flap {
-  0% {
-    opacity: 0.1;
+@keyframes trace-redraw {
+  from {
+    transform: translateY(0);
+    opacity: 0.9;
   }
-  20% {
-    opacity: 1;
-  }
-  35% {
-    opacity: 0.3;
-  }
-  55% {
-    opacity: 1;
-  }
-  70% {
-    opacity: 0.55;
-  }
-  100% {
-    opacity: 1;
+  to {
+    transform: translateY(100vh);
+    opacity: 0.2;
   }
 }
 
-[data-case-flap]
-  :is(
-    .trace-system-label,
-    .trace-caps-label,
-    .trace-tag,
-    .trace-control,
-    .trace-btn,
-    .trace-nav,
-    .trace-caps-heading,
-    .trace-title
-  ) {
-  animation: trace-flap 420ms steps(1, end);
+[data-redraw] .trace-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 55;
+  height: 2px;
+  background: var(--color-phosphor);
+  box-shadow: 0 0 14px 2px var(--color-phosphor);
+  pointer-events: none;
+  animation: trace-redraw 420ms linear forwards;
 }

@@ -26,6 +26,21 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.21.0",
+    date: "2026-10-02",
+    title: "Appearance, reworked",
+    notes: [
+      "Themes are a list, grouped Modern and Retro, beside one large preview that follows the pointer and the arrow keys. Choosing is a click; the one in use is ticked.",
+      "Each preview shows its own theme whole — its type, frame and capitals — not half of the one in use.",
+      "Under Adjust, the theme's own choice comes first and by name — Theme · geist — and is not offered twice.",
+      "With Fun mode on, the narrator has a line of its own for every theme.",
+    ],
+    screens: {
+      appearance: "The list and its preview; Adjust names the theme's own choices.",
+      "fun-narrator": "A line of its own for each theme, when one is chosen.",
+    },
+  },
+  {
     version: "0.20.1",
     date: "2026-10-02",
     title: "A specimen in the gallery",

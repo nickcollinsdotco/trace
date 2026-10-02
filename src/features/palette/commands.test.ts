@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { CHANGELOG } from "../../changelog";
 import type { AppearanceControl } from "../../design/appearance";
-import { buildCommands, hiddenReply, rankCommands, score } from "./commands";
+import { buildCommands, hiddenAction, hiddenReply, rankCommands, score } from "./commands";
 
 function commands(recording = false) {
   const appearance = {
@@ -82,6 +83,14 @@ describe("hidden commands", () => {
     const ids = commands()
       .list.map((c) => `${c.label} ${c.keywords ?? ""}`)
       .join(" ");
-    expect(ids).not.toMatch(/--why|--who|sudo/);
+    expect(ids).not.toMatch(/--why|--who|sudo|--changelog/);
+  });
+
+  it("print the latest changes for trace --changelog, and Enter opens the rest", () => {
+    const reply = hiddenReply("trace --changelog") ?? [];
+    expect(reply[0]).toBe(`${CHANGELOG[0]?.version} — ${CHANGELOG[0]?.title}`);
+    expect(reply.at(-1)).toBe("enter: the whole log");
+    expect(hiddenAction(" > trace  --changelog")).toBe("app:changelog");
+    expect(hiddenAction("trace --who")).toBeNull();
   });
 });

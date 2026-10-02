@@ -32,6 +32,7 @@ export function Shell({
   onNavigate,
   openNote = null,
   onOpenNote,
+  onWhatsNew,
   children,
 }: {
   /** The page to mark in the sidebar; null for a note, which is not a place. */
@@ -40,6 +41,8 @@ export function Shell({
   /** The note on screen, so news about it is not repeated as a toast. */
   openNote?: string | null;
   onOpenNote?: (path: string) => void;
+  /** Opens the changelog, offered in the status bar after an update. */
+  onWhatsNew?: () => void;
   children: ReactNode;
 }) {
   // Read once here and handed down, so the status bar and the toast cannot
@@ -170,6 +173,7 @@ export function Shell({
             jobs={jobs}
             onManageModels={() => onNavigate("models")}
             onOpenNote={onOpenNote}
+            onWhatsNew={onWhatsNew}
           />
         </div>
       </ConfirmProvider>

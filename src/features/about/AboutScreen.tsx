@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Page } from "../../components/ui/Page";
 import { Prompt, Section } from "../../components/ui/terminal";
 import { type AppInfo, type Folder, hasBackend, ipc } from "../../lib/ipc";
 import { Diagnostics } from "../diagnostics/Diagnostics";
+import { WhatsNew } from "./WhatsNew";
 
 const FOLDERS: Array<{ kind: Folder; label: string; note: string }> = [
   { kind: "notes", label: "Notes", note: "Your meetings, as Markdown" },
@@ -16,8 +17,18 @@ const FOLDERS: Array<{ kind: Folder; label: string; note: string }> = [
  * The folders are listed because TRACE's promise is that everything lives on
  * this machine — and the honest way to back that up is to show where.
  */
-export function AboutScreen() {
+export function AboutScreen({
+  focus,
+}: {
+  /** Opened to read this, from the status bar or the palette. */
+  focus?: "whats-new" | undefined;
+} = {}) {
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const whatsNew = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (focus === "whats-new") whatsNew.current?.scrollIntoView?.({ block: "start" });
+  }, [focus]);
   const [opened, setOpened] = useState<Partial<Record<Folder, string>>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +67,12 @@ export function AboutScreen() {
           to see what an update would bring without changing anything.
         </p>
       </Section>
+
+      {/* Second, after the version it describes: an update is the moment
+          someone comes here, and this is what they came for. */}
+      <div ref={whatsNew} className="scroll-mt-16">
+        <WhatsNew />
+      </div>
 
       <Section title="Folders">
         <div className="flex flex-col gap-2">

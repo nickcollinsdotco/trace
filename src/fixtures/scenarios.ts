@@ -59,6 +59,8 @@ export interface Scenario {
   miniDetails?: boolean;
   /** The mini window asking, once, whether to open by itself. */
   miniOffer?: boolean;
+  /** About opened at What's new, as the status bar's link opens it. */
+  aboutFocus?: "whats-new";
   /** The recording screen opened on its full-screen scope. */
   scopeView?: boolean;
   /** Fun mode on, and an easter egg already playing if one is named. */
@@ -995,6 +997,15 @@ export const SCENARIOS: Scenario[] = [
     group: "Pages",
     note: "Version, folders, and the diagnostics report with its recent events.",
     screen: "about",
+    state: POPULATED,
+  },
+  {
+    id: "about-whats-new",
+    name: "About, what's new",
+    group: "Pages",
+    note: "Opened from the status bar's \"updated · what's new\" after an update, or `trace --changelog` in Ctrl+K.",
+    screen: "about",
+    aboutFocus: "whats-new",
     state: POPULATED,
   },
   {

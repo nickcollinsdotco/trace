@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Popover, PopoverDivider, PopoverHeading, PopoverItem } from "../components/ui/Popover";
 import { Prompt } from "../components/ui/terminal";
+import { useUnseenVersion } from "../features/about/changesSeen";
 import { ActivityEntry } from "../features/activity/ActivityEntry";
 import { isRunning } from "../features/activity/jobs";
 import { Narrator } from "../features/fun/Narrator";
@@ -34,14 +35,18 @@ export function StatusBar({
   jobs,
   onManageModels,
   onOpenNote,
+  onWhatsNew,
 }: {
   /** Where the user is, for the narrator. */
   page?: Page | null;
   jobs: Job[];
   onManageModels: () => void;
   onOpenNote?: ((path: string) => void) | undefined;
+  /** After an update: where its changes are read. */
+  onWhatsNew?: (() => void) | undefined;
 }) {
   const [speech, setSpeech] = useState<SpeechModel[] | null>(null);
+  const updated = useUnseenVersion();
   const [info, setInfo] = useState<AppInfo | null>(null);
   const llm = useLlmStatus();
 
@@ -87,6 +92,17 @@ export function StatusBar({
       <Narrator page={page} busy={jobs.some(isRunning) || Boolean(speech && !active?.installed)} />
 
       <span className="ml-auto flex items-center gap-2 text-ink-faint">
+        {/* Beside the version it is about, until its changes have been seen
+            on About. Quiet: it is news, not a warning. */}
+        {updated && onWhatsNew && (
+          <button
+            type="button"
+            onClick={onWhatsNew}
+            className="rounded-xs px-1 text-phosphor trace-press hover:underline"
+          >
+            updated · what's new
+          </button>
+        )}
         {info?.devBuild && <span className="text-warn">dev</span>}
         {info && <span>v{info.version}</span>}
       </span>

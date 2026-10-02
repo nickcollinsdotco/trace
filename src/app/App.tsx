@@ -46,7 +46,7 @@ type Route =
   | { name: "models" }
   | { name: "appearance" }
   | { name: "settings" }
-  | { name: "about" };
+  | { name: "about"; focus?: "whats-new" };
 
 export function App() {
   const [route, setRoute] = useState<Route>({ name: "library" });
@@ -98,6 +98,7 @@ export function App() {
     recording: palette.recording,
     appearance,
     fun,
+    openChangelog: () => setRoute({ name: "about", focus: "whats-new" }),
   });
 
   return (
@@ -108,6 +109,7 @@ export function App() {
           onNavigate={navigate}
           openNote={route.name === "note" ? route.path : null}
           onOpenNote={(path) => setRoute({ name: "note", path })}
+          onWhatsNew={() => setRoute({ name: "about", focus: "whats-new" })}
         >
           {route.name === "library" && (
             <LibraryScreen
@@ -142,7 +144,7 @@ export function App() {
           {route.name === "models" && <ModelsScreen />}
           {route.name === "appearance" && <AppearanceScreen />}
           {route.name === "settings" && <SettingsScreen />}
-          {route.name === "about" && <AboutScreen />}
+          {route.name === "about" && <AboutScreen key={route.focus} focus={route.focus} />}
 
           {palette.open && (
             <Palette

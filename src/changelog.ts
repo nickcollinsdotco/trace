@@ -26,6 +26,23 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.18.0",
+    date: "2026-10-02",
+    title: "What's new, in the app",
+    notes: [
+      "About lists what each version changed, newest first.",
+      "After an update, the status bar says so — click it to read what changed.",
+      "Ctrl+K finds What's new, and knows trace --changelog.",
+      "With Fun mode on, the boot sequence owns up to the patch it applied.",
+      "In the gallery, New and Recent stay put and go quiet once read; N walks the changes, and Sweep runs a screen through every theme.",
+    ],
+    screens: {
+      "about-whats-new": "New: the changelog, as the terminal prints it.",
+      about: "What's new, under the version.",
+      "fun-boot": "After an update, a patch line before READY.",
+    },
+  },
+  {
     version: "0.17.2",
     date: "2026-10-02",
     title: "What's new, marked",
@@ -134,27 +151,46 @@ export const CHANGELOG: Change[] = [
 
 export type Freshness = "new" | "recent";
 
+export interface Fresh {
+  tier: Freshness;
+  version: string;
+  what: string;
+  /** Opened since it changed. The badge stays; it only goes quiet. */
+  read: boolean;
+}
+
 /**
  * Which scenarios to point at: those touched by the newest version that
- * touched any are new; by the one before it, recent. Anything already
- * looked at since it changed is neither — `seen` holds the version each id
- * was last opened at.
+ * touched any are new; by the one before it, recent. `seen` holds the
+ * version each id was last opened at, which makes a change read — the
+ * badge stays until a newer version takes its place, so the list still
+ * says what changed after it has all been looked at.
  */
 export function freshness(
   changelog: Change[],
   seen: Record<string, string> = {},
-): Map<string, { tier: Freshness; version: string; what: string }> {
+): Map<string, Fresh> {
   const withScreens = changelog.filter((c) => c.screens && Object.keys(c.screens).length > 0);
-  const out = new Map<string, { tier: Freshness; version: string; what: string }>();
+  const out = new Map<string, Fresh>();
   withScreens.slice(0, 2).forEach((change, i) => {
     for (const [id, what] of Object.entries(change.screens ?? {})) {
       if (out.has(id)) continue;
       const last = seen[id];
-      if (last && compareVersions(last, change.version) >= 0) continue;
-      out.set(id, { tier: i === 0 ? "new" : "recent", version: change.version, what });
+      const read = last !== undefined && compareVersions(last, change.version) >= 0;
+      out.set(id, { tier: i === 0 ? "new" : "recent", version: change.version, what, read });
     }
   });
   return out;
+}
+
+/**
+ * The entries newer than `since`. With nothing seen yet — a first launch,
+ * or the first build that kept count — only the newest: twenty versions of
+ * history are not news to someone meeting the app now.
+ */
+export function changesSince(changelog: Change[], since: string | null): Change[] {
+  if (!since) return changelog.slice(0, 1);
+  return changelog.filter((c) => compareVersions(c.version, since) > 0);
 }
 
 export function compareVersions(a: string, b: string): number {

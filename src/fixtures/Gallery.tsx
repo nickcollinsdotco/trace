@@ -44,6 +44,7 @@ import {
   CASES,
   FRAMES,
   isTheme,
+  isTypingTarget,
   MONO_NOTES,
   MONOS,
   THEME_FRAME,
@@ -213,21 +214,77 @@ export function Gallery() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // What changed lately, for someone back after an update: the badges in
-  // the list clear as each is opened; the line in the header does not, so
-  // it still says what to look for while looking.
+  // What changed lately, for someone back after an update. The badges stay
+  // until a newer version replaces them; opening a scenario only marks its
+  // change read, so the list still says what changed once it is all seen.
   const [seen, markSeen] = useSeen();
   const [onlyChanged, setOnlyChanged] = useState(false);
   const fresh = useMemo(() => freshness(CHANGELOG, seen), [seen]);
-  const changed = useMemo(() => freshness(CHANGELOG), []);
   const scenarioIdNow = scenario?.id;
   useEffect(() => {
-    if (scenarioIdNow) markSeen(scenarioIdNow);
+    if (scenarioIdNow) markSeen([scenarioIdNow]);
   }, [scenarioIdNow, markSeen]);
+  const changedIds = SCENARIOS.filter((s) => fresh.has(s.id)).map((s) => s.id);
+  const unread = changedIds.filter((id) => !fresh.get(id)?.read);
   const counts = { new: 0, recent: 0 };
   for (const f of fresh.values()) counts[f.tier] += 1;
 
-  const listed = onlyChanged ? SCENARIOS.filter((s) => changed.has(s.id)) : SCENARIOS;
+  // N and Shift+N walk the changes: the unread ones while any are left,
+  // then all of them, so the walk never runs dry.
+  const walk = useRef({ changedIds, unread, current: scenarioIdNow });
+  walk.current = { changedIds, unread, current: scenarioIdNow };
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key.toLowerCase() !== "n" || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (isTypingTarget(e.target)) return;
+      const { changedIds: all, unread: left, current } = walk.current;
+      const pool = left.length > 0 ? left : all;
+      if (pool.length === 0) return;
+      e.preventDefault();
+      const order = SCENARIOS.map((s) => s.id);
+      const here = order.indexOf(current ?? "");
+      const step = e.shiftKey ? -1 : 1;
+      for (let i = 1; i <= order.length; i++) {
+        const id = order[(here + step * i + order.length * 2) % order.length];
+        if (id && pool.includes(id)) {
+          setScenarioId(id);
+          return;
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Every theme in turn, on the screen being looked at: what a change that
+  // reaches every theme needs, without pressing ten keys ten times.
+  const [sweep, setSweep] = useState<{ from: Theme; at: number } | null>(null);
+  useEffect(() => {
+    if (!sweep) return;
+    const id = window.setTimeout(() => {
+      const next = sweep.at + 1;
+      if (next >= THEMES.length) {
+        setLook((a) => withTheme(a, sweep.from));
+        setSweep(null);
+      } else {
+        setLook((a) => withTheme(a, THEMES[next] ?? sweep.from));
+        setSweep({ ...sweep, at: next });
+      }
+    }, SWEEP_MS);
+    return () => window.clearTimeout(id);
+  }, [sweep]);
+  const startSweep = () => {
+    if (sweep) {
+      setSweep(null);
+      return;
+    }
+    const first = THEMES[0];
+    if (!first) return;
+    setSweep({ from: theme, at: 0 });
+    setLook((a) => withTheme(a, first));
+  };
+
+  const listed = onlyChanged ? SCENARIOS.filter((s) => fresh.has(s.id)) : SCENARIOS;
   const groups = [...new Set(listed.map((s) => s.group))];
   const px = WIDTHS.find((w) => w.id === width)?.px ?? 0;
 
@@ -254,11 +311,26 @@ export function Gallery() {
             Only what changed lately
           </label>
           {counts.new + counts.recent > 0 && (
-            <p className="mt-1 pl-5 font-mono text-[10px] text-white/35">
-              {counts.new > 0 && <span className="text-emerald-300/90">{counts.new} new</span>}
-              {counts.new > 0 && counts.recent > 0 && " · "}
-              {counts.recent > 0 && `${counts.recent} recent`} to look at
+            <p className="mt-1 flex flex-wrap items-baseline gap-x-2 pl-5 font-mono text-[10px] text-white/35">
+              <span>
+                {counts.new > 0 && <span className="text-emerald-300/90">{counts.new} new</span>}
+                {counts.new > 0 && counts.recent > 0 && " · "}
+                {counts.recent > 0 && `${counts.recent} recent`}
+                {unread.length > 0 ? ` · ${unread.length} unread` : " · all read"}
+              </span>
+              {unread.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => markSeen(changedIds)}
+                  className="text-white/45 underline-offset-2 hover:text-white/80 hover:underline"
+                >
+                  mark all read
+                </button>
+              )}
             </p>
+          )}
+          {changedIds.length > 0 && (
+            <p className="mt-1 pl-5 text-[10px] text-white/25">N and Shift+N walk the changes.</p>
           )}
         </div>
 
@@ -276,7 +348,7 @@ export function Gallery() {
                     key={s.id}
                     type="button"
                     onClick={() => setScenarioId(s.id)}
-                    title={f ? `${f.version}: ${f.what}` : undefined}
+                    title={f ? `${f.version}${f.read ? "" : " (unread)"}: ${f.what}` : undefined}
                     className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] transition-colors ${
                       s.id === scenario?.id
                         ? "bg-white/10 text-white"
@@ -289,7 +361,7 @@ export function Gallery() {
                     {/* Hidden from the accessible name, which tests and
                         screen readers find the scenario by; the title says
                         what changed. */}
-                    {f && <FreshBadge tier={f.tier} />}
+                    {f && <FreshBadge tier={f.tier} read={f.read} />}
                   </button>
                 );
               })}
@@ -311,6 +383,18 @@ export function Gallery() {
               value={theme}
               onChange={(v) => appearance.setTheme(v as Theme)}
             />
+            <button
+              type="button"
+              onClick={startSweep}
+              title="Every theme in turn on this screen, then back to where it started"
+              className={`rounded border px-2 py-1 font-mono text-[11px] transition-colors ${
+                sweep
+                  ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300"
+                  : "border-white/10 text-white/50 hover:text-white/85"
+              }`}
+            >
+              {sweep ? `sweeping ${sweep.at + 1}/${THEMES.length} · stop` : "sweep ▸"}
+            </button>
             {/* Presets only: the per-effect sliders are on the Appearance
                 page, which the gallery renders as the Appearance scenario. */}
             <Switcher
@@ -391,9 +475,9 @@ export function Gallery() {
             {scenario && (
               <p className="ml-auto max-w-md text-right text-[11px] leading-snug text-white/40">
                 {scenario.note}
-                {changed.get(scenario.id) && (
+                {fresh.get(scenario.id) && (
                   <span className="mt-0.5 block text-emerald-300/80">
-                    Changed in {changed.get(scenario.id)?.version}: {changed.get(scenario.id)?.what}
+                    Changed in {fresh.get(scenario.id)?.version}: {fresh.get(scenario.id)?.what}
                   </span>
                 )}
               </p>
@@ -476,6 +560,8 @@ function Preview({ scenario }: { scenario: Scenario }) {
         // itself that the real app would hold back.
         openNote={scenario.screen === "note" ? (scenario.notePath ?? null) : null}
         onOpenNote={noop}
+        // So the status bar's "updated · what's new" can be seen here too.
+        onWhatsNew={noop}
       >
         {scenario.screen === "library" && (
           <LibraryScreen
@@ -491,7 +577,7 @@ function Preview({ scenario }: { scenario: Scenario }) {
         {scenario.screen === "models" && <ModelsScreen />}
         {scenario.screen === "appearance" && <AppearanceScreen />}
         {scenario.screen === "settings" && <SettingsScreen />}
-        {scenario.screen === "about" && <AboutScreen />}
+        {scenario.screen === "about" && <AboutScreen focus={scenario.aboutFocus} />}
         {scenario.dialog && <AskOnMount options={scenario.dialog} />}
         {scenario.palette !== undefined && <PalettePreview query={scenario.palette} />}
         {scenario.fun?.egg === "boot" && <Boot onDone={noop} />}
@@ -543,7 +629,7 @@ const SEEN_KEY = "trace.gallery.seen";
  * The version each scenario was last opened at, so a badge clears once its
  * change has been looked at and comes back only when it changes again.
  */
-function useSeen(): [Record<string, string>, (id: string) => void] {
+function useSeen(): [Record<string, string>, (ids: string[]) => void] {
   const [seen, setSeen] = useState<Record<string, string>>(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(SEEN_KEY) ?? "{}");
@@ -552,12 +638,12 @@ function useSeen(): [Record<string, string>, (id: string) => void] {
       return {};
     }
   });
-  const mark = useCallback((id: string) => {
+  const mark = useCallback((ids: string[]) => {
     const now = CHANGELOG[0]?.version;
     if (!now) return;
     setSeen((prev) => {
-      if (prev[id] === now) return prev;
-      const next = { ...prev, [id]: now };
+      if (ids.every((id) => prev[id] === now)) return prev;
+      const next = { ...prev, ...Object.fromEntries(ids.map((id) => [id, now])) };
       try {
         localStorage.setItem(SEEN_KEY, JSON.stringify(next));
       } catch {
@@ -569,21 +655,30 @@ function useSeen(): [Record<string, string>, (id: string) => void] {
   return [seen, mark];
 }
 
-/** New: the latest update changed it. Recent: the one before. */
-function FreshBadge({ tier }: { tier: Freshness }) {
+/**
+ * New: the latest update changed it. Recent: the one before. Unread, it is
+ * lit, with a dot, and flickers on like a tube warming the first time it is
+ * drawn; read, the same word, quiet.
+ */
+function FreshBadge({ tier, read }: { tier: Freshness; read: boolean }) {
+  const look = read
+    ? "border border-white/10 text-white/30"
+    : tier === "new"
+      ? "trace-badge-on bg-emerald-400/15 text-emerald-300"
+      : "trace-badge-on border border-white/25 text-white/60";
   return (
     <span
       aria-hidden
-      className={`shrink-0 rounded-sm px-1 font-mono text-[9px] uppercase tracking-[0.08em] ${
-        tier === "new"
-          ? "bg-emerald-400/15 text-emerald-300"
-          : "border border-white/15 text-white/40"
-      }`}
+      className={`flex shrink-0 items-center gap-1 rounded-sm px-1 font-mono text-[9px] uppercase tracking-[0.08em] ${look}`}
     >
+      {!read && <span className="size-1 rounded-full bg-current" />}
       {tier}
     </span>
   );
 }
+
+/** How long each theme holds in a sweep: long enough to take in a screen. */
+const SWEEP_MS = 1_200;
 
 function Switcher({
   label,

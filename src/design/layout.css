@@ -212,30 +212,3 @@ html[data-input="pointer"] .trace-mini :focus-visible {
 .trace-badge-on {
   animation: trace-badge-on 700ms steps(1, end) 1;
 }
-
-/* Static between pictures on the Appearance preview: the channel changing.
- * Grey noise from an inline SVG filter, flashed and gone in four steps. */
-@keyframes trace-tune {
-  0% {
-    opacity: 0.85;
-    background-position: 0 0;
-  }
-  33% {
-    opacity: 0.6;
-    background-position: 37px 11px;
-  }
-  66% {
-    opacity: 0.3;
-    background-position: 13px 29px;
-  }
-  100% {
-    opacity: 0;
-    background-position: 51px 5px;
-  }
-}
-
-.trace-tune {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: 0;
-  animation: trace-tune 180ms steps(4, end) 1;
-}

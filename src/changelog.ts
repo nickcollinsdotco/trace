@@ -26,6 +26,19 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.22.2",
+    date: "2026-10-03",
+    title: "Fewer, better delights",
+    notes: [
+      "Shift to compare opens the two themes side by side over the page, each at full width.",
+      "The static between Appearance previews is gone, and so is the contact sheet's print button.",
+    ],
+    screens: {
+      appearance: "Shift opens the comparison over the page; no static between previews.",
+      "contact-sheet": "No print button.",
+    },
+  },
+  {
     version: "0.22.1",
     date: "2026-10-03",
     title: "A redraw instead of the flap",

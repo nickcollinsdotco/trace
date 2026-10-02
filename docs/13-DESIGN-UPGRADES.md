@@ -727,12 +727,14 @@ own, so any that do not earn their place come out cleanly:
 - **The narrator on capitals:** "inside voices." to "shouting enabled."
 - **Seated press:** a retro `.trace-btn` drops a pixel with a top shadow
   while pressed (family.css).
-- **Channel static** on the Appearance preview between pictures — grey SVG
-  noise, 180ms, never on the first picture.
-- **Shift to compare:** the theme in use beside the one pointed at.
-- **Contact sheet:** every theme's sample side by side in the gallery,
-  each in its own scope, with a print button; the gallery's controls drop
-  out of the printed page.
+- **Channel static — removed (v0.22.2)**, on the user's call.
+- **Shift to compare:** the theme in use beside the one pointed at — first
+  as two half-width previews in the column, too narrow to compare; now
+  (v0.22.2) a panel over the page while Shift is held, each at the
+  preview's full width.
+- **Contact sheet:** every theme's sample side by side in the gallery, each
+  in its own scope. Its print button went in v0.22.2: what it printed was
+  not worth having.
 
 ## Press effects
 

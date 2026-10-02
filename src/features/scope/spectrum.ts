@@ -7,14 +7,14 @@
 
 export const SAMPLE_RATE = 12_000;
 
-export const SCOPE_MODES = ["wave", "spectrum", "xy"] as const;
+export const SCOPE_MODES = ["wave", "spectrum", "spectrograph"] as const;
 
 export type ScopeMode = (typeof SCOPE_MODES)[number];
 
 export const SCOPE_MODE_NOTES: Record<ScopeMode, string> = {
-  wave: "Both voices as waveforms: you above, them below.",
+  wave: "How loud each voice is, rolling past: you above, them below.",
   spectrum: "Where each voice's energy sits, low to high: you up, them down.",
-  xy: "You against them, plotted as one figure. Talking over each other draws a shape.",
+  spectrograph: "Each voice's pitch over time, rolling past: you above, them below.",
 };
 
 export function isScopeMode(value: unknown): value is ScopeMode {
@@ -88,13 +88,26 @@ export function bands(samples: number[], count: number): number[] {
 }
 
 /**
- * A gain that follows the signal: up quickly for a loud voice, down slowly
- * after it, so a quiet speaker still fills the screen and a sudden laugh
- * does not leave the trace tiny for a second afterwards. Never below a floor,
- * or silence would be amplified into a field of hiss.
+ * How loud a stretch of samples is, 0–1, on a 54dB scale from −60dB.
+ *
+ * Decibels rather than a gain that follows the signal: a following gain
+ * blows room noise up to full height in a pause and shrinks everything
+ * after a laugh, which is the jitter the raw waveform had. On this scale
+ * silence is flat, conversation sits around half, a shout near the top —
+ * headroom, so loud speech still has a shape — and nothing pumps.
  */
-export function followGain(previous: number, samples: number[]): number {
-  const peak = samples.reduce((m, s) => Math.max(m, Math.abs(s)), 0);
-  const target = Math.max(peak, 0.04);
-  return target > previous ? target : previous * 0.94 + target * 0.06;
+export function loudness(samples: number[]): number {
+  if (samples.length === 0) return 0;
+  const rms = Math.sqrt(samples.reduce((sum, s) => sum + s * s, 0) / samples.length);
+  const db = 20 * Math.log10(rms + 1e-9);
+  return Math.max(0, Math.min(1, (db + 60) / 54));
+}
+
+/**
+ * One step towards `target`: quickly up, slowly down, as a VU meter's
+ * needle moves — so a syllable registers at once and then settles rather
+ * than flickering with every 50ms window.
+ */
+export function ease(previous: number, target: number, up = 0.55, down = 0.14): number {
+  return previous + (target - previous) * (target > previous ? up : down);
 }

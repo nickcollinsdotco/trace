@@ -779,6 +779,33 @@ own, so any that do not earn their place come out cleanly:
   transparent window stays hidden from screen shares. Both need the real
   window; the gallery shows the layout.
 
+**Phase 7, built (v0.25.0):**
+
+- **Why it was jittery.** Each frame was a fresh 43ms of signal with no
+  relation to the last, at 30 frames a second, scaled by a gain that chased
+  it: in a pause the gain rose until room noise filled the screen; after a
+  laugh everything shrank. Dimming hid none of that.
+- **Wave rolls.** Each voice's loudness, in decibels on a fixed scale (−60
+  to −6dB, `loudness`), eased quickly up and slowly down (`ease`), drawn a
+  column at a time at 20 frames a second and rolled left at 60px a second.
+  No gain, so nothing pumps; a pause is flat, a sentence a ridge.
+- **Spectrum settles.** Same bands; each eases up and down like a needle,
+  so it no longer strobes.
+- **Spectrograph replaces XY.** The figure never stopped being a scribble:
+  two unrelated signals plotted against each other have no shape to find.
+  The spectrograph is what it reached for — pitch and rhythm, both voices,
+  over time. A saved `xy` reads as the default.
+- **The strip in the column.** The recording screen's scope, notes and
+  transcript sit in the page column like every other page; the strip is a
+  panel of its own. The header and the stop bar keep the full width.
+- **The fixture talks like a meeting:** turns, pauses, intonation, at a
+  conversation's level. Constant full-scale tones had made every mode look
+  like a solid block.
+- **One models chip, the narrator in the middle.** "Parakeet v3 · qwen3:14b"
+  with one picker holding both lists; the dot is green only when both
+  work, and a model that cannot is named in the warning colour. The bar is
+  three columns, so the narrator is centred and capped at 48ch.
+
 ## Press effects
 
 The current press is `scale(0.97)` on `.trace-press`. The replacement varies

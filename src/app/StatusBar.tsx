@@ -16,19 +16,22 @@ import {
   type SpeechModel,
   type SummaryModels,
 } from "../lib/ipc";
+import { shortModel } from "../lib/names";
 import type { Page } from "./Sidebar";
 
 /**
  * The bottom bar: which models are in play, what they are doing, and which
  * build this is.
  *
- * Both models are shown because they fail independently — transcription can
+ * Both models are named because they fail independently — transcription can
  * be perfect while summaries are offline, and a note is not where anyone
- * should first learn that. Each opens a picker, so switching is one click
- * from anywhere, and "Manage models" leads to the page that downloads them.
+ * should first learn that. They share one chip, by short name, and one
+ * picker: two chips took the room the narrator needed, and one switch for
+ * "the models" is what people reach for. "Manage models" leads to the page
+ * that downloads them.
  *
- * Background work sits beside them while it runs, for the same reason: it is
- * the one place on every screen.
+ * Three parts: the models and background work on the left, the narrator in
+ * the middle where it is seen, the build on the right.
  */
 export function StatusBar({
   page = null,
@@ -71,27 +74,34 @@ export function StatusBar({
   const active = speech?.find((m) => m.active);
 
   return (
-    <footer className="trace-statusbar flex shrink-0 items-center gap-5 border-t border-line px-4 py-1.5 font-mono text-2xs text-ink-muted">
-      {speech && (
-        <SpeechPicker
-          models={speech}
-          label={active?.installed ? active.name : "No speech model"}
-          ok={Boolean(active?.installed)}
-          onOpen={loadSpeech}
-          onChanged={loadSpeech}
-          onManage={onManageModels}
-        />
-      )}
-      {llm.status && (
-        <SummaryPicker status={llm.status} onChanged={llm.recheck} onManage={onManageModels} />
-      )}
-      <ActivityEntry jobs={jobs} onOpenNote={onOpenNote} />
-      {/* Fun mode's commentary, in the room the bar has spare. Anything the
-          bar genuinely needs to say — a job running, no speech model —
-          comes first, and the narrator steps aside for it. */}
-      <Narrator page={page} busy={jobs.some(isRunning) || Boolean(speech && !active?.installed)} />
+    <footer className="trace-statusbar grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)] items-center gap-5 border-t border-line px-4 py-1.5 font-mono text-2xs text-ink-muted">
+      <span className="flex min-w-0 items-center gap-5">
+        {speech && (
+          <ModelsPicker
+            speech={speech}
+            status={llm.status}
+            onOpen={loadSpeech}
+            onSpeechChanged={loadSpeech}
+            onSummaryChanged={llm.recheck}
+            onManage={onManageModels}
+          />
+        )}
+        <ActivityEntry jobs={jobs} onOpenNote={onOpenNote} />
+      </span>
 
-      <span className="ml-auto flex items-center gap-2 text-ink-faint">
+      {/* Fun mode's commentary, centred, where it is seen rather than tucked
+          against the models. Anything the bar genuinely needs to say — a job
+          running, no speech model — comes first, and the narrator steps
+          aside for it. */}
+      {/* Capped, or a long line would take the room the models need. */}
+      <span className="flex max-w-[48ch] min-w-0 justify-center">
+        <Narrator
+          page={page}
+          busy={jobs.some(isRunning) || Boolean(speech && !active?.installed)}
+        />
+      </span>
+
+      <span className="flex items-center justify-end gap-2 text-ink-faint">
         {/* Beside the version it is about, until its changes have been seen
             on About. Quiet: it is news, not a warning. */}
         {updated && onWhatsNew && (
@@ -110,34 +120,90 @@ export function StatusBar({
   );
 }
 
-function SpeechPicker({
-  models,
-  label,
-  ok,
+/**
+ * Both models on one chip — "Parakeet v3 · qwen3:14b" — and both pickers in
+ * its panel. The dot is green only when both can work; a model that cannot
+ * is named in the warning colour, so which one is plain at a glance.
+ */
+function ModelsPicker({
+  speech,
+  status,
   onOpen,
-  onChanged,
+  onSpeechChanged,
+  onSummaryChanged,
   onManage,
 }: {
-  models: SpeechModel[];
-  label: string;
-  ok: boolean;
+  speech: SpeechModel[];
+  status: ReturnType<typeof useLlmStatus>["status"];
   onOpen: () => void;
-  onChanged: () => void;
+  onSpeechChanged: () => void;
+  onSummaryChanged: () => void;
   onManage: () => void;
 }) {
+  const [summary, setSummary] = useState<SummaryModels | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const installed = models.filter((m) => m.installed);
+  const active = speech.find((m) => m.active);
+  const speechOk = Boolean(active?.installed);
+  const speechLabel = active?.installed ? shortModel(active.name) : "No speech model";
+  const summaryOk = status?.state === "ready";
+  const summaryLabel = !status
+    ? null
+    : status.state === "ready"
+      ? status.model
+      : status.state === "no_model"
+        ? "No summary model"
+        : "Ollama closed";
+  const installed = speech.filter((m) => m.installed);
+
+  const choose = (change: Promise<unknown>, after: () => void, close: () => void) => {
+    void change
+      .then(() => {
+        after();
+        close();
+      })
+      .catch((e) => setError(String(e)));
+  };
 
   return (
     <Popover
-      label="Transcription model"
-      title="Transcribes the meeting on this machine"
+      label="Models"
+      title={[
+        `Transcribes: ${active?.installed ? active.name : "nothing"}`,
+        summaryLabel && `Summarises: ${summaryLabel}`,
+      ]
+        .filter(Boolean)
+        .join("\n")}
       placement="above"
       onOpen={() => {
         setError(null);
         onOpen();
+        void ipc
+          .summaryModels()
+          .then(setSummary)
+          .catch(() => {});
       }}
-      trigger={<Entry ok={ok}>{label}</Entry>}
+      trigger={
+        <>
+          <span
+            aria-hidden
+            className={`size-1.5 shrink-0 rounded-full ${
+              speechOk && (summaryOk || !status) ? "bg-phosphor" : "bg-warn"
+            }`}
+          />
+          <Part ok={speechOk}>{speechLabel}</Part>
+          {summaryLabel && (
+            <>
+              <span aria-hidden className="text-ink-faint">
+                ·
+              </span>
+              <Part ok={summaryOk}>{summaryLabel}</Part>
+            </>
+          )}
+          <span aria-hidden className="text-ink-faint">
+            ▴
+          </span>
+        </>
+      }
     >
       {(close) => (
         <>
@@ -153,142 +219,81 @@ function SpeechPicker({
               key={m.id}
               current={m.active}
               detail={m.languages}
-              onSelect={() => {
-                if (m.active) return close();
-                void ipc
-                  .setSpeechModel(m.id)
-                  .then(() => {
-                    onChanged();
-                    close();
-                  })
-                  .catch((e) => setError(String(e)));
-              }}
+              onSelect={() =>
+                m.active ? close() : choose(ipc.setSpeechModel(m.id), onSpeechChanged, close)
+              }
             >
               {m.name}
             </PopoverItem>
           ))}
-          {error && (
-            <p className="px-3 py-2 font-mono text-2xs text-error">
-              <Prompt />
-              {error}
-            </p>
-          )}
           <p className="px-3 py-1 text-2xs text-ink-faint">
             A meeting already recording keeps the model it started with.
           </p>
-          <PopoverDivider />
-          <PopoverItem
-            onSelect={() => {
-              close();
-              onManage();
-            }}
-          >
-            Manage models…
-          </PopoverItem>
-        </>
-      )}
-    </Popover>
-  );
-}
 
-function SummaryPicker({
-  status,
-  onChanged,
-  onManage,
-}: {
-  status: NonNullable<ReturnType<typeof useLlmStatus>["status"]>;
-  onChanged: () => void;
-  onManage: () => void;
-}) {
-  const [models, setModels] = useState<SummaryModels | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const label =
-    status.state === "ready"
-      ? status.model
-      : status.state === "no_model"
-        ? "No summary model"
-        : "Ollama closed";
-
-  return (
-    <Popover
-      label="Summary model"
-      title="Writes the summary and action items"
-      placement="above"
-      onOpen={() => {
-        setError(null);
-        void ipc
-          .summaryModels()
-          .then(setModels)
-          .catch(() => {});
-      }}
-      trigger={<Entry ok={status.state === "ready"}>{label}</Entry>}
-    >
-      {(close) => (
-        <>
-          <PopoverHeading>Summaries</PopoverHeading>
-          {status.state === "not_running" ? (
-            <div className="flex flex-col items-start gap-2 px-3 py-2">
-              <p className="text-2xs text-ink-muted">
-                Ollama isn’t running, so no summary can be written.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  void ipc
-                    .startOllama()
-                    .then(() => window.setTimeout(onChanged, 4_000))
-                    .catch((e) => setError(String(e)));
-                }}
-                className="trace-btn trace-btn-primary trace-press"
-              >
-                Open Ollama
-              </button>
-            </div>
-          ) : models === null ? (
-            <p className="px-3 py-2 font-mono text-2xs text-ink-faint">
-              <Prompt />
-              asking Ollama…
-            </p>
-          ) : models.installed.length === 0 ? (
-            <p className="px-3 py-2 font-mono text-2xs text-ink-faint">
-              <Prompt />
-              none installed.
-            </p>
-          ) : (
-            models.installed.map((m) => (
-              <PopoverItem
-                key={m.name}
-                current={m.active}
-                detail={m.parameters ?? undefined}
-                onSelect={() => {
-                  if (m.active) return close();
-                  void ipc
-                    .setSummaryModel(m.name)
-                    .then(() => {
-                      onChanged();
-                      close();
-                    })
-                    .catch((e) => setError(String(e)));
-                }}
-              >
-                {m.name}
-              </PopoverItem>
-            ))
+          {status && (
+            <>
+              <PopoverDivider />
+              <PopoverHeading>Summaries</PopoverHeading>
+              {status.state === "not_running" ? (
+                <div className="flex flex-col items-start gap-2 px-3 py-2">
+                  <p className="text-2xs text-ink-muted">
+                    Ollama isn’t running, so no summary can be written.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void ipc
+                        .startOllama()
+                        .then(() => window.setTimeout(onSummaryChanged, 4_000))
+                        .catch((e) => setError(String(e)));
+                    }}
+                    className="trace-btn trace-btn-primary trace-press"
+                  >
+                    Open Ollama
+                  </button>
+                </div>
+              ) : summary === null ? (
+                <p className="px-3 py-2 font-mono text-2xs text-ink-faint">
+                  <Prompt />
+                  asking Ollama…
+                </p>
+              ) : summary.installed.length === 0 ? (
+                <p className="px-3 py-2 font-mono text-2xs text-ink-faint">
+                  <Prompt />
+                  none installed.
+                </p>
+              ) : (
+                summary.installed.map((m) => (
+                  <PopoverItem
+                    key={m.name}
+                    current={m.active}
+                    detail={m.parameters ?? undefined}
+                    onSelect={() =>
+                      m.active
+                        ? close()
+                        : choose(ipc.setSummaryModel(m.name), onSummaryChanged, close)
+                    }
+                  >
+                    {m.name}
+                  </PopoverItem>
+                ))
+              )}
+              {summary && summary.loaded.length > 0 && (
+                <>
+                  <PopoverDivider />
+                  {summary.loaded.map((m) => (
+                    <InMemory key={m.name} model={m} />
+                  ))}
+                </>
+              )}
+            </>
           )}
+
           {error && (
             <p className="px-3 py-2 font-mono text-2xs text-error">
               <Prompt />
               {error}
             </p>
-          )}
-          {models && models.loaded.length > 0 && (
-            <>
-              <PopoverDivider />
-              {models.loaded.map((m) => (
-                <InMemory key={m.name} model={m} />
-              ))}
-            </>
           )}
           <PopoverDivider />
           <PopoverItem
@@ -329,17 +334,7 @@ function InMemory({ model }: { model: LoadedModel }) {
   );
 }
 
-function Entry({ ok, children }: { ok: boolean; children: React.ReactNode }) {
-  return (
-    <>
-      <span
-        aria-hidden
-        className={`size-1.5 shrink-0 rounded-full ${ok ? "bg-phosphor" : "bg-warn"}`}
-      />
-      <span className={`truncate ${ok ? "" : "text-warn"}`}>{children}</span>
-      <span aria-hidden className="text-ink-faint">
-        ▴
-      </span>
-    </>
-  );
+/** One model's name on the chip, in the warning colour when it cannot work. */
+function Part({ ok, children }: { ok: boolean; children: React.ReactNode }) {
+  return <span className={`truncate ${ok ? "" : "text-warn"}`}>{children}</span>;
 }

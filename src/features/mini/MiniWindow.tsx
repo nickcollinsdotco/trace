@@ -10,8 +10,8 @@ import {
 import { SwitchLook } from "../../components/ui/Switch";
 import { formatElapsed, Prompt } from "../../components/ui/terminal";
 import { type CaptureStatus, hasBackend, ipc, onCaptureChanged } from "../../lib/ipc";
+import { shortMic, shortModel } from "../../lib/names";
 import { Scope } from "../scope/Scope";
-import { shortMic, shortModel } from "./names";
 import { shortcutLabel, useMiniShortcut } from "./shortcut";
 
 /** How long Stop must be held (docs/13 Q26). Long enough to be deliberate. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bands, followGain, magnitudes, SAMPLE_RATE } from "./spectrum";
+import { bands, ease, isScopeMode, loudness, magnitudes, SAMPLE_RATE } from "./spectrum";
 
 const tone = (hz: number, n = 512, amplitude = 0.5) =>
   Array.from({ length: n }, (_, i) => amplitude * Math.sin((2 * Math.PI * hz * i) / SAMPLE_RATE));
@@ -29,16 +29,32 @@ describe("the spectrum", () => {
   });
 });
 
-describe("the gain", () => {
-  it("rises at once for a loud voice and falls slowly after", () => {
-    const loud = followGain(0.04, tone(200, 512, 0.8));
-    expect(loud).toBeCloseTo(0.8, 1);
-    const after = followGain(loud, tone(200, 512, 0.05));
-    expect(after).toBeLessThan(loud);
-    expect(after).toBeGreaterThan(0.5);
+describe("loudness", () => {
+  it("is nothing for silence and most of the scale for speech", () => {
+    expect(loudness(new Array(512).fill(0))).toBe(0);
+    expect(loudness(tone(200, 512, 0.001))).toBe(0);
+    const speech = loudness(tone(200, 512, 0.15));
+    expect(speech).toBeGreaterThan(0.6);
+    expect(speech).toBeLessThan(1);
   });
 
-  it("never amplifies silence past its floor", () => {
-    expect(followGain(0.04, new Array(512).fill(0))).toBeCloseTo(0.04);
+  it("does not shrink a quiet voice after a loud one", () => {
+    // No memory: the same samples are the same height whatever came before.
+    const quiet = tone(200, 512, 0.03);
+    loudness(tone(200, 512, 0.9));
+    expect(loudness(quiet)).toBe(loudness(tone(200, 512, 0.03)));
+  });
+});
+
+describe("ease", () => {
+  it("rises faster than it falls", () => {
+    expect(ease(0, 1)).toBeGreaterThan(1 - ease(1, 0));
+  });
+});
+
+describe("modes", () => {
+  it("no longer knows xy, so a saved one falls back to the default", () => {
+    expect(isScopeMode("xy")).toBe(false);
+    expect(isScopeMode("spectrograph")).toBe(true);
   });
 });

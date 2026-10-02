@@ -736,6 +736,25 @@ own, so any that do not earn their place come out cleanly:
   in its own scope. Its print button went in v0.22.2: what it printed was
   not worth having.
 
+**Phase 5, built (v0.23.0):**
+
+- **One bar.** Tags on the left; sort, Filters and the view switch on the
+  right, all 32px; the count is a quiet line beneath, without "list view",
+  which the switch already says.
+- **Sort is a key and a direction.** The face reverses (newest ↔ oldest,
+  longest ↔ shortest); the arrow picks date or length and keeps the
+  direction, so biggest-first stays biggest-first. Still one word in the
+  search line.
+- **Tags are measured, not counted.** A fixed five overflowed a narrow
+  column and wasted a wide one. Every pill is laid out off-screen and as
+  many as fit are shown, with room kept for "+N more" (`fit.ts`); it opens
+  Filters, which now lists every tag. The tag asked for is always shown,
+  so one picked from the overflow does not vanish into it. Measured again
+  on a resize, a font change or a capitals step.
+- **Found on the way:** browsers set a button's `text-transform` to none,
+  so a capitals class on a wrapper never reaches a button's label — the
+  sort's face read "Newest" beside "FILTERS" in Teletext.
+
 ## Press effects
 
 The current press is `scale(0.97)` on `.trace-press`. The replacement varies

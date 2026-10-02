@@ -193,6 +193,17 @@ const TAGS: Record<string, string[]> = {
 
 const POPULATED: Partial<BackendState> = { notes: NOTES, bodies: BODIES, tags: TAGS };
 
+/** A library tagged the way a year of use tags it: more than one bar holds. */
+const MANY_TAGS: Partial<BackendState> = {
+  ...POPULATED,
+  tags: {
+    ...TAGS,
+    [PATHS.pricing]: ["client", "pricing", "acme", "q4-roadmap", "follow-up"],
+    [PATHS.planning]: ["planning", "q4-roadmap", "hiring", "design-review"],
+    [PATHS.standup]: ["internal", "follow-up", "infrastructure", "weekly"],
+  },
+};
+
 /** A step, with when it started and finished on the scenario's own clock. */
 interface StepAt {
   step: StepKind;
@@ -385,6 +396,14 @@ export const SCENARIOS: Scenario[] = [
     note: "Several meetings across every date group.",
     screen: "library",
     state: POPULATED,
+  },
+  {
+    id: "library-many-tags",
+    name: "Many tags",
+    group: "Library",
+    note: "More tags than the bar holds: the rest fold into +N more, which opens Filters. Narrow the width to watch it fold.",
+    screen: "library",
+    state: MANY_TAGS,
   },
   {
     id: "library-confirm-delete",

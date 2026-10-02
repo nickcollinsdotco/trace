@@ -135,7 +135,7 @@ export function PopoverItem({
 /** A small uppercase heading inside a popover. */
 export function PopoverHeading({ children }: { children: ReactNode }) {
   return (
-    <p className="px-3 pt-2 pb-1 font-mono text-2xs uppercase tracking-system text-ink-faint">
+    <p className="px-3 pt-2 pb-1 font-mono text-2xs trace-caps-label tracking-system text-ink-faint">
       {children}
     </p>
   );

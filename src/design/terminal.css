@@ -174,8 +174,70 @@
 .trace-system-label {
   font-family: var(--label-font, var(--font-mono));
   font-size: var(--label-size, var(--text-2xs));
-  text-transform: var(--label-transform, uppercase);
   letter-spacing: var(--label-tracking, var(--tracking-system));
+}
+
+/* ---------------------------------------------------------------------
+ * Buttons — one set of classes, so their size is one decision.
+ *
+ *   .trace-btn            the shape: a control's height, mono, tracked
+ *   .trace-btn-primary    the accent outline that fills on hover
+ *   .trace-btn-secondary  a quieter outline
+ *   .trace-btn-quiet      text alone, for the action beside a primary
+ *
+ * At least 32px tall, 36px in the modern family (--control-h): they were
+ * 24–28px, the WCAG minimum, and felt it. In the components layer, so a
+ * utility on the button — a pill radius, another colour — still wins.
+ * ------------------------------------------------------------------ */
+@layer components {
+  .trace-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: var(--control-h, 2rem);
+    padding-inline: 0.875rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    letter-spacing: var(--tracking-system);
+    white-space: nowrap;
+  }
+
+  .trace-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .trace-btn-primary {
+    border-color: var(--color-phosphor);
+    color: var(--color-phosphor);
+  }
+
+  .trace-btn-primary:hover:not(:disabled) {
+    background-color: var(--color-phosphor);
+    color: var(--color-surface-0);
+  }
+
+  .trace-btn-secondary {
+    border-color: var(--color-line-strong);
+    color: var(--color-ink);
+  }
+
+  .trace-btn-secondary:hover:not(:disabled) {
+    border-color: var(--color-phosphor);
+    color: var(--color-phosphor);
+  }
+
+  .trace-btn-quiet {
+    padding-inline: 0.5rem;
+    color: var(--color-ink-faint);
+  }
+
+  .trace-btn-quiet:hover:not(:disabled) {
+    color: var(--color-ink);
+  }
 }
 
 /* ---------------------------------------------------------------------

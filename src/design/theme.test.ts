@@ -6,6 +6,7 @@ import {
   isMono,
   isTheme,
   isTypeRole,
+  letterCase,
   loadTheme,
   MONO_NOTES,
   MONOS,
@@ -119,30 +120,35 @@ describe("themes", () => {
     for (const r of TYPES) expect(TYPE_NOTES[r], r).toBeTruthy();
   });
 
-  it("sets each theme's letter case, and normal is inert", () => {
+  it("sets each theme's step on the capitals ladder, and an adjustment overrides it", () => {
     const el = document.createElement("div");
 
     applyTheme("report", el);
-    expect(el.getAttribute("data-case")).toBe("upper");
-
-    // No built-in starts in lower case since console retired; an
-    // adjustment still asks for it.
-    applyTheme("report", el, { case: "lower" });
-    expect(el.getAttribute("data-case")).toBe("lower");
-
-    // terminal must stay exactly as it is: "normal" has no CSS rules at all,
-    // so the theme's own label casing still decides.
+    expect(el.getAttribute("data-case")).toBe("headings");
     applyTheme("carbon", el);
-    expect(el.getAttribute("data-case")).toBe("normal");
+    expect(el.getAttribute("data-case")).toBe("labels");
+    applyTheme("graphite", el);
+    expect(el.getAttribute("data-case")).toBe("none");
+
+    applyTheme("report", el, { case: "none" });
+    expect(el.getAttribute("data-case")).toBe("none");
   });
 
   it("overrides case without disturbing the other axes", () => {
     const el = document.createElement("div");
-    applyTheme("industrial", el, { case: "lower" });
+    applyTheme("industrial", el, { case: "controls" });
 
-    expect(el.getAttribute("data-case")).toBe("lower");
+    expect(el.getAttribute("data-case")).toBe("controls");
     expect(el.getAttribute("data-mono")).toBe("fragment");
     expect(el.getAttribute("data-frame")).toBe("box");
+  });
+
+  it("reads the letter cases before the ladder as their nearest step", () => {
+    expect(letterCase("upper")).toBe("headings");
+    expect(letterCase("lower")).toBe("none");
+    // "normal" meant the theme's own, which is no adjustment at all now.
+    expect(letterCase("normal")).toBeUndefined();
+    expect(letterCase("labels")).toBe("labels");
   });
 
   it("rejects non-fonts", () => {
@@ -150,8 +156,8 @@ describe("themes", () => {
     expect(isMono("comic-sans")).toBe(false);
     expect(isTypeRole("mono")).toBe(true);
     expect(isTypeRole("Mono")).toBe(false);
-    expect(isLetterCase("upper")).toBe(true);
-    expect(isLetterCase("UPPER")).toBe(false);
+    expect(isLetterCase("headings")).toBe(true);
+    expect(isLetterCase("upper")).toBe(false);
   });
 
   describe("number-key switching", () => {

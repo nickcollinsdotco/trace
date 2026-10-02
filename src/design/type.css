@@ -111,34 +111,43 @@
 }
 
 /* ---------------------------------------------------------------------
- * Letter case — a third type axis.
+ * Capitals — a ladder, not a switch per element.
  *
- * Applies to monospace SYSTEM text: timestamps, transcript lines, status,
- * keyboard hints, buttons. Deliberately not to prose, even in `mono` role,
- * where prose carries no `.font-mono` class — an uppercase paragraph is
- * genuinely hard to read and nobody wants their notes shouted back.
+ *   none       nothing in capitals
+ *   labels     section and field labels, and tags
+ *   controls   … and buttons and navigation
+ *   headings   … and titles
  *
- * Meeting titles opt in via `.trace-title`, because a title is a NAME and a
- * name in caps reads as a masthead. A paragraph in caps does not read at all,
- * which is the line this axis draws: names yes, prose never.
- *
- * `normal` sets nothing at all, so the theme's own --label-transform still
- * decides and the default is untouched.
+ * Each step adds a role; prose, notes and transcripts are never on it, in
+ * any theme — an uppercase paragraph does not read. Elements say which role
+ * they play with a class (`.trace-caps-label`, `.trace-tag`, `.trace-control`
+ * or `.trace-btn`, `.trace-nav`, `.trace-caps-heading` or `.trace-title`),
+ * so no component decides capitals for itself. Before this, 53 elements
+ * carried a hard `uppercase`, the modern family cancelled them all, and
+ * "upper" put the whole transcript in capitals.
  * ------------------------------------------------------------------ */
-[data-case="upper"] {
-  --label-transform: uppercase;
-}
-
-[data-case="lower"] {
-  --label-transform: lowercase;
-}
-
-[data-case="upper"] .font-mono,
-[data-case="upper"] .trace-title {
+[data-case="labels"] :is(.trace-system-label, .trace-caps-label, .trace-tag),
+[data-case="controls"]
+  :is(.trace-system-label, .trace-caps-label, .trace-tag, .trace-control, .trace-btn, .trace-nav),
+[data-case="headings"]
+  :is(
+    .trace-system-label,
+    .trace-caps-label,
+    .trace-tag,
+    .trace-control,
+    .trace-btn,
+    .trace-nav,
+    .trace-caps-heading,
+    .trace-title
+  ) {
   text-transform: uppercase;
 }
 
-[data-case="lower"] .font-mono,
-[data-case="lower"] .trace-title {
-  text-transform: lowercase;
+/* The wordmark is a name, in capitals — set as a word in the modern family. */
+.trace-wordmark {
+  text-transform: uppercase;
+}
+
+[data-family="modern"] .trace-wordmark {
+  text-transform: none;
 }

@@ -26,6 +26,23 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.20.0",
+    date: "2026-10-02",
+    title: "Bigger buttons, and capitals as one setting",
+    notes: [
+      "Buttons are at least 32px tall, 36px in the modern themes.",
+      "Letter case is a ladder: none, labels, controls, headings. Each step adds labels and tags, then buttons and navigation, then titles.",
+      "Tags follow it everywhere, on meetings and in the filter row alike.",
+      "Notes and transcripts are never in capitals, in any theme.",
+    ],
+    screens: {
+      library: "Tags, filters and New meeting follow the theme's step; New meeting is taller.",
+      "note-enhanced": "Tags in capitals where the theme's labels are; buttons at the new height.",
+      models: "Download and Use at the new height.",
+      appearance: "Letter case offers none, labels, controls and headings.",
+    },
+  },
+  {
     version: "0.19.0",
     date: "2026-10-02",
     title: "Carbon, and clearer text",

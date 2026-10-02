@@ -83,7 +83,7 @@ export function MicCheck({ device }: { device: string | null }) {
           type="button"
           aria-pressed={on}
           onClick={() => setOn((v) => !v)}
-          className={`shrink-0 rounded-pill border px-3 py-1 font-mono text-2xs uppercase tracking-system trace-press ${
+          className={`trace-btn shrink-0 rounded-pill trace-press ${
             on
               ? "border-phosphor bg-phosphor-dim text-phosphor"
               : "border-line-strong text-ink-muted hover:border-phosphor hover:text-phosphor"

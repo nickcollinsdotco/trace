@@ -668,6 +668,27 @@ classes, and with them the size and the capitals ladder.
   microphone list also needed `self-start` — a column stretches its
   children whatever their width says.
 
+**Phase 3b, built (v0.20.0):**
+
+- **Buttons are one set of classes** — `.trace-btn` and primary, secondary
+  and quiet — at `--control-h`: 32px, 36px in Modern. They were 24–28px.
+  In the components layer, so a pill radius or a colour on one still wins.
+  Measured in the build: every `.trace-btn` on the note, library and models
+  screens at 32px in Shell and Index, 36px in Carbon and Graphite.
+- **Capitals are a ladder** — none, labels, controls, headings — each step
+  adding roles, named by class: `.trace-caps-label`, `.trace-tag`,
+  `.trace-control`/`.trace-btn`/`.trace-nav`, `.trace-caps-heading`/
+  `.trace-title`. It replaces 53 hard `uppercase` classes, the modern
+  family's rule cancelling them, nine `--label-transform` tokens, and an
+  "upper" that put every `.font-mono` line — the transcript too — in
+  capitals. Prose is on no step. Saved values read as their nearest step:
+  upper as headings, lower as none, normal as the theme's own. Each theme
+  starts where it looked before: Carbon labels, Graphite and termcn none,
+  Shell and Teletext controls, the rest headings.
+- **Tags follow it**, in the filter row and on meetings and notes alike —
+  they disagreed before.
+- First run keeps its all-capitals machine report by saying so itself.
+
 ## Press effects
 
 The current press is `scale(0.97)` on `.trace-press`. The replacement varies

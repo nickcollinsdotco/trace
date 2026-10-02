@@ -143,7 +143,7 @@ export function CaptureScreen({
   return (
     <div data-mode="capture" className="relative flex h-full flex-col">
       <div className="flex shrink-0 items-baseline gap-4 border-b border-line px-5 py-3">
-        <h1 className="font-mono text-sm uppercase tracking-wide text-ink">
+        <h1 className="font-mono text-sm trace-caps-heading tracking-wide text-ink">
           {capture.status?.title}
         </h1>
         <StatusDot state={state} />
@@ -228,7 +228,7 @@ export function CaptureScreen({
             type="button"
             onClick={handleDiscard}
             disabled={capture.stopping}
-            className="rounded-sm px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-error disabled:opacity-50"
+            className="trace-btn trace-btn-quiet trace-press hover:text-error disabled:opacity-50"
           >
             Discard
           </button>
@@ -236,7 +236,7 @@ export function CaptureScreen({
             type="button"
             onClick={handleStop}
             disabled={capture.stopping}
-            className="rounded-sm border border-line-strong bg-surface-2 px-4 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor disabled:opacity-50"
+            className="trace-btn trace-btn-secondary bg-surface-2 trace-press disabled:opacity-50"
           >
             {capture.stopping ? "Saving…" : "Stop meeting"}
           </button>
@@ -373,7 +373,7 @@ function SetupPanel({
             type="button"
             onClick={onStart}
             disabled={starting}
-            className="flex w-full items-center justify-between gap-4 rounded-md border border-phosphor bg-phosphor-dim px-5 py-4 font-mono text-sm uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+            className="flex w-full items-center justify-between gap-4 rounded-md border border-phosphor bg-phosphor-dim px-5 py-4 font-mono text-sm trace-control tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
           >
             <span className="flex items-center gap-3">
               <span aria-hidden className="inline-block size-2 rounded-full bg-current" />
@@ -386,7 +386,7 @@ function SetupPanel({
           <button
             type="button"
             onClick={onCancel}
-            className="self-center font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
+            className="self-center trace-btn trace-btn-quiet trace-press"
           >
             Cancel
           </button>
@@ -433,7 +433,7 @@ function TranscriptView({
           <span className="shrink-0 tabular-nums text-ink-faint">
             {formatElapsed(segment.startMs)}
           </span>
-          <span className="w-12 shrink-0 uppercase tracking-system text-phosphor-muted">
+          <span className="w-12 shrink-0 trace-caps-label tracking-system text-phosphor-muted">
             {segment.source === "microphone" ? "you" : "them"}
           </span>
           <span className="text-ink">{segment.text}</span>

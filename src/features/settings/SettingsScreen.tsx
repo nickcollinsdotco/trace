@@ -218,7 +218,7 @@ function Field({
 }) {
   return (
     <div className="grid grid-cols-[8rem_1fr] items-start gap-x-4 gap-y-1">
-      <span className="pt-2 font-mono text-2xs uppercase tracking-system text-ink-faint">
+      <span className="pt-2 font-mono text-2xs trace-caps-label tracking-system text-ink-faint">
         {label}
       </span>
       <div className="flex min-w-0 flex-col gap-1">

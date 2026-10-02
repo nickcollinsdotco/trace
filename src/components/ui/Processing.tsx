@@ -42,7 +42,9 @@ export function ProcessingLine({
       aria-live="polite"
     >
       <Spinner className="text-phosphor" />
-      <span className="w-12 shrink-0 uppercase tracking-system text-phosphor-muted">···</span>
+      <span className="w-12 shrink-0 trace-caps-label tracking-system text-phosphor-muted">
+        ···
+      </span>
       <span>
         {label}
         <span aria-hidden className="trace-leader-inline" />

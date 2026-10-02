@@ -8,7 +8,7 @@
  */
 export function Wordmark() {
   return (
-    <span className="font-mono text-sm font-medium uppercase tracking-system text-ink">
+    <span className="trace-wordmark font-mono text-sm font-medium tracking-system text-ink">
       TRACE
       <span aria-hidden className="trace-cursor" />
     </span>

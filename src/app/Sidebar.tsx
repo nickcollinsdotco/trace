@@ -111,7 +111,7 @@ function MiniFoot() {
         type="button"
         onClick={() => void ipc.openMini().catch(() => {})}
         title={`Mini window — floats over everything${shortcut ? ` (${shortcutLabel(shortcut)})` : ""}`}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-2xs text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
+        className="trace-nav flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-2xs text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
       >
         <MiniIcon />
         Mini window
@@ -173,10 +173,10 @@ function NavItem({
       type="button"
       aria-current={current ? "page" : undefined}
       onClick={onSelect}
-      // Sentence case at the UI size, not 11px caps: these are the most-used
-      // controls in the app, and caps at that size were the hardest thing in
-      // it to read. The group labels above keep the system voice.
-      className={`flex items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-sm trace-press ${
+      // Sentence case at the UI size unless the letter-case ladder reaches
+      // "controls" (type.css): these are the most-used controls in the app,
+      // and caps at this size were the hardest thing in it to read.
+      className={`trace-nav flex items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-sm trace-press ${
         current
           ? "bg-phosphor-dim text-phosphor"
           : "text-ink-muted hover:bg-surface-2 hover:text-ink"

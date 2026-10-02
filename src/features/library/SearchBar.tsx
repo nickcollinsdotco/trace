@@ -195,7 +195,7 @@ export function SearchBar({
           label="Sort"
           align="end"
           trigger={
-            <span className="trace-pill flex items-center gap-2 rounded-pill border border-line px-3 py-1 font-mono text-xs text-ink-muted">
+            <span className="trace-pill trace-control flex items-center gap-2 rounded-pill border border-line px-3 py-1 font-mono text-xs text-ink-muted">
               <span aria-hidden>⇅</span>
               {SORT_LABEL[sort]}
             </span>
@@ -235,7 +235,7 @@ export function SearchBar({
           align="end"
           trigger={
             <span
-              className={`trace-pill flex items-center gap-2 rounded-pill border px-3 py-1 font-mono text-xs ${
+              className={`trace-pill trace-control flex items-center gap-2 rounded-pill border px-3 py-1 font-mono text-xs ${
                 active > 0 ? "border-phosphor text-phosphor" : "border-line text-ink-muted"
               }`}
             >
@@ -350,7 +350,7 @@ function Pill({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`trace-pill flex items-baseline gap-1.5 rounded-pill border px-3 py-1 font-mono text-xs trace-press ${
+      className={`trace-pill trace-tag flex items-baseline gap-1.5 rounded-pill border px-3 py-1 font-mono text-xs trace-press ${
         active
           ? "border-phosphor bg-phosphor-dim text-phosphor"
           : "border-transparent text-ink-muted hover:text-ink"

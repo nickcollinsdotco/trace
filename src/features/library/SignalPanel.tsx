@@ -134,7 +134,9 @@ function partOfDay(): string {
 function Stat({ label, value, unit }: { label: string; value: string; unit?: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <dt className="font-mono text-2xs uppercase tracking-system text-ink-faint">{label}</dt>
+      <dt className="font-mono text-2xs trace-caps-label tracking-system text-ink-faint">
+        {label}
+      </dt>
       <dd className="flex min-w-0 items-baseline gap-2">
         <span className="font-mono text-xl tabular-nums text-ink">{value}</span>
         {unit && <span className="max-w-40 truncate text-xs text-ink-muted">{unit}</span>}

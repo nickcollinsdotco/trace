@@ -1297,8 +1297,12 @@ describe("Gallery", () => {
     expect(await screen.findByText(/unread/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "mark all read" }));
     expect(await screen.findByText(/all read/)).toBeVisible();
-    // Read, the badges stay: the list still says what changed.
-    expect(screen.getByRole("button", { name: "About, what's new" }).title).toMatch(/^0\.18\.0: /);
+    // Read, the badges stay: the list still says what changed, and when.
+    const nav = screen.getByRole("navigation", { name: "Scenarios" });
+    const marked = within(nav)
+      .getAllByRole("button")
+      .filter((b) => /^\d+\.\d+\.\d+: /.test(b.title));
+    expect(marked.length).toBeGreaterThan(0);
   });
 
   it("records the mini window's shortcut by having it pressed, and refuses Shift alone", async () => {

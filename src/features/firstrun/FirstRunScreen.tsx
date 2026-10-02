@@ -73,8 +73,10 @@ export function FirstRunScreen({ onReady }: { onReady: () => void }) {
       data-frame="box"
       data-mono="plex"
       data-type="mono"
-      data-case="upper"
-      className="flex h-full items-center justify-center overflow-y-auto bg-surface-0 px-6 py-10"
+      data-case="headings"
+      // A machine report, all of it in capitals: one fixed look, not a
+      // theme, so it says so itself rather than through the case ladder.
+      className="flex h-full items-center justify-center overflow-y-auto bg-surface-0 px-6 py-10 uppercase"
     >
       <div className="w-full max-w-2xl border border-line-strong">
         <TapeStrip />

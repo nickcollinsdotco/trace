@@ -122,7 +122,7 @@ function ConfirmDialog({
             ref={cancel}
             type="button"
             onClick={() => onSettle(false)}
-            className="rounded-sm px-3 py-2 font-mono text-2xs uppercase tracking-system text-ink-muted trace-press hover:text-ink"
+            className="trace-btn trace-btn-quiet text-ink-muted trace-press hover:text-ink"
           >
             Cancel
           </button>
@@ -130,7 +130,7 @@ function ConfirmDialog({
             ref={accept}
             type="button"
             onClick={() => onSettle(true)}
-            className={`rounded-sm border px-4 py-2 font-mono text-2xs uppercase tracking-system trace-press ${
+            className={`trace-btn trace-press ${
               options.danger
                 ? "border-error bg-error-dim text-error hover:bg-error hover:text-surface-0"
                 : "border-phosphor bg-phosphor-dim text-phosphor hover:bg-phosphor hover:text-surface-0"

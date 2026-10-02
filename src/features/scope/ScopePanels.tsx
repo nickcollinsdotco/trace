@@ -157,7 +157,7 @@ export function ScopeView({
       }}
     >
       <div className="flex shrink-0 items-center gap-4 border-b border-line px-5 py-3">
-        <span className="font-mono text-sm uppercase tracking-wide text-ink">{title}</span>
+        <span className="font-mono text-sm trace-caps-heading tracking-wide text-ink">{title}</span>
         <span className="font-mono text-sm tabular-nums text-ink-muted">
           {formatElapsed(elapsedMs)}
         </span>

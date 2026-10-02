@@ -56,15 +56,11 @@ export function Diagnostics() {
             type="button"
             onClick={copy}
             disabled={!report}
-            className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+            className="trace-btn trace-btn-primary trace-press disabled:opacity-50"
           >
             Copy report
           </button>
-          <button
-            type="button"
-            onClick={load}
-            className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
-          >
+          <button type="button" onClick={load} className="trace-btn trace-btn-quiet trace-press">
             Refresh
           </button>
         </div>
@@ -186,7 +182,9 @@ function Rows({ rows }: { rows: Array<[string, string]> }) {
     <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-1.5">
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
-          <dt className="font-mono text-2xs uppercase tracking-system text-ink-faint">{label}</dt>
+          <dt className="font-mono text-2xs trace-caps-label tracking-system text-ink-faint">
+            {label}
+          </dt>
           <dd
             data-selectable
             className="min-w-0 whitespace-pre-line break-words font-mono text-xs text-ink"

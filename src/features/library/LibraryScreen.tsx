@@ -183,7 +183,7 @@ export function LibraryScreen({
           <button
             type="button"
             onClick={onNewMeeting}
-            className="flex shrink-0 items-center gap-2 rounded-pill border border-line-strong bg-surface-2 px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor"
+            className="trace-btn trace-btn-secondary shrink-0 rounded-pill bg-surface-2 trace-press"
           >
             <span aria-hidden>+</span>
             New meeting
@@ -284,7 +284,7 @@ function NoMatch({ onClear }: { onClear: () => void }) {
       <button
         type="button"
         onClick={onClear}
-        className="rounded-pill border border-line-strong px-3 py-1 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor"
+        className="trace-btn trace-btn-secondary rounded-pill trace-press"
       >
         Clear filters
       </button>
@@ -332,7 +332,7 @@ function RecoveryCard({ session, onDone }: { session: RecoverableSession; onDone
             setBusy(false);
             onDone();
           }}
-          className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+          className="trace-btn trace-btn-primary trace-press disabled:opacity-50"
         >
           Save as note
         </button>
@@ -345,7 +345,7 @@ function RecoveryCard({ session, onDone }: { session: RecoverableSession; onDone
             setBusy(false);
             onDone();
           }}
-          className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-error disabled:opacity-50"
+          className="trace-btn trace-btn-quiet trace-press hover:text-error disabled:opacity-50"
         >
           Discard
         </button>
@@ -506,7 +506,7 @@ function NoteRow({
                 type="button"
                 onClick={() => onTag(t)}
                 title={`Show only meetings tagged ${t}`}
-                className={`rounded-pill px-2 py-0.5 trace-press hover:bg-phosphor hover:text-surface-0 ${
+                className={`trace-tag rounded-pill px-2 py-0.5 trace-press hover:bg-phosphor hover:text-surface-0 ${
                   activeTags.includes(t)
                     ? "bg-phosphor text-surface-0"
                     : "bg-phosphor-dim text-phosphor"
@@ -518,7 +518,7 @@ function NoteRow({
             {/* Type only when it says something: nothing sets it yet, so
                 every meeting would otherwise read "general". */}
             {note.type !== "general" && (
-              <span className="uppercase text-ink-faint">{note.type}</span>
+              <span className="trace-caps-label text-ink-faint">{note.type}</span>
             )}
           </span>
         )}
@@ -624,11 +624,14 @@ function SearchResults({
             </span>
             <span className="flex shrink-0 items-baseline gap-2 font-mono text-2xs tracking-system text-ink-faint">
               {hit.tags.map((t) => (
-                <span key={t} className="rounded-sm bg-phosphor-dim px-1.5 py-0.5 text-phosphor">
+                <span
+                  key={t}
+                  className="trace-tag rounded-sm bg-phosphor-dim px-1.5 py-0.5 text-phosphor"
+                >
                   {t}
                 </span>
               ))}
-              {hit.type !== "general" && <span className="uppercase">{hit.type}</span>}
+              {hit.type !== "general" && <span className="trace-caps-label">{hit.type}</span>}
             </span>
           </span>
           {hit.snippet && (

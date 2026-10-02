@@ -207,7 +207,12 @@ pub fn open_mini(app: &AppHandle, how: Open) -> tauri::Result<()> {
         .always_on_top(true)
         .skip_taskbar(true)
         .content_protected(true)
-        .shadow(true)
+        // See-through, so the menu floats over whatever is behind it rather
+        // than on a band of window (docs/13, phase 6); the page draws the
+        // bar's frame itself. No system shadow: Windows draws it round the
+        // whole rectangle, outlining the empty part too.
+        .transparent(true)
+        .shadow(false)
         .focused(how == Open::Asked)
         .theme(Some(tauri::Theme::Dark))
         .visible(false)

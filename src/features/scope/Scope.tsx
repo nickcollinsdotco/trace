@@ -7,6 +7,8 @@ const FRAME_MS = 33;
 /** Under reduced motion it still shows the signal, just not in motion. */
 const STILL_MS = 500;
 const BANDS = 32;
+/** Idle static is a texture, not a signal: a dozen frames a second is plenty. */
+const IDLE_MS = 80;
 
 const reducedMotion = (): boolean =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -33,11 +35,19 @@ export function Scope({
   mode,
   className = "",
   label,
+  idle = false,
 }: {
   mode: ScopeMode;
   className?: string;
   /** What the canvas shows, for a screen reader. */
   label: string;
+  /**
+   * Nothing to listen to yet: the graticule and a faint hiss on two flat
+   * lines, drawn here without asking the backend for anything — so the
+   * scope is visibly on before a meeting, and starting one is seen as the
+   * signal arriving rather than a strip appearing.
+   */
+  idle?: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const modeRef = useRef(mode);
@@ -45,7 +55,7 @@ export function Scope({
 
   useEffect(() => {
     const el = canvas.current;
-    if (!el || !canDraw() || !hasBackend()) return;
+    if (!el || !canDraw() || (!idle && !hasBackend())) return;
     const ctx = el.getContext("2d");
     if (!ctx) return;
 
@@ -78,6 +88,48 @@ export function Scope({
       };
     };
 
+    const graticule = (c: ReturnType<typeof colours>, w: number, h: number, scale: number) => {
+      ctx.strokeStyle = c.grid;
+      ctx.lineWidth = scale;
+      ctx.beginPath();
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w, h / 2);
+      for (let q = 1; q < 4; q++) {
+        ctx.moveTo((w * q) / 4, 0);
+        ctx.lineTo((w * q) / 4, h);
+      }
+      ctx.stroke();
+    };
+
+    // A pixel or so of noise on each voice's line, at a fixed size: the gain
+    // that follows a real signal would blow hiss up to full height.
+    const drawIdle = () => {
+      const w = el.width;
+      const h = el.height;
+      const c = colours();
+      const scale = window.devicePixelRatio || 1;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = c.ground;
+      ctx.fillRect(0, 0, w, h);
+      graticule(c, w, h, scale);
+      ctx.lineWidth = scale;
+      const hiss = (mid: number, colour: string) => {
+        ctx.strokeStyle = colour;
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        const step = 3 * scale;
+        for (let x = 0; x <= w; x += step) {
+          const y = mid + (Math.random() - 0.5) * 2.5 * scale;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      };
+      hiss(h * 0.27, c.you);
+      hiss(h * 0.73, c.them);
+    };
+
     const draw = (waves: StreamWave[]) => {
       const w = el.width;
       const h = el.height;
@@ -93,16 +145,7 @@ export function Scope({
       ctx.globalAlpha = 1;
 
       // A graticule, faint: a centre line, and quarters across.
-      ctx.strokeStyle = c.grid;
-      ctx.lineWidth = scale;
-      ctx.beginPath();
-      ctx.moveTo(0, h / 2);
-      ctx.lineTo(w, h / 2);
-      for (let q = 1; q < 4; q++) {
-        ctx.moveTo((w * q) / 4, 0);
-        ctx.lineTo((w * q) / 4, h);
-      }
-      ctx.stroke();
+      graticule(c, w, h, scale);
 
       ctx.lineWidth = 1.5 * scale;
       ctx.lineJoin = "round";
@@ -178,6 +221,13 @@ export function Scope({
     const tick = (now: number) => {
       if (stopped) return;
       frame = requestAnimationFrame(tick);
+      if (idle) {
+        // Still under reduced motion: one frame of hiss, then nothing.
+        if (document.hidden || now - last < IDLE_MS || (last > 0 && reducedMotion())) return;
+        last = now;
+        drawIdle();
+        return;
+      }
       const every = reducedMotion() ? STILL_MS : FRAME_MS;
       // One request at a time, and none while the window is hidden.
       if (busy || document.hidden || now - last < every) return;
@@ -200,7 +250,7 @@ export function Scope({
       cancelAnimationFrame(frame);
       observer?.disconnect();
     };
-  }, []);
+  }, [idle]);
 
   return <canvas ref={canvas} role="img" aria-label={label} className={`block ${className}`} />;
 }

@@ -26,6 +26,21 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.24.0",
+    date: "2026-10-03",
+    title: "The mini window, floating",
+    notes: [
+      "The mini window is see-through around its bar: the options menu floats above it on nothing, with no band of window behind.",
+      "With the waveform on, the scope rests behind the name before a meeting — its grid and a faint hiss — so starting one is seen as the signal arriving.",
+      "Details names the microphone and model by what tells them apart — Razer Seiren V3 Mini, Parakeet v3 — and the window widens to show them whole. Hover for the full names.",
+    ],
+    screens: {
+      "mini-options": "The menu floats free above the bar; no window behind it.",
+      "mini-idle": "The scope at rest behind the name: grid and faint hiss.",
+      "mini-details": "Short names, shown whole; the window as wide as they need.",
+    },
+  },
+  {
     version: "0.23.0",
     date: "2026-10-03",
     title: "The library on one bar",

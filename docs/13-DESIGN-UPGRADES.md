@@ -755,6 +755,30 @@ own, so any that do not earn their place come out cleanly:
   so a capitals class on a wrapper never reaches a button's label — the
   sort's face read "Newest" beside "FILTERS" in Teletext.
 
+**Phase 6, built (v0.24.0):**
+
+- **The menu floats.** The mini window is transparent with no system
+  shadow (Windows draws that round the whole rectangle, empty part too).
+  The page has no ground; the bar draws its own frame, with the details
+  row inside it, and the menu is a panel of its own above, with a gap of
+  nothing between. A click on the empty part closes the menu. The empty
+  part still takes clicks — Windows hit-tests the rectangle, not the
+  pixels — but it exists only while the menu is open.
+- **The scope at rest.** Before a meeting, with the waveform on, the scope
+  sits behind the name at a third of its strength: the graticule and a
+  pixel of hiss on each voice's line, drawn by the page at 12 frames a
+  second without asking the backend for anything. One still frame under
+  reduced motion.
+- **Details sized to the text.** Windows names a microphone role first —
+  "Microphone (3- Razer Seiren V3 Mini)" — so the part that tells two apart
+  was the part truncated. `names.ts` keeps the device ("Razer Seiren V3
+  Mini") and the model's family and version ("Parakeet v3"); the full names
+  are the row's tooltip. The row no longer shrinks, so the window widens
+  for it, to its 640px limit.
+- **Not checked here:** transparency in the installed app, and that a
+  transparent window stays hidden from screen shares. Both need the real
+  window; the gallery shows the layout.
+
 ## Press effects
 
 The current press is `scale(0.97)` on `.trace-press`. The replacement varies

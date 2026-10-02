@@ -269,6 +269,10 @@ export interface Overrides {
  * choice, so the gallery can vary one axis at a time.
  */
 export function applyTheme(theme: Theme, target: HTMLElement, o: Overrides = {}): void {
+  const before = {
+    theme: target.getAttribute("data-theme"),
+    case: target.getAttribute("data-case"),
+  };
   if (theme === "carbon") target.removeAttribute("data-theme");
   else target.setAttribute("data-theme", theme);
 
@@ -279,6 +283,26 @@ export function applyTheme(theme: Theme, target: HTMLElement, o: Overrides = {})
   target.setAttribute("data-type", o.role ?? type.role);
   target.setAttribute("data-case", o.case ?? type.case);
   target.setAttribute("data-field", THEME_DEFS[theme].field);
+
+  // The capitals ladder moved on the same theme: the letters flap over, as
+  // a departures board does (type.css). Not on a theme change — that is a
+  // new look, not the same one changing its mind.
+  const now = target.getAttribute("data-case");
+  if (before.case && before.case !== now && before.theme === target.getAttribute("data-theme")) {
+    flap(target);
+  }
+}
+
+const flapping = new WeakMap<HTMLElement, number>();
+const FLAP_MS = 420;
+
+function flap(target: HTMLElement) {
+  window.clearTimeout(flapping.get(target));
+  target.setAttribute("data-case-flap", "");
+  flapping.set(
+    target,
+    window.setTimeout(() => target.removeAttribute("data-case-flap"), FLAP_MS),
+  );
 }
 
 const STORAGE_KEY = "trace.theme";

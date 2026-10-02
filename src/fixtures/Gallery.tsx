@@ -72,6 +72,7 @@ import { Palette } from "../features/palette/Palette";
 import { SettingsScreen } from "../features/settings/SettingsScreen";
 import { installFakeBackend } from "../lib/ipc";
 import { makeBackend } from "./backend";
+import { ContactSheet } from "./ContactSheet";
 import { Specimen } from "./Specimen";
 import { SCENARIOS, type Scenario, scenarioById } from "./scenarios";
 
@@ -294,7 +295,7 @@ export function Gallery() {
     <div className="flex h-full bg-[#17171a] text-[#d8d8dc]">
       <nav
         aria-label="Scenarios"
-        className="flex w-56 shrink-0 flex-col gap-5 overflow-y-auto border-r border-white/10 p-4"
+        className="flex w-56 shrink-0 flex-col gap-5 overflow-y-auto border-r border-white/10 p-4 print:hidden"
       >
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-white/40">
@@ -372,7 +373,7 @@ export function Gallery() {
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 flex-col gap-2 border-b border-white/10 px-4 py-2.5">
+        <header className="flex shrink-0 flex-col gap-2 border-b border-white/10 px-4 py-2.5 print:hidden">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <Switcher
               label="Theme"
@@ -526,6 +527,8 @@ function Preview({ scenario }: { scenario: Scenario }) {
   if (scenario.screen === "firstrun") {
     return <FirstRunScreen onReady={() => {}} />;
   }
+
+  if (scenario.screen === "contact") return <ContactSheet />;
 
   // The mini window is a window of its own, so it is shown at its own size
   // on an empty desk rather than inside the app's shell.

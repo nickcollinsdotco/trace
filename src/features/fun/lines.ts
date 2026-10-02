@@ -24,9 +24,19 @@ const THEME_LINES: Record<string, string> = {
   scope: "signal acquired.",
 };
 
+/** The capitals ladder, step by step, from a narrator who notices. */
+const CASE_LINES: Record<string, string> = {
+  none: "capitals: none. inside voices.",
+  labels: "capitals: labels. a quiet authority.",
+  controls: "capitals: controls. the buttons have opinions now.",
+  headings: "capitals: headings. shouting enabled.",
+};
+
 export type NarratorEvent =
   | { kind: "page"; page: Page }
   | { kind: "theme"; theme: string }
+  /** The capitals ladder moved, on the same theme. */
+  | { kind: "case"; step: string }
   | { kind: "started"; hour: number }
   | { kind: "stopped"; elapsedMs: number; segments: number }
   | { kind: "segments"; count: number }
@@ -62,6 +72,8 @@ export function narrate(event: NarratorEvent): string {
   switch (event.kind) {
     case "page":
       return PAGE_LINES[event.page];
+    case "case":
+      return CASE_LINES[event.step] ?? `capitals: ${event.step}.`;
     case "theme":
       return `theme: ${event.theme}. ${THEME_LINES[event.theme] ?? "same words, different light."}`;
     case "started":

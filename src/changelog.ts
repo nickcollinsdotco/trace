@@ -26,6 +26,24 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.22.0",
+    date: "2026-10-02",
+    title: "A few things to try",
+    notes: [
+      "Changing the capitals step flickers the letters over, like a departures board.",
+      "With Fun mode on, the narrator remarks on capitals: inside voices, or shouting enabled.",
+      "A retro button seats as it is pressed, like a key bottoming out.",
+      "The Appearance preview crackles with static as it changes channel.",
+      "Hold Shift over a theme to see it beside the one in use.",
+      "The gallery has a contact sheet: every theme side by side, ready to print.",
+    ],
+    screens: {
+      appearance: "Static between previews; Shift to compare; letters flap as capitals change.",
+      "contact-sheet": "New: every theme side by side, printable.",
+      specimen: "Retro buttons seat when pressed.",
+    },
+  },
+  {
     version: "0.21.0",
     date: "2026-10-02",
     title: "Appearance, reworked",

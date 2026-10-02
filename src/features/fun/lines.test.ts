@@ -4,6 +4,13 @@ import { secretFor } from "./Eggs";
 import { freshEar, listen, narrate, segmentMilestone } from "./lines";
 
 describe("the narrator's lines", () => {
+  it("remarks on every step of the capitals ladder", () => {
+    for (const step of ["none", "labels", "controls", "headings"]) {
+      expect(narrate({ kind: "case", step })).toMatch(new RegExp(`^capitals: ${step}\\. `));
+    }
+    expect(narrate({ kind: "case", step: "headings" })).toContain("shouting enabled");
+  });
+
   it("has a line of its own for every theme, and a plain one for anything else", () => {
     const lines = THEMES.map((theme) => narrate({ kind: "theme", theme }));
     for (const [i, line] of lines.entries())

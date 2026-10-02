@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Page } from "../../components/ui/Page";
 import { ThemeScope } from "../../components/ui/ThemeScope";
-import { Prompt, Section, SystemLabel } from "../../components/ui/terminal";
+import { Section, SystemLabel } from "../../components/ui/terminal";
 import {
   AXES,
   type Axis,
@@ -40,6 +40,7 @@ import {
   themesIn,
 } from "../../design/theme";
 import { useFun } from "../fun/fun";
+import { ThemeSample } from "./ThemeSample";
 
 /**
  * The theme, chosen by seeing it.
@@ -169,6 +170,20 @@ function ThemePicker({
 }) {
   const [pointed, setPointed] = useState<Theme | null>(null);
   const shown = pointed ?? current;
+  const shift = useShiftHeld();
+  const compare = shift && shown !== current;
+
+  // Counts the changes of picture, for the static that plays between them.
+  const [tuned, setTuned] = useState(0);
+  const first = useRef(true);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: on each new picture
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    setTuned((n) => n + 1);
+  }, [shown]);
   const list = useRef<HTMLDivElement>(null);
 
   // Up and down walk the list, as in the palette; Tab still leaves it.
@@ -217,23 +232,68 @@ function ThemePicker({
       {/* minmax(0, 1fr) and min-w-0: a theme with wide, unwrapping type would
           otherwise push the preview out of its card. */}
       <div className="flex min-w-0 flex-col gap-2 md:sticky md:top-16 md:self-start">
-        <ThemeScope
-          theme={shown}
-          overrides={adjustments[shown]}
-          className="overflow-hidden rounded-md border border-line"
-        >
-          <ThemeSample />
-        </ThemeScope>
+        {compare ? (
+          // Shift held over another theme: the one in use beside it.
+          <div className="grid grid-cols-2 gap-2">
+            {[current, shown].map((t) => (
+              <ThemeScope
+                key={t}
+                theme={t}
+                overrides={adjustments[t]}
+                className="overflow-hidden rounded-md border border-line"
+              >
+                <ThemeSample />
+              </ThemeScope>
+            ))}
+          </div>
+        ) : (
+          <div className="relative overflow-hidden rounded-md border border-line">
+            <ThemeScope theme={shown} overrides={adjustments[shown]}>
+              <ThemeSample />
+            </ThemeScope>
+            {/* A burst of static as the channel changes. Keyed, so each
+                change plays it once; none for the first picture. */}
+            {tuned > 0 && (
+              <span
+                key={tuned}
+                aria-hidden
+                className="trace-tune pointer-events-none absolute inset-0"
+              />
+            )}
+          </div>
+        )}
         <p className="flex items-baseline gap-2 font-mono text-xs">
-          <span className="text-ink">{shown}</span>
+          <span className="text-ink">{compare ? `${current} · ${shown}` : shown}</span>
           <span className="text-ink-faint">
-            {shown === current ? "· in use" : "· click, or press Enter, to use it"}
+            {compare
+              ? "· in use, and pointed at"
+              : shown === current
+                ? "· in use"
+                : "· click, or press Enter, to use it — hold Shift to compare"}
           </span>
         </p>
         <p className="text-2xs text-ink-muted">{THEME_NOTES[shown]}</p>
       </div>
     </div>
   );
+}
+
+/** Whether Shift is held — for comparing a theme with the one in use. */
+function useShiftHeld(): boolean {
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => setHeld(e.shiftKey);
+    const off = () => setHeld(false);
+    window.addEventListener("keydown", on);
+    window.addEventListener("keyup", on);
+    window.addEventListener("blur", off);
+    return () => {
+      window.removeEventListener("keydown", on);
+      window.removeEventListener("keyup", on);
+      window.removeEventListener("blur", off);
+    };
+  }, []);
+  return held;
 }
 
 function ThemeRow({
@@ -282,64 +342,6 @@ function ThemeRow({
         {selected ? "✓" : (THEMES.indexOf(theme) + 1) % 10}
       </span>
     </button>
-  );
-}
-
-/**
- * The preview's contents: a little of everything a theme changes, sitting
- * together as it would in the app — the wordmark, a title, tags, a section
- * in its frame, a transcript line, buttons and a field. Spans throughout:
- * it is a picture, hidden from screen readers, not a second page.
- */
-function ThemeSample() {
-  return (
-    <div aria-hidden data-mode="reading" className="flex flex-col gap-4 bg-surface-0 p-5">
-      <span className="flex items-center justify-between gap-3">
-        <span className="trace-wordmark font-mono text-sm font-medium tracking-system text-ink">
-          Trace
-          <span className="trace-cursor" />
-        </span>
-        <span className="trace-btn trace-btn-secondary rounded-pill bg-surface-2">
-          + New meeting
-        </span>
-      </span>
-      <span className="trace-title text-2xl text-ink">Pricing page rework</span>
-      <span className="flex flex-wrap gap-2 font-mono text-2xs">
-        <span className="trace-tag rounded-sm bg-phosphor-dim px-1.5 py-0.5 text-phosphor">
-          client
-        </span>
-        <span className="trace-tag rounded-sm bg-phosphor-dim px-1.5 py-0.5 text-phosphor">
-          pricing
-        </span>
-      </span>
-      <span className="trace-section gap-2">
-        <span className="trace-section-head">
-          <span aria-hidden className="trace-section-corner font-mono text-2xs text-ink-faint/50">
-            ┌
-          </span>
-          <SystemLabel>Decisions</SystemLabel>
-          <span aria-hidden className="trace-rule" />
-        </span>
-        <span className="trace-prose text-sm text-ink">
-          Ship the pricing page on Friday, without the annual toggle.
-        </span>
-        <span className="flex gap-3 text-sm">
-          <span className="font-mono text-2xs text-ink-faint tabular-nums">00:42</span>
-          <span className="font-mono text-2xs trace-caps-label tracking-system text-phosphor-muted">
-            them
-          </span>
-          <span className="text-ink-muted">It's the most expensive part of the page.</span>
-        </span>
-      </span>
-      <span className="flex flex-wrap items-center gap-2">
-        <span className="trace-btn trace-btn-primary">Write notes</span>
-        <span className="trace-btn trace-btn-quiet">Not now</span>
-        <span className="trace-field ml-auto w-auto min-w-40 font-mono text-xs text-ink-faint">
-          <Prompt />
-          search
-        </span>
-      </span>
-    </div>
   );
 }
 

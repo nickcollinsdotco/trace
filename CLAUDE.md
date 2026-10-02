@@ -53,6 +53,12 @@ The user updates their installed copy from the trace folder with
 change. `src/lib/version.test.ts` fails if the five copies of the version
 drift apart.
 
+It also adds an entry at the top of `src/changelog.ts`: what changed, in the
+user's words, and under `screens` the gallery scenarios it touched with what
+to look for. The gallery badges those as new (and the version before as
+recent) until they are opened. The version test fails if the newest entry is
+not the version being built.
+
 ## Shape
 
 ```

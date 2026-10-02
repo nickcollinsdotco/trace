@@ -716,6 +716,22 @@ reads the look as it changes. For judging a theme before living with it.
   offer it again among the rest.
 - **Flavour text:** the narrator has a line for each theme.
 
+**Delights from phases 3 and 4, to try (v0.22.0)** — each small and on its
+own, so any that do not earn their place come out cleanly:
+
+- **Split-flap capitals:** moving the ladder on the same theme flickers
+  every role it reaches, in steps, for 420ms (`data-case-flap`, type.css).
+  Opacity only; nothing resizes. Not on a theme change.
+- **The narrator on capitals:** "inside voices." to "shouting enabled."
+- **Seated press:** a retro `.trace-btn` drops a pixel with a top shadow
+  while pressed (family.css).
+- **Channel static** on the Appearance preview between pictures — grey SVG
+  noise, 180ms, never on the first picture.
+- **Shift to compare:** the theme in use beside the one pointed at.
+- **Contact sheet:** every theme's sample side by side in the gallery,
+  each in its own scope, with a print button; the gallery's controls drop
+  out of the printed page.
+
 ## Press effects
 
 The current press is `scale(0.97)` on `.trace-press`. The replacement varies

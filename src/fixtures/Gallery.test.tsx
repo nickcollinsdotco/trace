@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { THEMES } from "../design/theme";
 import { Gallery } from "./Gallery";
 import { SCENARIOS } from "./scenarios";
 
@@ -326,6 +327,14 @@ describe("Gallery", () => {
 
     await waitFor(() => expect(lookOf(container)).toBe("industrial"));
     expect(row).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("lays every theme out on the contact sheet", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Gallery />);
+    await openScenario(user, "Contact sheet — every theme");
+    await waitFor(() => expect(container.querySelectorAll("figure")).toHaveLength(THEMES.length));
+    expect(screen.getByRole("button", { name: "print" })).toBeVisible();
   });
 
   it("names each theme's own choice first under Adjust, and does not offer it twice", async () => {

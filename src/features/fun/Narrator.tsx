@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import type { Page } from "../../app/Sidebar";
 import { Prompt } from "../../components/ui/terminal";
 import { AppearanceContext } from "../../design/appearance";
+import { THEME_TYPE } from "../../design/theme";
 import { type CaptureStatus, hasBackend, ipc } from "../../lib/ipc";
 import { useFun } from "./fun";
 import { type Ear, freshEar, listen, type NarratorEvent, narrate, segmentMilestone } from "./lines";
@@ -25,6 +26,10 @@ export function Narrator({ page, busy }: { page: Page | null; busy: boolean }) {
   const fun = useFun();
   const appearance = useContext(AppearanceContext);
   const theme = appearance?.appearance.theme;
+  // The step on the capitals ladder in force: the theme's own, or as adjusted.
+  const step = theme
+    ? (appearance?.appearance.adjustments[theme]?.case ?? THEME_TYPE[theme].case)
+    : undefined;
   const [line, setLine] = useState<{ text: string; at: number } | null>(null);
   const recording = useRef(false);
   const lastSaid = useRef(0);
@@ -56,6 +61,16 @@ export function Narrator({ page, busy }: { page: Page | null; busy: boolean }) {
     seenTheme.current = theme;
     if (theme && !recording.current) say({ kind: "theme", theme });
   }, [theme, fun.on]);
+
+  // Capitals moved on the same theme — a theme change says its own line.
+  const seenStep = useRef({ theme, step });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: say is stable enough
+  useEffect(() => {
+    const before = seenStep.current;
+    seenStep.current = { theme, step };
+    if (!fun.on || !step || before.theme !== theme || before.step === step) return;
+    if (!recording.current) say({ kind: "case", step });
+  }, [theme, step, fun.on]);
 
   // The meeting itself: starting, every hundred segments, crosstalk, a quiet
   // room, and stopping. Polled, as the sidebar's timer is.

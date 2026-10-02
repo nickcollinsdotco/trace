@@ -1288,12 +1288,15 @@ describe("Gallery", () => {
       within(menu).getByRole("menuitemcheckbox", { name: "Hidden from screen shares" }),
     ).toHaveAttribute("aria-checked", "true");
 
-    // The extended view names what the meeting listens and transcribes with.
+    // The extended view names what the meeting listens and transcribes with,
+    // by the part of each name that tells them apart; the rest in its tooltip.
     await user.click(within(menu).getByRole("menuitemcheckbox", { name: /Details/ }));
-    expect(await screen.findByText("Microphone (Razer Seiren V3 Mini)")).toBeInTheDocument();
-    expect(
-      screen.getByText("Parakeet TDT 0.6B v3 (int8)", { selector: "span" }),
-    ).toBeInTheDocument();
+    const row = (await screen.findByText("Razer Seiren V3 Mini")).closest("[title]");
+    expect(screen.getByText("Parakeet v3", { selector: "span" })).toBeInTheDocument();
+    expect(row).toHaveAttribute(
+      "title",
+      "Microphone (Razer Seiren V3 Mini) · Parakeet TDT 0.6B v3 (int8)",
+    );
 
     await user.click(wave);
     expect(wave).toHaveAttribute("aria-checked", "false");

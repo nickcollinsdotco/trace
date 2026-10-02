@@ -179,6 +179,13 @@
   outline: none;
 }
 
+/* The mini window is see-through (windows.rs): the page has no ground of
+ * its own, and the bar and the menu draw theirs. */
+html[data-window="mini"],
+html[data-window="mini"] body {
+  background: transparent;
+}
+
 /* In the mini window, rings for the keyboard only (MiniWindow's
  * useInputKind): the end of a drag hands focus back to the window, and the
  * browser rings the last-focused button as though Tab had been pressed. */

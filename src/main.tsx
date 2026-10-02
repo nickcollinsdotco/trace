@@ -41,6 +41,8 @@ function themeMini() {
 
 function mount() {
   if (isMini()) {
+    // A transparent window: only what the mini window draws is seen.
+    document.documentElement.dataset.window = "mini";
     themeMini();
     window.addEventListener("storage", themeMini);
     reactRoot.render(

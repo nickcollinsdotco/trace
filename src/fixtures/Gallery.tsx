@@ -537,8 +537,9 @@ function Preview({ scenario }: { scenario: Scenario }) {
       <div className="flex h-full items-center justify-center bg-surface-0">
         <div
           // At least the usual width, and wider when the content needs it,
-          // as the real window grows.
-          className="w-max overflow-hidden rounded-md border border-line-strong shadow-(--elevation-overlay)"
+          // as the real window grows. No frame here: the window is
+          // transparent and the mini window draws its own.
+          className="w-max"
           style={{ minWidth: 360, minHeight: 56 }}
         >
           <MiniWindow

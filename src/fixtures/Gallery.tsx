@@ -72,6 +72,7 @@ import { Palette } from "../features/palette/Palette";
 import { SettingsScreen } from "../features/settings/SettingsScreen";
 import { installFakeBackend } from "../lib/ipc";
 import { makeBackend } from "./backend";
+import { Specimen } from "./Specimen";
 import { SCENARIOS, type Scenario, scenarioById } from "./scenarios";
 
 /**
@@ -551,7 +552,9 @@ function Preview({ scenario }: { scenario: Scenario }) {
   }
 
   const noop = () => {};
-  const current: Page | null = scenario.screen === "note" ? null : scenario.screen;
+  // A note and the specimen are not places in the sidebar.
+  const current: Page | null =
+    scenario.screen === "note" || scenario.screen === "specimen" ? null : scenario.screen;
   return (
     <FunContext.Provider value={{ on: scenario.fun !== undefined, setOn: noop }}>
       <Shell
@@ -579,6 +582,7 @@ function Preview({ scenario }: { scenario: Scenario }) {
         {scenario.screen === "appearance" && <AppearanceScreen />}
         {scenario.screen === "settings" && <SettingsScreen />}
         {scenario.screen === "about" && <AboutScreen focus={scenario.aboutFocus} />}
+        {scenario.screen === "specimen" && <Specimen />}
         {scenario.dialog && <AskOnMount options={scenario.dialog} />}
         {scenario.palette !== undefined && <PalettePreview query={scenario.palette} />}
         {scenario.fun?.egg === "boot" && <Boot onDone={noop} />}

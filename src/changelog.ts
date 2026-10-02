@@ -26,6 +26,15 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.20.1",
+    date: "2026-10-02",
+    title: "A specimen in the gallery",
+    notes: [
+      "The gallery has a specimen: one of every kind of element, captioned with what styles it, for judging a theme and its adjustments.",
+    ],
+    screens: { specimen: "New: every element in one place, in the theme you are looking at." },
+  },
+  {
     version: "0.20.0",
     date: "2026-10-02",
     title: "Bigger buttons, and capitals as one setting",

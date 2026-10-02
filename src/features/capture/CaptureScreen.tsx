@@ -14,6 +14,7 @@ import {
 } from "../../components/ui/terminal";
 import { type DeviceInfo, hasBackend, ipc, type LiveSegment } from "../../lib/ipc";
 import { MiniIcon } from "../mini/MiniIcon";
+import { shortcutLabel, useMiniShortcut } from "../mini/shortcut";
 import { ScopeStrip, ScopeView, useScopeMode } from "../scope/ScopePanels";
 import { AudioRetentionField } from "../settings/AudioRetentionField";
 import { MicCheck } from "./MicCheck";
@@ -40,6 +41,7 @@ export function CaptureScreen({
   const capture = useCapture();
   const confirm = useConfirm();
   const [scopeMode, setScopeMode] = useScopeMode();
+  const shortcut = useMiniShortcut();
   const [scopeOpen, setScopeOpen] = useState(initialScopeView);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -152,7 +154,7 @@ export function CaptureScreen({
           type="button"
           onClick={() => void ipc.openMini().catch(() => {})}
           aria-label="Open the mini window"
-          title="Mini window — floats over the call (Ctrl+Alt+R)"
+          title={`Mini window — floats over the call${shortcut ? ` (${shortcutLabel(shortcut)})` : ""}`}
           className="flex size-7 shrink-0 items-center justify-center self-center rounded-sm text-ink-faint trace-press hover:bg-surface-2 hover:text-ink"
         >
           <MiniIcon />

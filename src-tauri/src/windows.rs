@@ -136,6 +136,12 @@ struct MiniInner {
     mode: Option<crate::settings::MiniAuto>,
     /// Bumped by every move; a settle only acts if no move followed it.
     moves: u64,
+    /// The logical size last asked for by what the window shows. Held here
+    /// because Windows rescales a window that crosses between monitors of
+    /// different scaling, and nothing in the page notices: between a 100%
+    /// and a 150% screen it lost a third of its height each crossing, until
+    /// it was gone. Settling puts this size back.
+    wanted: Option<(f64, f64)>,
 }
 
 impl MiniState {
@@ -175,6 +181,13 @@ pub fn open_mini(app: &AppHandle, how: Open) -> tauri::Result<()> {
             // Asked for now, so it is no longer the automatic one.
             state.with(|s| s.auto = false);
             existing.unminimize()?;
+            // Asked for because it cannot be seen, quite possibly: whatever
+            // left it off every screen or shrunk to nothing, asking for it
+            // brings it back.
+            keep_size(app, &existing)?;
+            if !reachable(&existing)? {
+                place_default(app, &existing)?;
+            }
             existing.set_focus()?;
         }
         return Ok(());
@@ -199,16 +212,15 @@ pub fn open_mini(app: &AppHandle, how: Open) -> tauri::Result<()> {
         .theme(Some(tauri::Theme::Dark))
         .visible(false)
         .build()?;
-    state.with(|s| s.auto = how != Open::Asked);
+    state.with(|s| {
+        s.auto = how != Open::Asked;
+        s.wanted = None;
+    });
 
     // On the monitor the main window is on: that is where the user is. Where
     // it was last left on that monitor, if it was, and the spot still lies
     // on the screen; otherwise against the right edge, in the lower third.
-    let monitor = app
-        .get_webview_window("main")
-        .and_then(|m| m.current_monitor().ok().flatten())
-        .or(window.primary_monitor()?);
-    if let Some(monitor) = monitor {
+    if let Some(monitor) = main_monitor(app, &window)? {
         let area = logical_area(&monitor);
         let name = monitor.name().cloned().unwrap_or_default();
         let saved = crate::settings::load().mini_places;
@@ -216,10 +228,12 @@ pub fn open_mini(app: &AppHandle, how: Open) -> tauri::Result<()> {
         window.set_position(LogicalPosition::new(x, y))?;
     }
 
-    // Snap and remember once a drag has come to rest.
+    // Snap, restore its size, and remember the place once a drag has come
+    // to rest — including a drag onto a screen with different scaling.
     let handle = app.clone();
     window.on_window_event(move |event| {
-        if let tauri::WindowEvent::Moved(_) = event {
+        if let tauri::WindowEvent::Moved(_) | tauri::WindowEvent::ScaleFactorChanged { .. } = event
+        {
             settle_later(&handle);
         }
     });
@@ -229,6 +243,95 @@ pub fn open_mini(app: &AppHandle, how: Open) -> tauri::Result<()> {
         window.set_focus()?;
     }
     Ok(())
+}
+
+/// The monitor the main window is on, where the user is; else the primary.
+fn main_monitor(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<Option<tauri::Monitor>> {
+    Ok(app
+        .get_webview_window("main")
+        .and_then(|m| m.current_monitor().ok().flatten())
+        .or(window.primary_monitor()?))
+}
+
+/// Put the window back to the size its content asked for, keeping its
+/// bottom-right corner, if Windows has rescaled it since.
+fn keep_size(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<()> {
+    let wanted = app
+        .state::<MiniState>()
+        .with(|s| s.wanted)
+        .unwrap_or(MINI_SIZE);
+    resize_from_corner(window, wanted)
+}
+
+fn resize_from_corner(window: &WebviewWindow, (width, height): (f64, f64)) -> tauri::Result<()> {
+    let scale = window.scale_factor()?;
+    let current = window.inner_size()?.to_logical::<f64>(scale);
+    if (current.width - width).abs() < 1.0 && (current.height - height).abs() < 1.0 {
+        return Ok(());
+    }
+    let at = window.outer_position()?.to_logical::<f64>(scale);
+    window.set_size(LogicalSize::new(width, height))?;
+    window.set_position(LogicalPosition::new(
+        at.x + current.width - width,
+        at.y + current.height - height,
+    ))
+}
+
+/// Whether the window can be found: its middle on some screen's work area.
+/// In physical pixels, which every monitor shares whatever its scaling.
+pub fn on_some_screen(window: (i32, i32, u32, u32), areas: &[(i32, i32, u32, u32)]) -> bool {
+    let (x, y, w, h) = window;
+    let (cx, cy) = (
+        i64::from(x) + i64::from(w) / 2,
+        i64::from(y) + i64::from(h) / 2,
+    );
+    areas.iter().any(|&(ax, ay, aw, ah)| {
+        let (ax, ay) = (i64::from(ax), i64::from(ay));
+        cx >= ax && cy >= ay && cx < ax + i64::from(aw) && cy < ay + i64::from(ah)
+    })
+}
+
+fn reachable(window: &WebviewWindow) -> tauri::Result<bool> {
+    let at = window.outer_position()?;
+    let size = window.outer_size()?;
+    let areas: Vec<_> = window
+        .available_monitors()?
+        .iter()
+        .map(|m| {
+            let a = m.work_area();
+            (a.position.x, a.position.y, a.size.width, a.size.height)
+        })
+        .collect();
+    Ok(on_some_screen(
+        (at.x, at.y, size.width, size.height),
+        &areas,
+    ))
+}
+
+/// The default spot, on the screen the main window is on.
+fn place_default(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<()> {
+    let Some(monitor) = main_monitor(app, window)? else {
+        return Ok(());
+    };
+    let scale = window.scale_factor()?;
+    let size = window.inner_size()?.to_logical::<f64>(scale);
+    let (x, y) = mini_spot(logical_area(&monitor), (size.width, size.height));
+    window.set_position(LogicalPosition::new(x, y))
+}
+
+/// Forget where the mini window was left on every screen, and bring it to
+/// the default spot — opening it there if it was closed. The way back from
+/// anywhere it was lost to.
+pub fn reset_mini(app: &AppHandle) -> tauri::Result<()> {
+    let _ = crate::settings::update(|s| s.mini_places.clear());
+    let Some(window) = app.get_webview_window(MINI) else {
+        return open_mini(app, Open::Asked);
+    };
+    keep_size(app, &window)?;
+    place_default(app, &window)?;
+    window.unminimize()?;
+    window.show()?;
+    window.set_focus()
 }
 
 fn logical_area(monitor: &tauri::Monitor) -> (f64, f64, f64, f64) {
@@ -309,6 +412,7 @@ fn settle(app: &AppHandle) -> tauri::Result<()> {
     let Some(monitor) = window.current_monitor()? else {
         return Ok(());
     };
+    keep_size(app, &window)?;
     let scale = window.scale_factor()?;
     let at = window.outer_position()?.to_logical::<f64>(scale);
     let size = window.inner_size()?.to_logical::<f64>(scale);
@@ -451,18 +555,85 @@ pub fn fit_mini(app: &AppHandle, wanted: (f64, f64)) -> tauri::Result<()> {
     let Some(window) = app.get_webview_window(MINI) else {
         return Ok(());
     };
-    let scale = window.scale_factor()?;
-    let (width, height) = mini_fit(wanted);
-    let current = window.inner_size()?.to_logical::<f64>(scale);
-    if (current.width - width).abs() < 1.0 && (current.height - height).abs() < 1.0 {
+    let size = mini_fit(wanted);
+    app.state::<MiniState>().with(|s| s.wanted = Some(size));
+    resize_from_corner(&window, size)
+}
+
+/// Whether the shortcut failed to register: another app holds it.
+static SHORTCUT_TAKEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn shortcut_taken() -> bool {
+    SHORTCUT_TAKEN.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Whether a shortcut is one a user can have: it parses, and it holds Ctrl,
+/// Alt or the Windows key. Shift alone is typing — Shift+M taken globally
+/// would make capital Ms impossible in every other app.
+pub fn usable_shortcut(shortcut: &str) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::{Modifiers, Shortcut};
+    let parsed: Shortcut = shortcut
+        .parse()
+        .map_err(|_| format!("{shortcut} is not a key combination"))?;
+    if !parsed
+        .mods
+        .intersects(Modifiers::CONTROL | Modifiers::ALT | Modifiers::SUPER)
+    {
+        return Err("hold Ctrl, Alt or the Windows key with it".into());
+    }
+    Ok(())
+}
+
+/// Register the mini window's shortcut at startup. One that another app
+/// holds costs the shortcut, never the app; Settings says so.
+pub fn register_shortcut(app: &AppHandle) {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let shortcut = crate::settings::load().mini_shortcut();
+    if shortcut.is_empty() {
+        return;
+    }
+    if let Err(e) = app.global_shortcut().register(shortcut.as_str()) {
+        SHORTCUT_TAKEN.store(true, std::sync::atomic::Ordering::Relaxed);
+        crate::diagnostics::log(format!("{shortcut} is taken; no mini-window shortcut: {e}"));
+    }
+}
+
+/// Swap the shortcut for another, or for none. The new one is registered
+/// before the old is let go for good, so a taken combination leaves the
+/// working one in place rather than leaving none.
+pub fn change_shortcut(app: &AppHandle, next: &str) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let next = next.trim();
+    if !next.is_empty() {
+        usable_shortcut(next)?;
+    }
+    let old = crate::settings::load().mini_shortcut();
+    if next == old && !shortcut_taken() {
         return Ok(());
     }
-    let at = window.outer_position()?.to_logical::<f64>(scale);
-    window.set_size(LogicalSize::new(width, height))?;
-    window.set_position(LogicalPosition::new(
-        at.x + current.width - width,
-        at.y + current.height - height,
-    ))
+    let shortcuts = app.global_shortcut();
+    if !old.is_empty() && shortcuts.is_registered(old.as_str()) {
+        shortcuts
+            .unregister(old.as_str())
+            .map_err(|e| e.to_string())?;
+    }
+    if !next.is_empty() {
+        if let Err(e) = shortcuts.register(next) {
+            if !old.is_empty() && !shortcut_taken() {
+                let _ = shortcuts.register(old.as_str());
+            }
+            crate::diagnostics::log(format!("{next} is taken: {e}"));
+            return Err(format!("{next} is already used by another app"));
+        }
+    }
+    SHORTCUT_TAKEN.store(false, std::sync::atomic::Ordering::Relaxed);
+    crate::settings::update(|s| s.mini_shortcut = Some(next.to_string()))?;
+    crate::diagnostics::log(if next.is_empty() {
+        "mini-window shortcut removed".to_string()
+    } else {
+        format!("mini-window shortcut set to {next}")
+    });
+    Ok(())
 }
 
 /// Whether the mini window shows in screen shares. Hidden unless asked for
@@ -579,6 +750,30 @@ mod tests {
             auto_open(MiniAuto::SwitchAway, Trigger::MeetingStarted, true, true),
             None
         );
+    }
+
+    #[test]
+    fn a_window_off_every_screen_counts_as_lost() {
+        // A 1440p screen at 100%, and a 4K one at 150% to its right.
+        let screens = [(0, 0, 2560, 1400), (2560, 0, 3840, 2100)];
+        assert!(on_some_screen((2000, 1200, 360, 56), &screens));
+        assert!(on_some_screen((5000, 1800, 540, 84), &screens));
+        // Left beyond the far edge of the second screen, or above both.
+        assert!(!on_some_screen((6500, 1800, 360, 56), &screens));
+        assert!(!on_some_screen((800, -300, 360, 56), &screens));
+        // Mostly off, its middle past the edge: no way to reach the grip.
+        assert!(!on_some_screen((6300, 1800, 360, 56), &screens));
+    }
+
+    #[test]
+    fn a_shortcut_needs_a_real_modifier() {
+        assert!(usable_shortcut(crate::settings::DEFAULT_MINI_SHORTCUT).is_ok());
+        assert!(usable_shortcut("Ctrl+Alt+R").is_ok());
+        assert!(usable_shortcut("Super+Shift+F9").is_ok());
+        // Shift alone would take a capital letter from every other app.
+        assert!(usable_shortcut("Shift+M").is_err());
+        assert!(usable_shortcut("M").is_err());
+        assert!(usable_shortcut("Ctrl+Banana").is_err());
     }
 
     #[test]

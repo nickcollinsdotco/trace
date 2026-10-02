@@ -757,6 +757,22 @@ pub fn set_mini_auto(app: AppHandle, mode: crate::settings::MiniAuto) -> CmdResu
     Ok(SettingsView::from(&s))
 }
 
+/// The mini window's shortcut, or none for an empty string. Refused, with
+/// the old one kept, if another app already holds it. Async so it runs off
+/// the main thread, which the shortcut plugin waits on to register.
+#[tauri::command]
+pub async fn set_mini_shortcut(app: AppHandle, shortcut: String) -> CmdResult<SettingsView> {
+    crate::windows::change_shortcut(&app, &shortcut)?;
+    Ok(SettingsView::from(&crate::settings::load()))
+}
+
+/// Bring the mini window back to its default spot, forgetting where it was
+/// left, and open it if it was closed.
+#[tauri::command]
+pub async fn reset_mini(app: AppHandle) -> CmdResult<()> {
+    crate::windows::reset_mini(&app).map_err(err)
+}
+
 /// Abandon the meeting in progress, writing nothing.
 #[tauri::command]
 pub fn abort_capture(app: AppHandle, manager: State<'_, CaptureManager>) -> CmdResult<()> {

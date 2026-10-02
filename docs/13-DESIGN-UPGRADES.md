@@ -555,6 +555,66 @@ state with the main window through the existing status polling and events.
 - **Not built:** the start sequence and its sound, which belong to the
   sounds work.
 
+### After using it: the feedback round (2026-10-01)
+
+Thirty notes from a week in the installed app, ordered into seven pull
+requests. Decided with Nick: every theme stays until later testing; theme
+#1 becomes **Carbon**, in the Modern family; the shortcut default is
+Ctrl+Shift+Alt+M; Sort's main button reverses the order and its arrow picks
+what to sort by, rather than cycling through four.
+
+1. **Never lose the mini window** — built, v0.17.0, notes below.
+2. **Quick fixes:** the black space under the app, no top bar on pages with
+   nothing in it (translucent, blurred where there is one; a fade in the
+   retro themes), scanlines up to 24px, flicker removed, the easter-egg
+   box's ragged edge, cursors in their text's colour, Shell's TYPE, reset
+   buttons at a box's top right.
+3. **Design-system pass:** four levels of text in every theme, 32–36px
+   buttons, one typing indicator per field, capitals as one ladder (none →
+   labels → navigation → headings) that tags follow, Carbon.
+4. **Appearance:** each preview in its own theme's type, not the current
+   one's; a list with one large preview that follows hover; the theme's own
+   font first as its default; flavour text per theme.
+5. **Library:** tags, sort, filters and view on one bar; the sort button.
+6. **Mini window, second pass:** the menu floating free of the bar, a faint
+   grid when the waveform has nothing to draw, the details view sized to
+   its text.
+7. **Scope:** smoothed and slowed, XY replaced by a spectrograph, the
+   panel at the content's width; the narrator centred in the status bar
+   with the two model chips made one.
+
+**Phase 1, built (v0.17.0):**
+
+- **Why it disappeared.** Dragged between a 100% and a 150% screen,
+  Windows rescales the window and nothing re-fits it — the page only
+  measures itself when its content changes. It lost a third of its height
+  each crossing until there was nothing left; a theme change made it
+  measure again, which is why it came back. Rust now holds the size the
+  content asked for and puts it back whenever a move or a scaling change
+  settles.
+- **The way back from anywhere:** a ↺ beside Mini window in the sidebar on
+  hover, "Bring the mini window back" in Ctrl+K, and Settings → Mini window
+  → Position. All forget the remembered places and return it to the
+  default spot. Asking for it by any route also brings it back if it is off
+  every screen. **Kept at the right edge rather than bottom centre:** bottom
+  centre is where Teams, Zoom and Meet put their own controls.
+- **The shortcut is a setting**, recorded by pressing it. Ctrl, Alt or the
+  Windows key is required — Shift alone would take capital letters from
+  every other app. A combination another app holds is refused with the old
+  one kept; one that was taken at startup is said in Settings and left out
+  of every hint, so nothing promises a shortcut that does nothing.
+- **Switches, not ticks,** in the mini window's options menu: each is a
+  state left on or off.
+- **Focus rings for the keyboard only** in the mini window. The end of a
+  drag hands focus back to the window, and the browser ringed the last
+  button as though Tab had been pressed.
+- **Found on the way:** `.trace-field` is unlayered, so Tailwind's `w-auto`
+  on it never applied — Settings' microphone list has always been full
+  width despite asking not to be. `.trace-field-fit` does what `w-auto`
+  could not; the microphone list is left for phase 3.
+- **TRACE was already in the taskbar** when minimised; nothing hides the
+  main window. Checked rather than built.
+
 ## Press effects
 
 The current press is `scale(0.97)` on `.trace-press`. The replacement varies

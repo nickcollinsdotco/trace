@@ -157,6 +157,8 @@ export const DEFAULT_STATE: BackendState = {
     summaryMemory: "during_meetings",
     defaultMic: null,
     miniAuto: "off",
+    miniShortcut: "Ctrl+Shift+Alt+M",
+    miniShortcutTaken: false,
   },
   failures: {},
   llm: { state: "ready", model: "qwen3:14b" },
@@ -392,6 +394,13 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         case "set_default_mic":
           settings = { ...settings, defaultMic: (args?.name as string | null) ?? null };
           return settings;
+        case "set_mini_shortcut":
+          settings = {
+            ...settings,
+            miniShortcut: String(args?.shortcut ?? ""),
+            miniShortcutTaken: false,
+          };
+          return settings;
         case "set_mini_auto":
           settings = { ...settings, miniAuto: args?.mode as Settings["miniAuto"] };
           return settings;
@@ -472,6 +481,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         case "fit_mini":
         case "protect_mini":
         case "close_mini":
+        case "reset_mini":
         case "show_main":
         case "open_gallery":
           return null;

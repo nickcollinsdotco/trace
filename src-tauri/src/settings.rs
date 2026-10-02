@@ -78,6 +78,12 @@ pub struct MiniPlace {
     pub bottom: f64,
 }
 
+/// The mini window from anywhere, unless the user picks another.
+///
+/// Four keys, because every shorter combination worth having is taken by
+/// something on somebody's machine — Ctrl+Alt+R was, by a browser. M for mini.
+pub const DEFAULT_MINI_SHORTCUT: &str = "Ctrl+Shift+Alt+M";
+
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -99,9 +105,17 @@ pub struct Settings {
     /// The one-time offer has been made, accepted or not.
     pub mini_offered: bool,
     pub mini_places: Vec<MiniPlace>,
+    /// `None` is the default; an empty string is no shortcut at all.
+    pub mini_shortcut: Option<String>,
 }
 
 impl Settings {
+    pub fn mini_shortcut(&self) -> String {
+        self.mini_shortcut
+            .clone()
+            .unwrap_or_else(|| DEFAULT_MINI_SHORTCUT.to_string())
+    }
+
     pub fn audio_retention(&self) -> AudioRetention {
         self.audio_retention.unwrap_or(if self.keep_audio {
             AudioRetention::KeepAll
@@ -125,6 +139,11 @@ pub struct SettingsView {
     pub summary_memory: SummaryMemory,
     pub default_mic: Option<String>,
     pub mini_auto: MiniAuto,
+    /// Empty for none.
+    pub mini_shortcut: String,
+    /// Another app held it when TRACE started, so it does nothing — said in
+    /// Settings, and left out of every hint that would promise it works.
+    pub mini_shortcut_taken: bool,
 }
 
 impl From<&Settings> for SettingsView {
@@ -136,6 +155,8 @@ impl From<&Settings> for SettingsView {
             summary_memory: s.summary_memory,
             default_mic: s.default_mic.clone(),
             mini_auto: s.mini_auto,
+            mini_shortcut: s.mini_shortcut(),
+            mini_shortcut_taken: crate::windows::shortcut_taken(),
         }
     }
 }

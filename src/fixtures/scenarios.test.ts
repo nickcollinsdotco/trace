@@ -22,6 +22,8 @@ const COMMANDS = [
   "fit_mini",
   "protect_mini",
   "set_mini_auto",
+  "set_mini_shortcut",
+  "reset_mini",
   "close_mini",
   "show_main",
   "update_notes",

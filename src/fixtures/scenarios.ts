@@ -34,7 +34,9 @@ export type ScreenName =
   | "models"
   | "appearance"
   | "settings"
-  | "about";
+  | "about"
+  /** Not a screen of the app: one of every element, for judging a theme. */
+  | "specimen";
 
 export interface Scenario {
   id: string;
@@ -997,6 +999,14 @@ export const SCENARIOS: Scenario[] = [
     group: "Pages",
     note: "Version, folders, and the diagnostics report with its recent events.",
     screen: "about",
+    state: POPULATED,
+  },
+  {
+    id: "specimen",
+    name: "Specimen — every element",
+    group: "Pages",
+    note: "One of every kind of element, captioned with the role or token that styles it. Flip themes and adjustments here first.",
+    screen: "specimen",
     state: POPULATED,
   },
   {

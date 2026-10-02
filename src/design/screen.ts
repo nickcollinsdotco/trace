@@ -14,16 +14,7 @@
  * as well as dimming the corners; its glow is big.
  */
 
-export const EFFECTS = [
-  "grain",
-  "scanlines",
-  "dots",
-  "vignette",
-  "glass",
-  "glow",
-  "flicker",
-  "roll",
-] as const;
+export const EFFECTS = ["grain", "scanlines", "dots", "vignette", "glass", "glow", "roll"] as const;
 
 export type Effect = (typeof EFFECTS)[number];
 
@@ -57,7 +48,9 @@ export interface EffectSetting {
  */
 export const SIZES: Partial<Record<Effect, readonly number[]>> = {
   grain: [1, 2, 3],
-  scanlines: [2, 3, 4, 6],
+  // Up to 24: past 6 the lines stop reading as a raster and start reading
+  // as blinds, which is a look of its own and worth having.
+  scanlines: [2, 3, 4, 6, 8, 12, 16, 24],
   dots: [6, 8, 12, 16],
 };
 
@@ -78,7 +71,6 @@ export const EFFECT_LABELS: Record<Effect, string> = {
   vignette: "Vignette",
   glass: "Glass",
   glow: "Glow",
-  flicker: "Flicker",
   roll: "Refresh bar",
 };
 
@@ -89,7 +81,6 @@ export const EFFECT_NOTES: Record<Effect, string> = {
   vignette: "A lit centre falling away to the corners.",
   glass: "A sheen across the face of the tube, as real glass catches the room.",
   glow: "Phosphor bloom around every letter.",
-  flicker: "The faint, uneven pulse of a tube.",
   roll: "A soft band of light rolling down the screen.",
 };
 
@@ -101,7 +92,6 @@ const DEFAULT_PLACE: Record<Effect, Place> = {
   vignette: "over",
   glass: "over",
   glow: "over",
-  flicker: "over",
   roll: "over",
 };
 
@@ -113,7 +103,7 @@ export const PRESET_NOTES: Record<Preset, string> = {
   none: "Clean glass.",
   lines: "Soft raster lines at lofi.cafe's 40%, and nothing else.",
   lofi: "lofi.cafe's recipe: overlay lines at 40%, a lit vignette, a big glow.",
-  crt: "A tube: lines, glow, a flicker, the refresh bar rolling down. It switches on.",
+  crt: "A tube: lines, glow, the refresh bar rolling down. It switches on.",
   film: "Grain and a soft vignette, like a projected print.",
   grid: "A dot grid on the ground, behind everything.",
 };
@@ -122,7 +112,7 @@ const PRESET_AMOUNTS: Record<Preset, Partial<Record<Effect, number>>> = {
   none: {},
   lines: { scanlines: 40 },
   lofi: { scanlines: 40, vignette: 60, glow: 60 },
-  crt: { scanlines: 55, vignette: 45, glass: 60, glow: 45, flicker: 50, roll: 50 },
+  crt: { scanlines: 55, vignette: 45, glass: 60, glow: 45, roll: 50 },
   film: { grain: 45, vignette: 35 },
   grid: { dots: 60 },
 };

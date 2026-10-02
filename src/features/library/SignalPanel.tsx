@@ -120,7 +120,7 @@ export function SignalPanel({ notes }: { notes: NoteSummary[] }) {
             : "no traces yet"}
         {" · on this machine only"}
         {mark !== null && ` · ◆ ${mark} traces`}
-        <span aria-hidden className="trace-cursor" />
+        <span aria-hidden className="trace-cursor trace-cursor-quiet" />
       </p>
     </Section>
   );

@@ -135,7 +135,7 @@ export function Narrator({ page, busy }: { page: Page | null; busy: boolean }) {
       <span aria-hidden className="truncate">
         {typed}
       </span>
-      <span aria-hidden className="trace-cursor" />
+      <span aria-hidden className="trace-cursor trace-cursor-quiet" />
     </span>
   );
 }

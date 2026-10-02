@@ -76,20 +76,22 @@ export function Boot({ onDone }: { onDone: () => void }) {
   );
 }
 
-/** docs/09 §16. Brand mythology, found rather than shown. */
-const README = `┌──────────────────────────────────────────────┐
-│ FOUND: /SYSTEM/README.TXT                    │
-├──────────────────────────────────────────────┤
-│                                              │
-│ TRACE exists to remember what people forget. │
-│                                              │
-│ Conversations disappear.                     │
-│ Decisions drift.                             │
-│ Context gets lost.                           │
-│                                              │
-│ So we kept a trace.                          │
-│                                              │
-└──────────────────────────────────────────────┘`;
+/**
+ * docs/09 §16. Brand mythology, found rather than shown.
+ *
+ * The frame is a border, not box-drawing characters. Most of the themes'
+ * fonts have no `─` or `│`, so the browser borrowed them from a fallback
+ * font of another width, and the right edge came out ragged — differently
+ * in every theme. Only the words are text now.
+ */
+const README_PATH = "FOUND: /SYSTEM/README.TXT";
+const README = `TRACE exists to remember what people forget.
+
+Conversations disappear.
+Decisions drift.
+Context gets lost.
+
+So we kept a trace.`;
 
 /** The found file: seven clicks on the wordmark. */
 export function FoundFile({ onClose }: { onClose: () => void }) {
@@ -121,7 +123,10 @@ export function FoundFile({ onClose }: { onClose: () => void }) {
         aria-label="Close the found file"
         className="block cursor-default rounded-sm bg-surface-1 p-5 text-left"
       >
-        <pre className="m-0 font-mono text-xs leading-snug text-phosphor">{README}</pre>
+        <span className="block border border-phosphor font-mono text-xs leading-snug text-phosphor">
+          <span className="block border-b border-phosphor px-3 py-1.5">{README_PATH}</span>
+          <pre className="m-0 px-3 py-3 font-[inherit]">{README}</pre>
+        </span>
       </button>
     </dialog>
   );

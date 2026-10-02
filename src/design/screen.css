@@ -30,9 +30,9 @@
  * COST AND SAFETY
  *
  * Only `transform` and `opacity` animate, so the compositor moves the layers
- * without repainting the page while a meeting is being transcribed. The
- * flicker changes the screen's luminance by at most ~3%, far below the
- * flash threshold (WCAG 2.3.1). Reduced motion stops every animation
+ * without repainting the page while a meeting is being transcribed. Nothing
+ * flashes: the flicker that pulsed the screen's brightness was cut, as more
+ * annoying than atmospheric. Reduced motion stops every animation
  * (tokens.css); more contrast removes the effects entirely.
  */
 
@@ -45,6 +45,11 @@
  */
 .trace-canvas {
   isolation: isolate;
+  /* Clipped, not hidden: `hidden` would make the canvas a scroll container
+   * of its own. Without it, the refresh bar rolling down to 140% of the
+   * canvas made the whole window scrollable, onto a black band below the
+   * status bar — moved content still counts towards what can be scrolled. */
+  overflow: clip;
 }
 
 .trace-fx {
@@ -204,17 +209,6 @@
 }
 
 /* ---------------------------------------------------------------------
- * Flicker — a white veil pulsing unevenly, at most ~3% of full brightness.
- * ------------------------------------------------------------------ */
-[data-fx-flicker] .trace-fx-flicker {
-  display: block;
-  background: #fff;
-  opacity: 0;
-  animation: trace-flicker 1.7s linear infinite;
-  will-change: opacity;
-}
-
-/* ---------------------------------------------------------------------
  * Refresh bar — a soft band of light rolling down, as a camera sees a tube.
  * ------------------------------------------------------------------ */
 [data-fx-roll] .trace-fx-roll {
@@ -244,43 +238,6 @@
   }
   to {
     transform: translateY(calc(var(--fx-scanlines-size, 3) * 6px));
-  }
-}
-
-/* Irregular on purpose; a regular pulse reads as a fault, not a tube. */
-@keyframes trace-flicker {
-  0% {
-    opacity: calc(var(--fx-flicker) * 0.012);
-  }
-  7% {
-    opacity: calc(var(--fx-flicker) * 0.03);
-  }
-  11% {
-    opacity: calc(var(--fx-flicker) * 0.008);
-  }
-  23% {
-    opacity: calc(var(--fx-flicker) * 0.022);
-  }
-  31% {
-    opacity: calc(var(--fx-flicker) * 0.01);
-  }
-  47% {
-    opacity: calc(var(--fx-flicker) * 0.028);
-  }
-  52% {
-    opacity: calc(var(--fx-flicker) * 0.006);
-  }
-  68% {
-    opacity: calc(var(--fx-flicker) * 0.02);
-  }
-  79% {
-    opacity: calc(var(--fx-flicker) * 0.014);
-  }
-  88% {
-    opacity: calc(var(--fx-flicker) * 0.032);
-  }
-  100% {
-    opacity: calc(var(--fx-flicker) * 0.012);
   }
 }
 

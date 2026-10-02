@@ -132,7 +132,6 @@ export function Shell({
                 <span aria-hidden className="trace-fx trace-fx-vignette" />
                 <span aria-hidden className="trace-fx trace-fx-glass" />
                 <span aria-hidden className="trace-fx trace-fx-roll" />
-                <span aria-hidden className="trace-fx trace-fx-flicker" />
                 {/* Always present, so a toast appearing inside it is announced:
                 a live region created with its content often is not. Above the
                 effects: news should be read, not seen through the glass. */}

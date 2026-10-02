@@ -315,6 +315,8 @@ describe("Gallery", () => {
     await openScenario(user, "Appearance");
 
     const main = await screen.findByRole("main");
+    // Carbon, the default, is Modern; Industrial is on the Retro side.
+    await user.click(await within(main).findByRole("button", { name: "retro" }));
     const card = await within(main).findByRole("button", { name: /industrial/ });
     await user.click(card);
 
@@ -332,14 +334,14 @@ describe("Gallery", () => {
 
     const main = await screen.findByRole("main");
     // Retro's themes, and no modern one, until the family changes.
-    await user.click(within(main).getByRole("button", { name: /industrial/ }));
+    await user.click(await within(main).findByRole("button", { name: "retro" }));
+    await user.click(await within(main).findByRole("button", { name: /industrial/ }));
     expect(within(main).queryByRole("button", { name: /graphite/ })).toBeNull();
 
+    // Back on Modern: Carbon, where it started — the default, so no attribute.
     await user.click(within(main).getByRole("button", { name: "modern" }));
     await waitFor(() => {
-      expect(
-        container.querySelector('[data-family="modern"][data-theme="graphite"]'),
-      ).not.toBeNull();
+      expect(container.querySelector('[data-family="modern"]:not([data-theme])')).not.toBeNull();
     });
     expect(within(main).queryByRole("button", { name: /termcn/ })).toBeNull();
 
@@ -359,7 +361,9 @@ describe("Gallery", () => {
     await openScenario(user, "Appearance");
     const main = await screen.findByRole("main");
 
-    // Retro starts on soft lines; Modern on clean glass.
+    // Retro starts on soft lines; Modern, where Carbon is, on clean glass.
+    expect(container.querySelector("[data-fx-scanlines]")).toBeNull();
+    await user.click(await within(main).findByRole("button", { name: "retro" }));
     await waitFor(() =>
       expect(container.querySelector('[data-fx-scanlines="over"]')).not.toBeNull(),
     );

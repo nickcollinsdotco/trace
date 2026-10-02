@@ -405,8 +405,16 @@
  * prefers-contrast the outline comes back, because a subtle ground shift is
  * not enough for everyone and taste does not override that.
  * ------------------------------------------------------------------ */
+/* Full width unless the markup says otherwise. In the components layer, so
+ * a width utility on the field wins: unlayered, this beat `w-auto`, `w-36`
+ * and `w-16` alike, and every field asking to be narrow was full width. */
+@layer components {
+  .trace-field {
+    width: 100%;
+  }
+}
+
 .trace-field {
-  width: 100%;
   padding: var(--field-padding);
   background: var(--field-bg);
   border: 1px solid var(--field-border);
@@ -417,12 +425,6 @@
     background-color var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out),
     box-shadow var(--duration-fast) var(--ease-out);
-}
-
-/* As wide as what it holds. A class of its own because `.trace-field` is
- * unlayered, so Tailwind's `w-auto` — in a layer — loses to its 100%. */
-.trace-field-fit {
-  width: auto;
 }
 
 .trace-field::placeholder {

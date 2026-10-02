@@ -26,9 +26,13 @@
  * Retired 2026-10-01, on the user's call after living with them: `console`
  * (conky's hue-ramp meters) and `council` (the conference badge). A saved
  * choice of either falls back to the default, and its adjustments go with it.
+ *
+ * Renamed 2026-10-02: `terminal` is `carbon`, and Modern rather than Retro —
+ * Geist, a clean ground and one green accent read as a modern app, and the
+ * name collided with the family's old one. `themeId` reads the old name.
  */
 export const THEMES = [
-  "terminal",
+  "carbon",
   "report",
   "industrial",
   "termcn",
@@ -119,15 +123,23 @@ export interface ThemeDef {
   note: string;
   frame: Frame;
   type: { mono: Mono; role: TypeRole; case: LetterCase };
+  /**
+   * How a text field shows where to type: a drawn `box`, or a `line` under
+   * it with the terminal's `>` before it. One or the other — Index once
+   * drew a box, a `>` and a blinking block, three ways of saying one thing.
+   */
+  field: FieldStyle;
 }
 
+export type FieldStyle = "box" | "line";
+
 export const THEME_DEFS: Record<Theme, ThemeDef> = {
-  terminal: {
-    family: "retro",
-    note: "The default. Phosphor green, an instrument from an alternate 1987.",
+  carbon: {
+    family: "modern",
+    note: "The default. Phosphor green on near-black, Geist throughout, the accent doing the work.",
     frame: "rule",
-    // Today's default, unchanged.
     type: { mono: "geist", role: "hybrid", case: "normal" },
+    field: "box",
   },
   report: {
     family: "retro",
@@ -136,6 +148,7 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     // A machine report is monospace all the way down — that is what makes it
     // a report rather than a document about one — and the TR-100 shouts.
     type: { mono: "plex", role: "mono", case: "upper" },
+    field: "line",
   },
   industrial: {
     family: "retro",
@@ -143,6 +156,7 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     frame: "box",
     // Industrial signage is a grotesque, with mono for the data.
     type: { mono: "fragment", role: "hybrid", case: "upper" },
+    field: "box",
   },
   termcn: {
     family: "retro",
@@ -150,6 +164,7 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     frame: "box",
     // Their shots are bold Title Case, not caps — weight does the shouting.
     type: { mono: "jetbrains", role: "mono", case: "normal" },
+    field: "box",
   },
   graphite: {
     family: "modern",
@@ -158,36 +173,42 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     // Proportional throughout: system text in mono is exactly the terminal
     // voice this family leaves behind. Timestamps keep tabular figures.
     type: { mono: "geist", role: "sans", case: "normal" },
+    field: "box",
   },
   shell: {
     family: "retro",
     note: "GRiD Compass and a terminal session: amber VT323, no boxes, headings in brackets.",
     frame: "ascii",
     type: { mono: "vt323", role: "mono", case: "normal" },
+    field: "line",
   },
   index: {
     family: "retro",
     note: "A studio index: pixel capitals, dense rows, a row lit up in full as you pass it.",
     frame: "rule",
     type: { mono: "sharetech", role: "mono", case: "upper" },
+    field: "box",
   },
   vault: {
     family: "retro",
     note: "A wrist computer from a bunker: phosphor green, condensed type, bracketed tabs.",
     frame: "rule",
     type: { mono: "sharetech", role: "sans", case: "upper" },
+    field: "box",
   },
   teletext: {
     family: "retro",
     note: "Ceefax page 100: seven hard colours on black, blue story bands, Fastext along the bottom.",
     frame: "rule",
     type: { mono: "vt323", role: "mono", case: "normal" },
+    field: "box",
   },
   scope: {
     family: "retro",
     note: "A Tektronix scope: P31 green over a 10 × 8 graticule, readouts in the corners.",
     frame: "rule",
     type: { mono: "sharetech", role: "mono", case: "upper" },
+    field: "box",
   },
 };
 
@@ -231,14 +252,14 @@ export interface Overrides {
 }
 
 /**
- * `terminal` is the `@theme` default, so selecting it removes the attribute.
+ * `carbon` is the `@theme` default, so selecting it removes the attribute.
  *
  * Everything else is an attribute rather than a token, because CSS cannot
  * select on a custom property's value. Each falls back to the theme's own
  * choice, so the gallery can vary one axis at a time.
  */
 export function applyTheme(theme: Theme, target: HTMLElement, o: Overrides = {}): void {
-  if (theme === "terminal") target.removeAttribute("data-theme");
+  if (theme === "carbon") target.removeAttribute("data-theme");
   else target.setAttribute("data-theme", theme);
 
   const type = THEME_TYPE[theme];
@@ -247,6 +268,7 @@ export function applyTheme(theme: Theme, target: HTMLElement, o: Overrides = {})
   target.setAttribute("data-mono", o.mono ?? type.mono);
   target.setAttribute("data-type", o.role ?? type.role);
   target.setAttribute("data-case", o.case ?? type.case);
+  target.setAttribute("data-field", THEME_DEFS[theme].field);
 }
 
 const STORAGE_KEY = "trace.theme";
@@ -273,12 +295,20 @@ export function isLetterCase(value: unknown): value is LetterCase {
 
 export function loadTheme(): Theme {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = themeId(localStorage.getItem(STORAGE_KEY));
     if (isTheme(stored)) return stored;
   } catch {
     // Private browsing, or storage disabled. The default is a fine answer.
   }
-  return "terminal";
+  return "carbon";
+}
+
+/** Names a theme went by before, read as the theme they became. */
+const RENAMED: Record<string, Theme> = { terminal: "carbon" };
+
+/** A stored theme name, brought up to date. Anything else passes through. */
+export function themeId(value: unknown): unknown {
+  return typeof value === "string" ? (RENAMED[value] ?? value) : value;
 }
 
 export function saveTheme(theme: Theme): void {

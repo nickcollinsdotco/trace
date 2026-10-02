@@ -32,7 +32,7 @@ _Avoid_: User style, edited copy
 The voice a theme speaks in: _Retro_ (prompts, box corners, system capitals)
 or _Modern_ (none of those). Every theme belongs to exactly one. A family
 also carries defaults for screen filter, motion, UI sound and density.
-_Avoid_: Terminal (the family — `terminal` is a theme), language, mode
+_Avoid_: Terminal (the family, and the old name of Carbon), language, mode
 
 **Appearance**:
 Everything currently applied to the screen: the active theme, its family's

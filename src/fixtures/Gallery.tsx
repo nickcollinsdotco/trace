@@ -55,6 +55,7 @@ import {
   TYPE_NOTES,
   TYPES,
   themeForKey,
+  themeId,
 } from "../design/theme";
 import { AboutScreen } from "../features/about/AboutScreen";
 import { AppearanceScreen } from "../features/appearance/AppearanceScreen";
@@ -108,12 +109,12 @@ const THEME_KEY = "trace.gallery.theme";
 
 function loadGalleryTheme(): Theme {
   try {
-    const stored = localStorage.getItem(THEME_KEY);
+    const stored = themeId(localStorage.getItem(THEME_KEY));
     if (isTheme(stored)) return stored;
   } catch {
     // The default is a fine answer.
   }
-  return "terminal";
+  return "carbon";
 }
 
 export function Gallery() {

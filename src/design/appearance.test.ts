@@ -19,12 +19,18 @@ import { presetOf } from "./screen";
 afterEach(() => localStorage.clear());
 
 function fresh(): Appearance {
-  return { theme: "terminal", adjustments: {}, families: defaultFamilies() };
+  return { theme: "carbon", adjustments: {}, families: defaultFamilies() };
+}
+
+/** A look on the Retro side; the default, Carbon, is Modern. */
+function retro(): Appearance {
+  return withTheme(fresh(), "shell");
 }
 
 describe("families", () => {
   it("come back to the theme last used in them, not their first", () => {
-    let a = withTheme(fresh(), "industrial");
+    let a = withTheme(fresh(), "graphite");
+    a = withTheme(a, "industrial");
     a = withFamily(a, "modern");
     expect(a.theme).toBe("graphite");
     a = withFamily(a, "retro");
@@ -37,15 +43,14 @@ describe("families", () => {
   });
 
   it("start Retro on soft lines and Modern on clean glass", () => {
-    const a = fresh();
-    expect(presetOf(currentScreen(a))).toBe("lines");
-    expect(presetOf(currentScreen(withFamily(a, "modern")))).toBe("none");
+    expect(presetOf(currentScreen(fresh()))).toBe("none");
+    expect(presetOf(currentScreen(retro()))).toBe("lines");
   });
 });
 
 describe("screens", () => {
   it("belong to the family, so flipping brings each one's back", () => {
-    let a = withPreset(fresh(), "crt");
+    let a = withPreset(retro(), "crt");
     a = withFamily(a, "modern");
     expect(presetOf(currentScreen(a))).toBe("none");
     a = withFamily(a, "retro");
@@ -53,7 +58,7 @@ describe("screens", () => {
   });
 
   it("keep a hand-set effect on its own family only", () => {
-    let a = withEffect(fresh(), "grain", { amount: 70, place: "behind" });
+    let a = withEffect(retro(), "grain", { amount: 70, place: "behind" });
     expect(currentScreen(a).grain).toEqual({ amount: 70, place: "behind", size: 1 });
     a = withFamily(a, "modern");
     expect(currentScreen(a).grain.amount).toBe(0);
@@ -63,10 +68,10 @@ describe("screens", () => {
 describe("adjustments", () => {
   it("belong to the theme they were made on", () => {
     let a = withAxis(fresh(), "mono", "plex");
-    expect(isAdjusted(a, "terminal")).toBe(true);
+    expect(isAdjusted(a, "carbon")).toBe(true);
     a = withTheme(a, "industrial");
     expect(currentAdjustments(a)).toEqual({});
-    a = withTheme(a, "terminal");
+    a = withTheme(a, "carbon");
     expect(currentAdjustments(a).mono).toBe("plex");
   });
 
@@ -75,7 +80,7 @@ describe("adjustments", () => {
     a = withAxis(withTheme(a, "report"), "case", "lower");
     a = withReset(a);
     expect(isAdjusted(a, "report")).toBe(false);
-    expect(isAdjusted(a, "terminal")).toBe(true);
+    expect(isAdjusted(a, "carbon")).toBe(true);
   });
 
   it("carry the old global overrides onto the theme in use, and only it", () => {
@@ -129,9 +134,20 @@ describe("storage", () => {
       JSON.stringify({ retro: { theme: "council" } }),
     );
     const a = loadAppearance();
-    expect(a.theme).toBe("terminal");
+    expect(a.theme).toBe("carbon");
     expect(a.adjustments).toEqual({ report: { case: "lower" } });
     expect(a.families.retro.theme).toBeUndefined();
+  });
+
+  it("reads terminal, Carbon's old name, as Carbon — the theme and its adjustments", () => {
+    localStorage.setItem("trace.theme", "terminal");
+    localStorage.setItem(
+      "trace.appearance.adjustments",
+      JSON.stringify({ terminal: { mono: "plex" } }),
+    );
+    const a = loadAppearance();
+    expect(a.theme).toBe("carbon");
+    expect(a.adjustments).toEqual({ carbon: { mono: "plex" } });
   });
 
   it("drops a remembered theme that belongs to the other family", () => {

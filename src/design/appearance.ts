@@ -25,6 +25,7 @@ import {
   THEME_FAMILY,
   type Theme,
   TYPES,
+  themeId,
   themesIn,
 } from "./theme";
 
@@ -73,7 +74,7 @@ const LEGACY_FILTER: Record<string, Preset> = {
  * each family remembers.
  *
  * Adjustments belong to their theme (CONTEXT.md, docs/13 Q22). They were one
- * global set at first, so Plex set on `terminal` followed you into
+ * global set at first, so Plex set on `carbon` followed you into
  * `industrial` and no theme looked as designed once anything was touched.
  * Now each theme keeps its own and Reset takes it back as it shipped.
  */
@@ -110,8 +111,9 @@ function loadFamilies(theme: Theme): Record<Family, FamilySettings> {
           ? presetScreen(legacy)
           : readScreen(saved?.screen, families[f].screen);
         families[f] = { screen };
-        if (isTheme(saved?.theme) && THEME_FAMILY[saved.theme] === f) {
-          families[f].theme = saved.theme;
+        const remembered = themeId(saved?.theme);
+        if (isTheme(remembered) && THEME_FAMILY[remembered] === f) {
+          families[f].theme = remembered;
         }
       }
     } else if (localStorage.getItem(LEGACY_CRT_KEY) === "on") {
@@ -131,7 +133,8 @@ function loadAdjustments(theme: Theme): Partial<Record<Theme, Overrides>> {
     if (saved !== null) {
       const raw = JSON.parse(saved) as Record<string, unknown>;
       const out: Partial<Record<Theme, Overrides>> = {};
-      for (const [t, o] of Object.entries(raw)) {
+      for (const [name, o] of Object.entries(raw)) {
+        const t = themeId(name);
         const overrides = readOverrides(o);
         if (isTheme(t) && hasAny(overrides)) out[t] = overrides;
       }
@@ -263,7 +266,7 @@ export function withTheme(a: Appearance, theme: string): Appearance {
 export function withFamily(a: Appearance, family: Family): Appearance {
   if (THEME_FAMILY[a.theme] === family) return a;
   const remembered = a.families[family].theme;
-  return withTheme(a, remembered ?? themesIn(family)[0] ?? "terminal");
+  return withTheme(a, remembered ?? themesIn(family)[0] ?? "carbon");
 }
 
 /** The current family's screen, replaced or changed. Pure, so it can be tested. */

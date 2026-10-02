@@ -26,6 +26,24 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.19.0",
+    date: "2026-10-02",
+    title: "Carbon, and clearer text",
+    notes: [
+      "The default theme is Carbon, and Modern: no prompts, a filled pill, the green kept. Your adjustments to it carry over.",
+      "Every theme has three clear levels of text; Teletext's descriptions no longer read as loudly as what they describe.",
+      "One way of showing where to type: the meeting title floats in every theme, and boxed search fields lose the extra >.",
+      "Dropdowns and short fields in Settings and notes are as wide as what they hold.",
+    ],
+    screens: {
+      library:
+        "Carbon as Modern; the search field's > becomes a magnifier wherever fields are boxed.",
+      "capture-setup": "The title floats in every theme: one prompt, no box.",
+      settings: "Microphone, audio and the retention count sized to their content.",
+      appearance: "Carbon listed under Modern.",
+    },
+  },
+  {
     version: "0.18.0",
     date: "2026-10-02",
     title: "What's new, in the app",

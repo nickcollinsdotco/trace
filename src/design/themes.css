@@ -10,7 +10,7 @@
  * component changes at all.
  *
  *   - `terminal` is the default. It has no block here, because it IS the
- *     `@theme` values. `data-theme="terminal"` is deliberately a no-op, which
+ *     `@theme` values. `data-theme="carbon"` is deliberately a no-op, which
  *     makes "the default stays pixel-identical" true by construction.
  *   - every other look is a list of overrides, and nothing else.
  *
@@ -634,8 +634,12 @@
   --color-line-strong: #ffffff;
 
   --color-ink: #ffffff;
-  --color-ink-muted: #00ffff;
-  --color-ink-faint: #00ff00;
+  /* Green for what supports, and cyan at two-thirds for what is quietest:
+     the one place this page leaves the seven colours. At full strength,
+     every level was as bright as the text it should sit behind, and a
+     model's description read as loudly as the model. */
+  --color-ink-muted: #00ff00;
+  --color-ink-faint: #00a0a0;
 
   --color-phosphor: #ffff00;
   --color-phosphor-bright: #ffffff;

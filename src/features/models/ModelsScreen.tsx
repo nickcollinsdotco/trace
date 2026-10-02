@@ -319,7 +319,7 @@ function ModelCard({
         <p className="flex items-baseline gap-2">
           <span className="trace-title text-base text-ink">{name}</span>
           {active && (
-            <span className="font-mono text-2xs uppercase tracking-system text-phosphor">
+            <span className="font-mono text-2xs trace-caps-label tracking-system text-phosphor">
               ● In use
             </span>
           )}
@@ -358,7 +358,7 @@ function ActionButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`rounded-sm border px-3 py-1.5 font-mono text-2xs uppercase tracking-system trace-press disabled:cursor-not-allowed disabled:opacity-40 ${tone}`}
+      className={`trace-btn trace-press disabled:cursor-not-allowed disabled:opacity-40 ${tone}`}
     >
       {children}
     </button>

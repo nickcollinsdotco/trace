@@ -77,7 +77,7 @@ describe("adjustments", () => {
 
   it("reset only the current theme", () => {
     let a = withAxis(fresh(), "mono", "plex");
-    a = withAxis(withTheme(a, "report"), "case", "lower");
+    a = withAxis(withTheme(a, "report"), "case", "none");
     a = withReset(a);
     expect(isAdjusted(a, "report")).toBe(false);
     expect(isAdjusted(a, "carbon")).toBe(true);
@@ -135,7 +135,8 @@ describe("storage", () => {
     );
     const a = loadAppearance();
     expect(a.theme).toBe("carbon");
-    expect(a.adjustments).toEqual({ report: { case: "lower" } });
+    // Kept, and read on the ladder: lower case became "none".
+    expect(a.adjustments).toEqual({ report: { case: "none" } });
     expect(a.families.retro.theme).toBeUndefined();
   });
 

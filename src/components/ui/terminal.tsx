@@ -207,7 +207,7 @@ export function StatusDot({ state }: { state: CaptureState }) {
     // role=status so a screen reader announces capture starting and stopping.
     <span role="status" className="inline-flex items-center gap-2">
       <span aria-hidden className={`size-1.5 rounded-full ${dot} ${live ? "trace-pulse" : ""}`} />
-      <span className={`font-mono text-2xs uppercase tracking-system ${text}`}>{label}</span>
+      <span className={`font-mono text-2xs trace-caps-label tracking-system ${text}`}>{label}</span>
     </span>
   );
 }

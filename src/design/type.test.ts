@@ -38,17 +38,24 @@ describe("type.css", () => {
     );
   });
 
-  it("applies letter case to system text but never to prose", () => {
-    // `.font-mono` is system text — timestamps, transcript, status. Prose
-    // carries no such class even in `mono` role, which is the point: an
-    // uppercase paragraph is unreadable.
-    // The selector is a list, so match each member rather than assuming it
-    // sits immediately before the brace.
-    expect(css).toMatch(/\[data-case="upper"\][^{;]*\.font-mono\b/);
-    expect(css).toMatch(/\[data-case="lower"\][^{;]*\.font-mono\b/);
-    expect(css).toMatch(/text-transform:\s*uppercase/);
-    expect(css).toMatch(/text-transform:\s*lowercase/);
-    expect(css).not.toMatch(/\[data-case="normal"\]/);
+  it("puts each role in capitals from its step of the ladder, and never prose", () => {
+    // Each step names its roles; a later step repeats the earlier ones, so a
+    // role missing from a later step would drop out as the ladder climbs.
+    const step = (name: string) =>
+      css.match(new RegExp(`\\[data-case="${name}"\\]\\s*:is\\(([^)]*)\\)`))?.[1] ?? "";
+    const roles = {
+      labels: [".trace-system-label", ".trace-caps-label", ".trace-tag"],
+      controls: [".trace-control", ".trace-btn", ".trace-nav"],
+      headings: [".trace-caps-heading", ".trace-title"],
+    };
+    expect(step("labels")).toContain(".trace-tag");
+    for (const r of [...roles.labels, ...roles.controls]) expect(step("controls")).toContain(r);
+    for (const r of Object.values(roles).flat()) expect(step("headings")).toContain(r);
+    expect(step("labels")).not.toContain(".trace-btn");
+    // Prose and system text in general are on no step: the old "upper"
+    // reached every .font-mono line, the transcript included.
+    expect(css).not.toMatch(/\[data-case[^\]]*\][^{]*\.font-mono/);
+    expect(css).not.toMatch(/trace-prose[^{]*\{[^}]*uppercase/);
   });
 
   it("leaves every theme a proportional face, or Type has nothing to switch to", () => {

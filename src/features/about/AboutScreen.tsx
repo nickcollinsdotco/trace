@@ -79,7 +79,7 @@ export function AboutScreen({
           {FOLDERS.map((f) => (
             <div key={f.kind} className="flex items-center gap-4">
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="font-mono text-2xs uppercase tracking-system text-ink-faint">
+                <span className="font-mono text-2xs trace-caps-label tracking-system text-ink-faint">
                   {f.label}
                 </span>
                 <span data-selectable className="truncate font-mono text-xs text-ink">
@@ -96,7 +96,7 @@ export function AboutScreen({
                     .then((path) => setOpened((o) => ({ ...o, [f.kind]: path })))
                     .catch((e) => setError(String(e)));
                 }}
-                className="shrink-0 rounded-sm border border-line-strong px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor disabled:opacity-50"
+                className="shrink-0 trace-btn trace-btn-secondary trace-press disabled:opacity-50"
               >
                 Open
               </button>

@@ -98,12 +98,10 @@ export const TYPES = ["hybrid", "mono", "sans"] as const;
 export type TypeRole = (typeof TYPES)[number];
 
 /**
- * Letter case for monospace system text.
- *
- * `normal` means "leave it to the theme" rather than "force sentence case",
- * so selecting it changes nothing.
+ * How far capitals reach, as a ladder (type.css): each step adds a role —
+ * labels and tags, then buttons and navigation, then titles. Prose never.
  */
-export const CASES = ["normal", "upper", "lower"] as const;
+export const CASES = ["none", "labels", "controls", "headings"] as const;
 
 export type LetterCase = (typeof CASES)[number];
 
@@ -138,7 +136,7 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     family: "modern",
     note: "The default. Phosphor green on near-black, Geist throughout, the accent doing the work.",
     frame: "rule",
-    type: { mono: "geist", role: "hybrid", case: "normal" },
+    type: { mono: "geist", role: "hybrid", case: "labels" },
     field: "box",
   },
   report: {
@@ -147,7 +145,7 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     frame: "box",
     // A machine report is monospace all the way down — that is what makes it
     // a report rather than a document about one — and the TR-100 shouts.
-    type: { mono: "plex", role: "mono", case: "upper" },
+    type: { mono: "plex", role: "mono", case: "headings" },
     field: "line",
   },
   industrial: {
@@ -155,7 +153,7 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     note: "R-1 / LAB — hot orange as a brand colour, not a status accent.",
     frame: "box",
     // Industrial signage is a grotesque, with mono for the data.
-    type: { mono: "fragment", role: "hybrid", case: "upper" },
+    type: { mono: "fragment", role: "hybrid", case: "headings" },
     field: "box",
   },
   termcn: {
@@ -163,7 +161,7 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     note: "termcn — pure black, saturated ANSI, heavy square boxes. The loudest of them.",
     frame: "box",
     // Their shots are bold Title Case, not caps — weight does the shouting.
-    type: { mono: "jetbrains", role: "mono", case: "normal" },
+    type: { mono: "jetbrains", role: "mono", case: "none" },
     field: "box",
   },
   graphite: {
@@ -172,42 +170,42 @@ export const THEME_DEFS: Record<Theme, ThemeDef> = {
     frame: "card",
     // Proportional throughout: system text in mono is exactly the terminal
     // voice this family leaves behind. Timestamps keep tabular figures.
-    type: { mono: "geist", role: "sans", case: "normal" },
+    type: { mono: "geist", role: "sans", case: "none" },
     field: "box",
   },
   shell: {
     family: "retro",
     note: "GRiD Compass and a terminal session: amber VT323, no boxes, headings in brackets.",
     frame: "ascii",
-    type: { mono: "vt323", role: "mono", case: "normal" },
+    type: { mono: "vt323", role: "mono", case: "controls" },
     field: "line",
   },
   index: {
     family: "retro",
     note: "A studio index: pixel capitals, dense rows, a row lit up in full as you pass it.",
     frame: "rule",
-    type: { mono: "sharetech", role: "mono", case: "upper" },
+    type: { mono: "sharetech", role: "mono", case: "headings" },
     field: "box",
   },
   vault: {
     family: "retro",
     note: "A wrist computer from a bunker: phosphor green, condensed type, bracketed tabs.",
     frame: "rule",
-    type: { mono: "sharetech", role: "sans", case: "upper" },
+    type: { mono: "sharetech", role: "sans", case: "headings" },
     field: "box",
   },
   teletext: {
     family: "retro",
     note: "Ceefax page 100: seven hard colours on black, blue story bands, Fastext along the bottom.",
     frame: "rule",
-    type: { mono: "vt323", role: "mono", case: "normal" },
+    type: { mono: "vt323", role: "mono", case: "controls" },
     field: "box",
   },
   scope: {
     family: "retro",
     note: "A Tektronix scope: P31 green over a 10 × 8 graticule, readouts in the corners.",
     frame: "rule",
-    type: { mono: "sharetech", role: "mono", case: "upper" },
+    type: { mono: "sharetech", role: "mono", case: "headings" },
     field: "box",
   },
 };
@@ -233,10 +231,22 @@ export const MONO_NOTES: Record<Mono, string> = {
 };
 
 export const CASE_NOTES: Record<LetterCase, string> = {
-  normal: "As written — the theme's own label casing still applies.",
-  upper: "SYSTEM TEXT IN CAPS. Not prose; an uppercase paragraph is unreadable.",
-  lower: "system text in lowercase. quieter, more modern-terminal.",
+  none: "Nothing in capitals.",
+  labels: "Section and field labels, and tags.",
+  controls: "Labels, tags, buttons and navigation.",
+  headings: "All of those, and titles. Never prose, notes or transcripts.",
 };
+
+/**
+ * The letter case values before the ladder: `upper` put all system text in
+ * capitals, the nearest step being headings; `lower` is none; `normal`
+ * meant the theme's own, which is what no adjustment means now.
+ */
+export function letterCase(value: unknown): LetterCase | undefined {
+  if (value === "upper") return "headings";
+  if (value === "lower") return "none";
+  return isLetterCase(value) ? value : undefined;
+}
 
 export const TYPE_NOTES: Record<TypeRole, string> = {
   hybrid: "Sans for prose, mono for system language.",

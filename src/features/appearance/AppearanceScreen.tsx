@@ -143,7 +143,7 @@ export function AppearanceScreen() {
             <button
               type="button"
               onClick={reset}
-              className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
+              className="trace-control font-mono text-2xs tracking-system text-ink-faint trace-press hover:text-ink"
             >
               Reset {appearance.theme}
             </button>
@@ -265,7 +265,7 @@ function FamilyChoice({
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`rounded-pill px-4 py-1.5 font-mono text-2xs uppercase tracking-system trace-press ${
+      className={`trace-btn rounded-pill trace-press ${
         selected ? "bg-phosphor text-surface-0" : "text-ink-muted hover:text-ink"
       }`}
     >
@@ -303,7 +303,7 @@ function EffectRow({
     >
       <label
         htmlFor={id}
-        className={`font-mono text-2xs uppercase tracking-system ${on ? "text-ink" : "text-ink-faint"}`}
+        className={`font-mono text-2xs trace-caps-label tracking-system ${on ? "text-ink" : "text-ink-faint"}`}
       >
         {EFFECT_LABELS[effect]}
       </label>
@@ -421,7 +421,7 @@ function AxisControl({
 
   return (
     <div className="grid grid-cols-[8rem_1fr] items-start gap-x-4 gap-y-1">
-      <span className="pt-1.5 font-mono text-2xs uppercase tracking-system text-ink-faint">
+      <span className="pt-1.5 font-mono text-2xs trace-caps-label tracking-system text-ink-faint">
         {label}
       </span>
       <div className="flex flex-col gap-1">

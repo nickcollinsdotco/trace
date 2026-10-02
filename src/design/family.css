@@ -30,13 +30,8 @@
   display: none;
 }
 
-/*
- * Sentence case. The `uppercase` utility is how the terminal voice reaches
- * buttons and labels in markup; overriding it here is one rule instead of a
- * prop threaded through every button in the app.
- */
-[data-family="modern"] .uppercase {
-  text-transform: none;
+[data-family="modern"] {
+  --control-h: 2.25rem;
 }
 
 /* Weight, not capitals, carries a heading in this language. */

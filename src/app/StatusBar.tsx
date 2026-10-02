@@ -240,7 +240,7 @@ function SummaryPicker({
                     .then(() => window.setTimeout(onChanged, 4_000))
                     .catch((e) => setError(String(e)));
                 }}
-                className="rounded-sm border border-phosphor px-2.5 py-1 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0"
+                className="trace-btn trace-btn-primary trace-press"
               >
                 Open Ollama
               </button>

@@ -87,7 +87,7 @@ export function ActivityToast({
             setShown(null);
             onOpenNote(shown.notePath);
           }}
-          className="shrink-0 uppercase tracking-system text-phosphor trace-press hover:text-ink"
+          className="trace-control shrink-0 tracking-system text-phosphor trace-press hover:text-ink"
         >
           Open
         </button>

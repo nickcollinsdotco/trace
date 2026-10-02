@@ -48,7 +48,7 @@ export function TopBar({
           </button>
         )}
         <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
-          <ol className="flex min-w-0 items-center gap-2 font-mono text-2xs tracking-system text-ink-faint">
+          <ol className="trace-nav flex min-w-0 items-center gap-2 font-mono text-2xs tracking-system text-ink-faint">
             {crumbs.map((c, i) => (
               <li
                 // The path to a crumb is unique where the name alone may not be.

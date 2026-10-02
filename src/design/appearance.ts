@@ -18,6 +18,7 @@ import {
   isMono,
   isTheme,
   isTypeRole,
+  letterCase,
   loadTheme,
   MONOS,
   type Overrides,
@@ -160,7 +161,7 @@ function readOverrides(raw: unknown): Overrides {
     frame: isFrame(o.frame) ? o.frame : undefined,
     mono: isMono(o.mono) ? o.mono : undefined,
     role: isTypeRole(o.role) ? o.role : undefined,
-    case: isLetterCase(o.case) ? o.case : undefined,
+    case: letterCase(o.case),
   };
 }
 

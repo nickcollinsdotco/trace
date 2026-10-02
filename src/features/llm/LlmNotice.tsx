@@ -99,16 +99,12 @@ export function LlmNotice({
             type="button"
             onClick={open}
             disabled={starting}
-            className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+            className="trace-btn trace-btn-primary trace-press disabled:opacity-50"
           >
             {starting ? "Starting…" : "Open Ollama"}
           </button>
         )}
-        <button
-          type="button"
-          onClick={onRecheck}
-          className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink"
-        >
+        <button type="button" onClick={onRecheck} className="trace-btn trace-btn-quiet trace-press">
           Check again
         </button>
       </div>

@@ -408,7 +408,7 @@ function AboutMeeting({
       <button
         type="button"
         onClick={open}
-        className="self-start rounded-sm border border-dashed border-line-strong px-2 py-1 font-mono text-2xs tracking-system text-ink-faint trace-press hover:border-phosphor hover:text-phosphor"
+        className="trace-control self-start rounded-sm border border-dashed border-line-strong px-2 py-1 font-mono text-2xs tracking-system text-ink-faint trace-press hover:border-phosphor hover:text-phosphor"
       >
         + Context &amp; names
       </button>
@@ -421,7 +421,7 @@ function AboutMeeting({
       >
         {about.participants.length > 0 && (
           <span className="flex items-baseline gap-2">
-            <span className="w-16 shrink-0 font-mono text-2xs uppercase tracking-system text-ink-faint">
+            <span className="w-16 shrink-0 font-mono text-2xs trace-caps-label tracking-system text-ink-faint">
               With
             </span>
             <span className="text-sm text-ink">{about.participants.join(", ")}</span>
@@ -429,7 +429,7 @@ function AboutMeeting({
         )}
         {about.context && (
           <span className="flex items-baseline gap-2">
-            <span className="w-16 shrink-0 font-mono text-2xs uppercase tracking-system text-ink-faint">
+            <span className="w-16 shrink-0 font-mono text-2xs trace-caps-label tracking-system text-ink-faint">
               Context
             </span>
             <span className="line-clamp-2 whitespace-pre-line text-sm text-ink-muted">
@@ -447,7 +447,7 @@ function AboutMeeting({
       <div className="flex flex-col gap-1.5">
         <label
           htmlFor={namesId}
-          className="font-mono text-2xs uppercase tracking-system text-ink-muted"
+          className="font-mono text-2xs trace-caps-label tracking-system text-ink-muted"
         >
           Who was on the other end?
         </label>
@@ -469,7 +469,7 @@ function AboutMeeting({
       <div className="flex flex-col gap-1.5">
         <label
           htmlFor={contextId}
-          className="font-mono text-2xs uppercase tracking-system text-ink-muted"
+          className="font-mono text-2xs trace-caps-label tracking-system text-ink-muted"
         >
           What should the summary know?
         </label>
@@ -507,7 +507,7 @@ function AboutMeeting({
                   ? "Ollama is not ready, so notes cannot be written now"
                   : undefined
             }
-            className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+            className="trace-btn trace-btn-primary trace-press disabled:opacity-50"
           >
             Save and regenerate
           </button>
@@ -516,7 +516,7 @@ function AboutMeeting({
           type="button"
           onClick={() => save(false)}
           disabled={saving}
-          className="rounded-sm border border-line-strong px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-ink trace-press hover:border-phosphor hover:text-phosphor disabled:opacity-50"
+          className="trace-btn trace-btn-secondary trace-press disabled:opacity-50"
         >
           Save
         </button>
@@ -524,7 +524,7 @@ function AboutMeeting({
           type="button"
           onClick={() => setEditing(false)}
           disabled={saving}
-          className="font-mono text-2xs uppercase tracking-system text-ink-faint trace-press hover:text-ink disabled:opacity-50"
+          className="trace-btn trace-btn-quiet trace-press disabled:opacity-50"
         >
           Cancel
         </button>
@@ -601,7 +601,7 @@ function Segment({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-sm border px-2.5 py-1 font-mono text-2xs uppercase tracking-system trace-press ${
+      className={`trace-btn trace-press ${
         active
           ? "border-phosphor bg-phosphor-dim text-phosphor"
           : "border-transparent text-ink-faint hover:text-ink"
@@ -650,7 +650,7 @@ function NotEnhancedYet({
           type="button"
           onClick={onRegenerate}
           disabled={regenerating || !usable}
-          className="rounded-sm border border-phosphor px-3 py-1.5 font-mono text-2xs uppercase tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+          className="trace-btn trace-btn-primary trace-press disabled:opacity-50"
         >
           {regenerating ? "Generating…" : "Generate summary"}
         </button>
@@ -795,7 +795,7 @@ function Block({ text, them }: { text: string; them: string | null }) {
           {/* Wider once a name can appear, so the text column stays aligned
               down the whole transcript rather than jumping line to line. */}
           <span
-            className={`shrink-0 truncate uppercase tracking-system text-phosphor-muted ${
+            className={`shrink-0 truncate trace-caps-label tracking-system text-phosphor-muted ${
               them ? "w-20" : "w-12"
             }`}
             title={name}
@@ -909,7 +909,7 @@ function Tags({
             onClick={() => onSearchTag?.(tag)}
             disabled={!onSearchTag}
             title={onSearchTag ? `Find meetings tagged ${tag}` : undefined}
-            className="px-2 py-1 font-mono text-2xs tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:cursor-default"
+            className="trace-tag px-2 py-1 font-mono text-2xs tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:cursor-default"
           >
             {tag}
           </button>
@@ -965,7 +965,7 @@ function Tags({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="rounded-sm border border-dashed border-line-strong px-2 py-1 font-mono text-2xs tracking-system text-ink-faint trace-press hover:border-phosphor hover:text-phosphor"
+          className="trace-control rounded-sm border border-dashed border-line-strong px-2 py-1 font-mono text-2xs tracking-system text-ink-faint trace-press hover:border-phosphor hover:text-phosphor"
         >
           + Tag
         </button>

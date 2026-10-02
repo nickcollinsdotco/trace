@@ -151,6 +151,8 @@
  *   3. --fill-*    how meters and empty states fill (solid | dither | ramp)
  * ------------------------------------------------------------------ */
 :root {
+  /* The height of a button (terminal.css). The modern family is roomier. */
+  --control-h: 2rem;
   /*
    * Elevation, as real custom properties so themes can actually change it.
    *

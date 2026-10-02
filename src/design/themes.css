@@ -77,7 +77,6 @@
   --radius-lg: 0px;
 
   --label-font: var(--font-mono);
-  --label-transform: uppercase;
   --label-tracking: 0.1em;
 
   /* Solid white on a checkerboard track — the TR-100 progress bar exactly. */
@@ -153,7 +152,6 @@
   --font-sans: "Space Grotesk Variable", "Geist Variable", system-ui, sans-serif;
 
   --label-font: var(--font-sans);
-  --label-transform: uppercase;
   --label-tracking: 0.16em;
 
   /* Flat orange on a diagonal hatch — the stencil, not the gradient. */
@@ -225,7 +223,6 @@
   --radius-lg: 0px;
 
   --label-font: var(--font-mono);
-  --label-transform: none;
   --label-tracking: 0.02em;
 
   /* Solid bright fill on a stippled track, in brackets. */
@@ -314,7 +311,6 @@
   --tracking-system: 0;
 
   --label-font: var(--font-sans);
-  --label-transform: none;
   --label-tracking: 0;
   --label-size: var(--text-sm);
 
@@ -386,7 +382,6 @@
   --text-2xl: 2.5rem;
 
   --label-font: var(--font-mono);
-  --label-transform: uppercase;
   --label-tracking: 0.06em;
 
   --fill-active: var(--color-phosphor);
@@ -461,7 +456,6 @@
   --radius-pill: 0px;
 
   --label-font: "Silkscreen", var(--font-mono);
-  --label-transform: uppercase;
   --label-tracking: 0.02em;
   --label-size: 0.6875rem;
 
@@ -566,7 +560,6 @@
   --font-sans: "Roboto Condensed Variable", "Roboto Condensed", system-ui, sans-serif;
 
   --label-font: var(--font-sans);
-  --label-transform: uppercase;
   --label-tracking: 0.08em;
 
   --fill-active: var(--color-phosphor);
@@ -666,7 +659,6 @@
   --text-2xl: 2.75rem;
 
   --label-font: var(--font-mono);
-  --label-transform: uppercase;
   --label-tracking: 0.04em;
 
   /* Mosaic: a solid block on a track of separated graphics cells. */
@@ -779,7 +771,6 @@
   --radius-pill: 2px;
 
   --label-font: var(--font-mono);
-  --label-transform: uppercase;
   --label-tracking: 0.1em;
 
   --fill-active: var(--color-phosphor);

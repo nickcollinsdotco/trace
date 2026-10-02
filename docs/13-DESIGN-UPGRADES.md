@@ -644,6 +644,30 @@ what to sort by, rather than cycling through four.
   miss.
 - **Scanlines go to 24px; flicker is gone.**
 
+**Phase 3a, built (v0.19.0)** — the design-system pass, split in two: this
+half is the parts that change what things are; 3b gives buttons one set of
+classes, and with them the size and the capitals ladder.
+
+- **Carbon.** `terminal` is renamed, and moves to Modern: no prompts, the
+  filled pill, the green kept. A saved `terminal` — the theme, a family's
+  memory of it, its adjustments — reads as Carbon (`themeId`).
+- **Text hierarchy, measured.** `contrast.test.ts` holds every theme to
+  ink ≥ 7:1, muted ≥ 4.5:1 and faint ≥ 3:1 on the grounds text sits on,
+  each a step of at least 1.35× below the last. Nine already passed.
+  Teletext's three levels were all near full brightness (21, 16.7, 15.3), so
+  a model's description in its picker read as loudly as the model; it is
+  now white, green, and cyan at two-thirds — the one place it leaves the
+  seven colours. Disabled stays faint at reduced opacity.
+- **One typing indicator.** Each theme says whether its fields are a `box`
+  or a `line`. The meeting title floats in every theme, as it did in
+  Modern — a `>` and a blinking block are one prompt; the box was the
+  third thing. A boxed search field shows the magnifier instead of the `>`;
+  a line keeps the `>`.
+- **Widths that work.** `.trace-field`'s 100% moved into the components
+  layer, so `w-auto`, `w-36` and `w-16` on a field finally apply. The
+  microphone list also needed `self-start` — a column stretches its
+  children whatever their width says.
+
 ## Press effects
 
 The current press is `scale(0.97)` on `.trace-press`. The replacement varies

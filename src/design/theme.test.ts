@@ -31,7 +31,7 @@ describe("themes", () => {
     const el = document.createElement("div");
     el.setAttribute("data-theme", "report");
 
-    applyTheme("terminal", el);
+    applyTheme("carbon", el);
 
     expect(el.hasAttribute("data-theme")).toBe(false);
   });
@@ -49,7 +49,7 @@ describe("themes", () => {
 
   it("falls back to terminal for junk in storage", () => {
     localStorage.setItem("trace.theme", "neon-hellscape");
-    expect(loadTheme()).toBe("terminal");
+    expect(loadTheme()).toBe("carbon");
   });
 
   it("describes every theme", () => {
@@ -73,7 +73,7 @@ describe("themes", () => {
     // The whole point of the gallery's Frame switch: ask "what does terminal
     // look like boxed?" without inventing a fourth theme to find out.
     const el = document.createElement("div");
-    applyTheme("terminal", el, { frame: "box" });
+    applyTheme("carbon", el, { frame: "box" });
 
     expect(el.hasAttribute("data-theme")).toBe(false);
     expect(el.getAttribute("data-frame")).toBe("box");
@@ -92,7 +92,7 @@ describe("themes", () => {
     expect(el.getAttribute("data-mono")).toBe("plex");
     expect(el.getAttribute("data-type")).toBe("mono");
 
-    applyTheme("terminal", el);
+    applyTheme("carbon", el);
     expect(el.getAttribute("data-type")).toBe("hybrid");
   });
 
@@ -132,7 +132,7 @@ describe("themes", () => {
 
     // terminal must stay exactly as it is: "normal" has no CSS rules at all,
     // so the theme's own label casing still decides.
-    applyTheme("terminal", el);
+    applyTheme("carbon", el);
     expect(el.getAttribute("data-case")).toBe("normal");
   });
 
@@ -195,7 +195,7 @@ describe("themes", () => {
   });
 
   it("rejects non-themes", () => {
-    expect(isTheme("terminal")).toBe(true);
+    expect(isTheme("carbon")).toBe(true);
     expect(isTheme("Terminal")).toBe(false);
     expect(isTheme(null)).toBe(false);
   });

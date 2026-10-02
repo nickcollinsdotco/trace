@@ -335,7 +335,7 @@ function useAppearance(): AppearanceControl {
       if (!e.ctrlKey || !e.shiftKey || e.key.toLowerCase() !== "t") return;
       e.preventDefault();
       setAppearance((a) =>
-        withTheme(a, THEMES[(THEMES.indexOf(a.theme) + 1) % THEMES.length] ?? "terminal"),
+        withTheme(a, THEMES[(THEMES.indexOf(a.theme) + 1) % THEMES.length] ?? "carbon"),
       );
     }
     window.addEventListener("keydown", onKey);

@@ -83,8 +83,8 @@ export function SearchBar({
           aria-hidden
           className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 font-mono text-sm text-phosphor"
         >
-          <span className="trace-glyph">&gt;</span>
-          <span className="trace-modern-only text-ink-faint">
+          <span className="trace-glyph trace-field-prompt">&gt;</span>
+          <span className="trace-field-icon text-ink-faint">
             <SearchIcon />
           </span>
         </span>

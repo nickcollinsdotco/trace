@@ -59,7 +59,7 @@ export function ShortcutField({
             }
             offer(next);
           }}
-          className={`trace-field trace-field-fit min-w-48 py-1.5 text-left font-mono text-sm ${
+          className={`trace-field w-auto min-w-48 py-1.5 text-left font-mono text-sm ${
             listening ? "text-phosphor" : taken ? "text-ink-faint line-through" : "text-ink"
           }`}
         >

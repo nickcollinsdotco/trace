@@ -8,7 +8,7 @@ import { Palette } from "./Palette";
 afterEach(cleanup);
 
 function setup(initialQuery = "") {
-  const original = { theme: "terminal" as const, adjustments: {}, families: defaultFamilies() };
+  const original = { theme: "carbon" as const, adjustments: {}, families: defaultFamilies() };
   const appearance = {
     appearance: original,
     setTheme: vi.fn(),
@@ -72,7 +72,7 @@ describe("Palette previews", () => {
     // Down from Start lands on Meetings, then on through to the themes.
     const toFirstTheme = "{ArrowDown}".repeat(6);
     await user.type(input, toFirstTheme);
-    expect(appearance.setTheme).toHaveBeenCalledWith("terminal");
+    expect(appearance.setTheme).toHaveBeenCalledWith("carbon");
     await user.type(input, "{ArrowUp}");
     expect(appearance.restore).toHaveBeenCalledWith(original);
   });

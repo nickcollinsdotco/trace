@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useConfirm } from "../../components/ui/Confirm";
 import { Page } from "../../components/ui/Page";
+import { Popover, PopoverDivider, PopoverItem } from "../../components/ui/Popover";
 import { RenameInput } from "../../components/ui/RenameInput";
 import {
   type Suggestion,
@@ -13,7 +15,7 @@ import { tagCounts } from "../library/query";
 import { LlmNotice } from "../llm/LlmNotice";
 import { useLlmStatus } from "../llm/useLlmStatus";
 import { RefinementNotice } from "./RefinementNotice";
-import { splitParts, splitSections, splitTitle } from "./sections";
+import { parseProvenance, splitParts, splitSections, splitTitle } from "./sections";
 import { useNoteRefinement } from "./useNoteRefinement";
 
 /**
@@ -41,6 +43,7 @@ export function NoteScreen({
   onBack,
   onSearchTag,
   onRenamed,
+  onDeleted,
 }: {
   path: string;
   onBack: () => void;
@@ -48,7 +51,10 @@ export function NoteScreen({
   onSearchTag?: ((tag: string) => void) | undefined;
   /** Renaming moves the file, so whoever holds the path needs the new one. */
   onRenamed?: ((path: string) => void) | undefined;
+  /** Deleted from its own menu: there is nothing left here to show. */
+  onDeleted?: (() => void) | undefined;
 }) {
+  const confirm = useConfirm();
   const [renaming, setRenaming] = useState(false);
   // Shown until the note is read again from its new path, so the title does
   // not flick back to the old one in between.
@@ -184,6 +190,36 @@ export function NoteScreen({
               replayable={replayable}
             />
           )}
+          {sections && head?.title && hasBackend() && (
+            <NoteActions
+              title={renamedTo ?? head.title}
+              markdown={() =>
+                [
+                  `# ${renamedTo ?? head.title}`,
+                  active === "enhanced" && sections.hasEnhanced
+                    ? sections.enhanced
+                    : sections.notes,
+                ]
+                  .filter(Boolean)
+                  .join("\n\n")
+              }
+              onReveal={() => ipc.revealNote(path)}
+              onRename={() => setRenaming(true)}
+              onDelete={async () => {
+                const ok = await confirm({
+                  title: `Delete “${renamedTo ?? head.title}”?`,
+                  body: ["The note and its transcript are both deleted.", "This cannot be undone."],
+                  confirm: "Delete meeting",
+                  danger: true,
+                });
+                if (!ok) return;
+                await ipc
+                  .deleteNote(path)
+                  .then(() => (onDeleted ?? onBack)())
+                  .catch((e) => setError(String(e)));
+              }}
+            />
+          )}
         </TopBar>
       }
     >
@@ -221,7 +257,8 @@ export function NoteScreen({
           </h1>
         ))}
 
-      {error && (
+      {error && text === null && <NoteMissing error={error} onBack={onBack} />}
+      {error && text !== null && (
         <p className="font-mono text-xs text-error">
           <Prompt />
           {error}
@@ -236,7 +273,7 @@ export function NoteScreen({
 
       <RefinementNotice job={job} />
 
-      <Tags path={path} onSearchTag={onSearchTag} />
+      {sections && <Tags path={path} onSearchTag={onSearchTag} />}
 
       {hasBackend() && sections && (
         <AboutMeeting
@@ -273,7 +310,7 @@ export function NoteScreen({
               />
             )
           ) : sections.hasNotes ? (
-            <Parts markdown={sections.notes} them={them} />
+            <Parts markdown={sections.notes} them={them} breaks />
           ) : (
             <p className="font-mono text-xs text-ink-faint">
               <Prompt />
@@ -290,14 +327,8 @@ export function NoteScreen({
             </div>
           )}
 
-          {sections.footer && <NoteBody markdown={sections.footer} them={them} />}
+          <NoteFoot footer={sections.footer} path={path} />
         </>
-      )}
-
-      {text !== null && (
-        <p className="pt-6 font-mono text-2xs text-ink-faint" data-selectable>
-          {path}
-        </p>
       )}
     </Page>
   );
@@ -313,18 +344,21 @@ function Parts({
   markdown,
   them,
   closed = [],
+  breaks = false,
 }: {
   markdown: string;
   them: string | null;
   /** Headings, lower-case, that start closed. */
   closed?: string[];
+  /** Keep single line breaks: the user's own notes, typed a line at a time. */
+  breaks?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-10">
       {splitParts(markdown).map((part, i) =>
         part.heading === null ? (
           // biome-ignore lint/suspicious/noArrayIndexKey: static document render
-          <NoteBody key={i} markdown={part.body} them={them} />
+          <NoteBody key={i} markdown={part.body} them={them} breaks={breaks} />
         ) : (
           <Collapsible
             // biome-ignore lint/suspicious/noArrayIndexKey: headings can repeat in a hand-edited note
@@ -332,7 +366,14 @@ function Parts({
             title={part.heading}
             defaultOpen={!closed.includes(part.heading.toLowerCase())}
           >
-            <NoteBody markdown={part.body} them={them} />
+            {/* TRACE leaves an empty section out, but a hand-edited note can
+                keep the heading; under it, a gap read as content failing to
+                load. */}
+            {part.body ? (
+              <NoteBody markdown={part.body} them={them} breaks={breaks} />
+            ) : (
+              <p className="text-sm text-ink-faint">None.</p>
+            )}
           </Collapsible>
         ),
       )}
@@ -720,7 +761,15 @@ function NotesPending() {
   );
 }
 
-function NoteBody({ markdown, them = null }: { markdown: string; them?: string | null }) {
+function NoteBody({
+  markdown,
+  them = null,
+  breaks = false,
+}: {
+  markdown: string;
+  them?: string | null;
+  breaks?: boolean;
+}) {
   const { body } = splitFrontmatter(markdown);
   const blocks = body.split("\n\n").filter((b) => b.trim().length > 0);
 
@@ -730,13 +779,13 @@ function NoteBody({ markdown, them = null }: { markdown: string; them?: string |
         // Blocks have no stable identity of their own; index is the honest key
         // for a static, non-reorderable rendering of a file's contents.
         // biome-ignore lint/suspicious/noArrayIndexKey: static document render
-        <Block key={i} text={block.trim()} them={them} />
+        <Block key={i} text={block.trim()} them={them} breaks={breaks} />
       ))}
     </article>
   );
 }
 
-function Block({ text, them }: { text: string; them: string | null }) {
+function Block({ text, them, breaks }: { text: string; them: string | null; breaks: boolean }) {
   if (text.startsWith("# ")) {
     return <h1 className="trace-title text-2xl text-ink">{text.slice(2)}</h1>;
   }
@@ -812,7 +861,184 @@ function Block({ text, them }: { text: string; them: string | null }) {
     return <p className="text-xs italic text-ink-faint">{text.replace(/^\*|\*$/g, "")}</p>;
   }
 
-  return <p className="text-lg leading-relaxed text-ink">{text}</p>;
+  /*
+   * The user's notes keep their line breaks: typed a line per thought, run
+   * together they read as one sentence that never was. Everything else is
+   * Markdown, where a single break is only where an editor wrapped the line
+   * — kept there, a summary broke mid-sentence wherever its source did.
+   */
+  return (
+    <p className={`text-lg leading-relaxed text-ink ${breaks ? "whitespace-pre-line" : ""}`}>
+      {text}
+    </p>
+  );
+}
+
+/**
+ * What can be done to a note as a whole, in one menu at the top: before it,
+ * renaming was a double-click nobody would guess, and deleting meant going
+ * back to the list to find the row.
+ */
+function NoteActions({
+  title,
+  markdown,
+  onReveal,
+  onRename,
+  onDelete,
+}: {
+  title: string;
+  /** The half on screen, as Markdown, read when asked for. */
+  markdown: () => string;
+  onReveal: () => Promise<void>;
+  onRename: () => void;
+  onDelete: () => Promise<void>;
+}) {
+  const [said, setSaid] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!said) return;
+    const id = window.setTimeout(() => setSaid(null), 1_800);
+    return () => window.clearTimeout(id);
+  }, [said]);
+
+  return (
+    <span className="flex items-center gap-2">
+      {/* Live but not a status role: the note's own busy state is the
+          status there, and two would be ambiguous to assistive tech. */}
+      <span aria-live="polite" className="font-mono text-2xs text-phosphor">
+        {said}
+      </span>
+      <Popover
+        label={`Actions for ${title}`}
+        align="end"
+        title="Copy, show in folder, rename or delete"
+        trigger={
+          <span className="flex size-7 items-center justify-center rounded-pill font-mono text-sm text-ink-faint hover:text-ink">
+            <span className="sr-only">Note actions</span>
+            <span aria-hidden>⋯</span>
+          </span>
+        }
+      >
+        {(close) => (
+          <>
+            <PopoverItem
+              detail="What is on screen, ready to paste"
+              onSelect={() => {
+                close();
+                void navigator.clipboard
+                  .writeText(markdown())
+                  .then(() => setSaid("copied"))
+                  .catch(() => setSaid("could not copy"));
+              }}
+            >
+              Copy as Markdown
+            </PopoverItem>
+            <PopoverItem
+              detail="The file, selected in its folder"
+              onSelect={() => {
+                close();
+                void onReveal().catch(() => setSaid("could not open the folder"));
+              }}
+            >
+              Show in folder
+            </PopoverItem>
+            <PopoverItem
+              detail="Or double-click the title"
+              onSelect={() => {
+                close();
+                onRename();
+              }}
+            >
+              Rename
+            </PopoverItem>
+            <PopoverDivider />
+            <PopoverItem
+              onSelect={() => {
+                close();
+                void onDelete();
+              }}
+            >
+              <span className="text-error">Delete…</span>
+            </PopoverItem>
+          </>
+        )}
+      </Popover>
+    </span>
+  );
+}
+
+/**
+ * A note that would not open: almost always moved, renamed or deleted from
+ * outside TRACE while the library still listed it. Said in those words, with
+ * the way back, rather than the bare error and an orphaned "+ Tag".
+ */
+function NoteMissing({ error, onBack }: { error: string; onBack: () => void }) {
+  return (
+    <div className="trace-hatch flex flex-col items-center gap-3 rounded-sm px-6 py-14 text-center">
+      <p className="font-mono text-xs text-ink-faint">
+        <Prompt />
+        this note could not be opened.
+      </p>
+      <p className="max-w-md text-sm text-ink-muted">
+        It may have been moved, renamed or deleted outside TRACE. Anything still in the notes folder
+        is listed in Meetings.
+      </p>
+      <button
+        type="button"
+        onClick={onBack}
+        className="trace-btn trace-btn-secondary rounded-pill trace-press"
+      >
+        Back to meetings
+      </button>
+      <p data-selectable className="max-w-full break-all font-mono text-2xs text-ink-faint">
+        {error}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Where the note came from: which model wrote the generated half and when,
+ * and the file itself — which opens in Explorer, since a Markdown file on
+ * disk is the product's whole promise.
+ */
+function NoteFoot({ footer, path }: { footer: string; path: string }) {
+  const provenance = footer ? parseProvenance(footer) : null;
+  const when = provenance?.at?.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <div className="flex flex-col gap-1.5 border-t border-line pt-4 font-mono text-2xs text-ink-faint">
+      {provenance ? (
+        <p>
+          <span aria-hidden>✦ </span>
+          Notes written by {provenance.model}
+          {when && ` · ${when}`}
+        </p>
+      ) : (
+        footer && <NoteBody markdown={footer} />
+      )}
+      {hasBackend() ? (
+        <button
+          type="button"
+          onClick={() => void ipc.revealNote(path).catch(() => {})}
+          title="Show in folder"
+          className="self-start break-all text-left trace-press hover:text-ink"
+        >
+          {path}
+        </button>
+      ) : (
+        <p data-selectable className="break-all">
+          {path}
+        </p>
+      )}
+    </div>
+  );
 }
 
 /** Split YAML frontmatter from the body. */

@@ -64,9 +64,16 @@ export function useCapture() {
       else unlisteners.push(un);
     });
 
+    // Only live transcription reports here, a chunk at a time, and the saved
+    // note is transcribed again from the audio — so the error says the
+    // meeting is safe in the same breath.
     void onCaptureError(({ source, message }) => {
       if (disposed) return;
-      setState((s) => ({ ...s, error: `${source}: ${message}` }));
+      const whose = source === "microphone" ? "your microphone" : "the call audio";
+      setState((s) => ({
+        ...s,
+        error: `Part of the live transcript for ${whose} was lost (${message}). Recording carries on, and the saved note is transcribed again from the audio.`,
+      }));
     }).then((un) => {
       if (disposed) un();
       else unlisteners.push(un);

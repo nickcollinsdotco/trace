@@ -169,13 +169,15 @@
 }
 
 /*
- * The mini window's name field: its underline brightening is the focus. The
- * app's focus box was heavy for a window this size. A plain rule rather than
+ * Fields whose underline brightening is the focus: the mini window's name,
+ * and the scope view's line for notes. The app's focus box was heavy for a
+ * window that size, and sat hard against text with no padding of its own. A plain rule rather than
  * a utility, because the global :focus-visible rule is unlayered and so beats
  * any Tailwind utility, which lives in a layer — `focus-visible:outline-none`
  * was tried and did nothing.
  */
-.trace-mini-field:focus-visible {
+.trace-mini-field:focus-visible,
+.trace-bare-field:focus-visible {
   outline: none;
 }
 

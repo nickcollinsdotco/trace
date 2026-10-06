@@ -186,7 +186,10 @@ export function ScopeView({
             {l}
           </p>
         ))}
-        <label className="mt-1 flex items-center gap-2 font-mono text-sm">
+        {/* The line under it brightens to say where typing goes. The
+            global focus ring drew a box hard against the text, with no
+            room inside it. */}
+        <label className="mt-1 flex items-center gap-2 border-b border-line pb-1 font-mono text-sm focus-within:border-phosphor">
           <span className="text-phosphor">
             <Prompt />
           </span>
@@ -205,7 +208,7 @@ export function ScopeView({
             placeholder="a line for the notes, then enter"
             spellCheck={false}
             data-selectable
-            className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-faint"
+            className="trace-bare-field min-w-0 flex-1 bg-transparent py-1 text-ink placeholder:text-ink-faint"
           />
         </label>
         {children}

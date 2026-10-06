@@ -229,7 +229,7 @@ export function LibraryScreen({
       ) : !hasBackend() ? (
         <BrowserNotice />
       ) : notes.length === 0 ? (
-        <EmptyState root={root} />
+        <EmptyState root={root} onNewMeeting={onNewMeeting} />
       ) : filtered.length === 0 ? (
         <NoMatch onClear={() => setQuery(parsed.terms.join(" "))} />
       ) : groups ? (
@@ -312,8 +312,9 @@ function RecoveryCard({ session, onDone }: { session: RecoverableSession; onDone
       <div>
         <p className="trace-title text-base text-ink">{session.title}</p>
         <p className="font-mono text-2xs text-ink-muted">
-          {session.date} · {session.segmentCount} segments · {session.noteLength} chars of notes
-          {session.corruptLines > 0 && ` · ${session.corruptLines} damaged line(s) skipped`}
+          {session.date} · {plural(session.segmentCount, "transcript line")} ·{" "}
+          {plural(session.noteLength, "character")} of notes
+          {session.corruptLines > 0 && ` · ${plural(session.corruptLines, "damaged line")} skipped`}
         </p>
       </div>
 
@@ -354,18 +355,66 @@ function RecoveryCard({ session, onDone }: { session: RecoverableSession; onDone
   );
 }
 
-function EmptyState({ root }: { root: string }) {
+/** The three things someone new needs to know, in the order they happen. */
+const HOW_IT_WORKS: Array<{ title: string; body: string }> = [
+  {
+    title: "Start before the call",
+    body: "TRACE records your microphone and the call's audio as two streams, so every line knows whether you said it or they did.",
+  },
+  {
+    title: "Type only what matters",
+    body: "A word or two when something counts. The transcript fills in by itself as people talk.",
+  },
+  {
+    title: "Stop when it ends",
+    body: "A summary, decisions and action items are written from the transcript, on this computer, and saved as a Markdown file you own.",
+  },
+];
+
+/**
+ * No meetings yet: almost always someone on their first launch. So it says
+ * how TRACE works in three steps and puts the one thing to do in the middle
+ * of the screen, rather than leaving them to find the button in the corner.
+ */
+function EmptyState({ root, onNewMeeting }: { root: string; onNewMeeting: () => void }) {
   return (
     // Hatched rather than blank: an empty panel and a panel that failed to
     // load look identical, and this product has to tell them apart often.
-    <div className="trace-hatch flex flex-col gap-3 rounded-sm py-16 text-center">
-      <p className="font-mono text-xs text-ink-faint">
-        <Prompt />
-        no traces yet.
-      </p>
-      <p className="text-sm text-ink-muted">Start a meeting and TRACE will keep the rest.</p>
+    <div className="trace-hatch flex flex-col items-center gap-6 rounded-sm px-6 py-12 text-center">
+      <div className="flex flex-col items-center gap-2">
+        <p className="font-mono text-xs text-ink-faint">
+          <Prompt />
+          no traces yet.
+        </p>
+        <p className="trace-title text-lg text-ink">Your first meeting is one click away</p>
+      </div>
+
+      <button
+        type="button"
+        onClick={onNewMeeting}
+        className="flex items-center gap-3 rounded-md border border-phosphor bg-phosphor-dim px-5 py-3 font-mono text-sm trace-control tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0"
+      >
+        <span aria-hidden className="inline-block size-2 rounded-full bg-current" />
+        Start a meeting
+      </button>
+
+      <ol className="grid w-full max-w-2xl gap-3 text-left sm:grid-cols-3">
+        {HOW_IT_WORKS.map((step, i) => (
+          <li
+            key={step.title}
+            className="flex flex-col gap-1.5 rounded-sm border border-line bg-surface-0 p-3"
+          >
+            <span className="font-mono text-2xs tabular-nums text-phosphor">
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            <span className="text-sm text-ink">{step.title}</span>
+            <span className="text-xs text-ink-muted">{step.body}</span>
+          </li>
+        ))}
+      </ol>
+
       {root && (
-        <p className="mt-4 font-mono text-2xs text-ink-faint" data-selectable>
+        <p className="font-mono text-2xs text-ink-faint" data-selectable>
           notes are saved to {root}
         </p>
       )}
@@ -569,6 +618,11 @@ function NoteRow({
       )}
     </div>
   );
+}
+
+/** "1 transcript line", "148 transcript lines". */
+function plural(n: number, noun: string): string {
+  return `${n.toLocaleString()} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 /** "14:30", in the machine's own clock. */

@@ -148,12 +148,17 @@ pub const SUGGESTED_MODEL: &str = "qwen3:8b";
 
 /// Whether notes can be generated right now, and if not, why.
 ///
-/// Three states rather than a boolean because the fixes differ: a closed
-/// Ollama needs opening, an empty one needs a model pulled, and telling the
-/// user the wrong one sends them looking in the wrong place.
+/// Four states rather than a boolean because the fixes differ: a missing
+/// Ollama needs installing, a closed one opening, an empty one a model
+/// pulled — and telling someone the wrong one sends them looking in the wrong
+/// place. "Open Ollama" said to someone who has never heard of it was the
+/// first thing a new user met.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum Readiness {
+    /// Nowhere TRACE knows to look. Not proof of absence — an install in an
+    /// odd place reads as this — so the UI still offers to check again.
+    NotInstalled,
     NotRunning,
     /// Carries the model to pull, so the UI never has its own copy to drift.
     NoModel {
@@ -169,6 +174,7 @@ impl Readiness {
     pub fn check() -> Self {
         let chosen = crate::settings::load().summary_model;
         match OllamaProvider::list_models() {
+            Err(_) if !is_installed() => Readiness::NotInstalled,
             Err(_) => Readiness::NotRunning,
             Ok(installed) => match choose_model(chosen.as_deref(), &installed) {
                 Some(model) => Readiness::Ready { model },
@@ -182,6 +188,10 @@ impl Readiness {
     /// What to tell the user, in the words of the failure they will see.
     pub fn guidance(&self) -> Option<String> {
         match self {
+            Readiness::NotInstalled => Some(
+                "Ollama is not installed, so notes could not be written. Install it from ollama.com and try again"
+                    .into(),
+            ),
             Readiness::NotRunning => Some(
                 "Ollama is not running, so notes could not be written. Open Ollama and try again"
                     .into(),
@@ -366,6 +376,37 @@ pub fn pick_model(installed: &[String]) -> Option<String> {
         .find(|p| installed.iter().any(|m| m == *p))
         .map(|s| (*s).to_string())
         .or_else(|| installed.first().cloned())
+}
+
+/// Whether Ollama is on this machine, running or not.
+///
+/// Where its installers put it, then anywhere on PATH. Answered from the
+/// filesystem alone, so it costs nothing beside the network probe it follows.
+pub fn is_installed() -> bool {
+    #[cfg(windows)]
+    {
+        if let Some(dir) = std::env::var_os("LOCALAPPDATA")
+            .map(|d| std::path::PathBuf::from(d).join("Programs").join("Ollama"))
+        {
+            if dir.join("ollama app.exe").exists() || dir.join("ollama.exe").exists() {
+                return true;
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if std::path::Path::new("/Applications/Ollama.app").exists() {
+            return true;
+        }
+    }
+    let exe = if cfg!(windows) {
+        "ollama.exe"
+    } else {
+        "ollama"
+    };
+    std::env::var_os("PATH")
+        .map(|path| std::env::split_paths(&path).any(|dir| dir.join(exe).is_file()))
+        .unwrap_or(false)
 }
 
 /// Open Ollama, for a user who quit it.
@@ -1052,6 +1093,10 @@ mod tests {
 
     #[test]
     fn each_unready_state_says_what_to_do() {
+        assert!(Readiness::NotInstalled
+            .guidance()
+            .unwrap()
+            .contains("ollama.com"));
         assert!(Readiness::NotRunning
             .guidance()
             .unwrap()
@@ -1085,6 +1130,10 @@ mod tests {
         assert_eq!(
             serde_json::to_value(Readiness::NotRunning).unwrap(),
             serde_json::json!({ "state": "not_running" })
+        );
+        assert_eq!(
+            serde_json::to_value(Readiness::NotInstalled).unwrap(),
+            serde_json::json!({ "state": "not_installed" })
         );
     }
 

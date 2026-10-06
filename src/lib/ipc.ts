@@ -185,9 +185,10 @@ export interface NoteContext {
 /**
  * Whether notes can be generated right now.
  *
- * Three states because each has a different fix: open Ollama, or pull a model.
+ * One state per fix: install Ollama, open it, or pull a model.
  */
 export type LlmStatus =
+  | { state: "not_installed" }
   | { state: "not_running" }
   | { state: "no_model"; suggested: string }
   | { state: "ready"; model: string };
@@ -417,6 +418,8 @@ export const ipc = {
   discardSession: (sessionDir: string) => call<void>("discard_session", { sessionDir }),
 
   revealNotesFolder: () => call<string>("reveal_notes_folder"),
+  /** Shows the note's file selected in Explorer. */
+  revealNote: (notePath: string) => call<void>("reveal_note", { notePath }),
   deleteNote: (notePath: string) => call<void>("delete_note", { notePath }),
   renameNote: (notePath: string, title: string) => call<string>("rename_note", { notePath, title }),
   regenerateNotes: (notePath: string) => call<void>("regenerate_notes", { notePath }),
@@ -425,6 +428,8 @@ export const ipc = {
 
   llmStatus: () => call<LlmStatus>("llm_status"),
   startOllama: () => call<void>("start_ollama"),
+  /** One of the app's fixed links out, in the browser. */
+  openLink: (link: "ollama" | "releases") => call<void>("open_link", { link }),
 
   appInfo: () => call<AppInfo>("app_info"),
   /** Opens the screen gallery in its own window, or focuses it. */

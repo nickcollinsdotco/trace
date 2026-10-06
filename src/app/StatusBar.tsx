@@ -152,7 +152,9 @@ function ModelsPicker({
       ? status.model
       : status.state === "no_model"
         ? "No summary model"
-        : "Ollama closed";
+        : status.state === "not_installed"
+          ? "No Ollama"
+          : "Ollama closed";
   const installed = speech.filter((m) => m.installed);
 
   const choose = (change: Promise<unknown>, after: () => void, close: () => void) => {
@@ -234,7 +236,21 @@ function ModelsPicker({
             <>
               <PopoverDivider />
               <PopoverHeading>Summaries</PopoverHeading>
-              {status.state === "not_running" ? (
+              {status.state === "not_installed" ? (
+                <div className="flex flex-col items-start gap-2 px-3 py-2">
+                  <p className="text-2xs text-ink-muted">
+                    Summaries are written by Ollama, a free app that runs AI models on this
+                    computer. It isn’t installed.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void ipc.openLink("ollama").catch((e) => setError(String(e)))}
+                    className="trace-btn trace-btn-primary trace-press"
+                  >
+                    Get Ollama <span aria-hidden>↗</span>
+                  </button>
+                </div>
+              ) : status.state === "not_running" ? (
                 <div className="flex flex-col items-start gap-2 px-3 py-2">
                   <p className="text-2xs text-ink-muted">
                     Ollama isn’t running, so no summary can be written.

@@ -120,7 +120,7 @@ describe("Gallery", () => {
 
     // The live screen, not the setup panel — no Start required.
     await waitFor(() => expect(screen.getByText("Stop meeting")).toBeInTheDocument());
-    expect(screen.getByRole("status")).toHaveTextContent(/CAPTURING/);
+    expect(screen.getByRole("status")).toHaveTextContent(/Recording/);
     expect(screen.getByText("Signal")).toBeInTheDocument();
     expect(screen.getByText("Mic")).toBeInTheDocument();
 
@@ -180,8 +180,17 @@ describe("Gallery", () => {
     expect(screen.getByRole("button", { name: "Open Ollama" })).toBeInTheDocument();
 
     await openScenario(user, "Ollama has no model");
-    expect(await screen.findByText("ollama pull qwen3:8b")).toBeInTheDocument();
+    // Downloaded from here: a terminal command was a lot to ask.
+    expect(await screen.findByRole("button", { name: "Download qwen3:8b" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open Ollama" })).toBeNull();
+
+    // Never installed: a setup step, with the link and a way to decline.
+    await openScenario(user, "No Ollama yet");
+    expect(await screen.findByText("Summaries need Ollama")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Get Ollama/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Transcripts only" }));
+    expect(screen.queryByText("Summaries need Ollama")).toBeNull();
+    localStorage.removeItem("trace.llm.setupDismissed");
 
     await openScenario(user, "Meetings");
     await screen.findByText("Pricing page rework", { selector: ROW });
@@ -616,7 +625,7 @@ describe("Gallery", () => {
     // Binary units. Above 100 the formatter drops decimals, so 456 MiB.
     expect(screen.getByText("456 MiB")).toBeInTheDocument();
     expect(screen.getByText("31.1 GiB")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Install/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Download speech model/ })).toBeInTheDocument();
   });
 
   it("never claims GPU acceleration it does not have", async () => {
@@ -1360,5 +1369,68 @@ describe("Gallery", () => {
 
     await user.keyboard("{Control>}{Alt>}J{/Alt}{/Control}");
     expect(await screen.findByRole("button", { name: /Shortcut: Ctrl\+Alt\+J/ })).toBeVisible();
+  });
+
+  it("keeps the lines of the user's own notes apart", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Never enhanced");
+
+    // Typed a line per thought; run together, they read as one sentence.
+    const para = await screen.findByText(/deploy went out friday/);
+    expect(para.textContent).toContain("no incidents\nblocked on the auth migration");
+    expect(para.className).toContain("whitespace-pre-line");
+
+    // Generated Markdown is wrapped where its source was; that is not a
+    // break, and kept as one the summary broke mid-sentence.
+    await openScenario(user, "Enhanced note");
+    const summary = await screen.findByText(/The team reviewed the current pricing page/);
+    expect(summary.className).not.toContain("whitespace-pre-line");
+  });
+
+  it("says which model wrote the notes, and when, in words", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Enhanced note");
+
+    expect(await screen.findByText(/Notes written by qwen3:8b · /)).toBeInTheDocument();
+    // The ISO stamp stays in the file, not on the screen.
+    expect(screen.queryByText(/2026-09-02T15:12:00Z/)).toBeNull();
+  });
+
+  it("explains a note that will not open, with the way back, and no tag button", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Note will not open");
+
+    expect(await screen.findByText(/this note could not be opened/)).toBeInTheDocument();
+    // One in the page, beside the explanation, as well as the bar's arrow.
+    expect(screen.getAllByRole("button", { name: "Back to meetings" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "+ Tag" })).toBeNull();
+  });
+
+  it("offers a note's actions from its own menu", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Enhanced note");
+
+    await user.click(await screen.findByRole("button", { name: "Note actions" }));
+    const menu = screen.getByRole("dialog", { name: /Actions for/ });
+    for (const name of [/Copy as Markdown/, /Show in folder/, /Rename/, /Delete/]) {
+      expect(within(menu).getByRole("button", { name })).toBeInTheDocument();
+    }
+    await user.click(within(menu).getByRole("button", { name: /Copy as Markdown/ }));
+    const copied = await navigator.clipboard.readText();
+    expect(copied.startsWith("# Pricing page rework\n\n## Summary")).toBe(true);
+    expect(copied).not.toContain("## Transcript");
+  });
+
+  it("puts the first meeting in the middle of an empty library", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "No meetings yet");
+
+    expect(await screen.findByRole("button", { name: "Start a meeting" })).toBeInTheDocument();
+    expect(screen.getByText("Type only what matters")).toBeInTheDocument();
   });
 });

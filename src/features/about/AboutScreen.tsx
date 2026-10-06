@@ -41,30 +41,45 @@ export function AboutScreen({
   }, []);
 
   return (
-    <Page className="gap-8">
-      <Section title="About">
-        <p className="text-sm text-ink-muted">
-          TRACE records meetings and writes notes entirely on this computer. No audio, transcript or
-          note leaves it.
-        </p>
+    <Page
+      title="About"
+      lead="TRACE records meetings and writes notes entirely on this computer. No audio, transcript or note leaves it."
+      className="gap-8"
+    >
+      <Section title="Version">
         {info && (
           <p className="font-mono text-xs text-ink">
-            Version {info.version}
+            TRACE {info.version}
             {info.devBuild && <span className="text-warn"> · development build</span>}
           </p>
         )}
         {/* Here because this is where someone checking their version looks
-            next for how to get a newer one. */}
+            next for how to get a newer one. Two audiences: most people have
+            an installer, the developer builds from the folder. */}
         <p className="text-sm text-ink-muted">
-          To update, open PowerShell in the trace folder and run{" "}
-          <code data-selectable className="font-mono text-xs text-ink">
+          TRACE never checks for updates by itself — it does not go online on its own. New versions
+          are published on GitHub; install one over this and your notes stay where they are.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={!hasBackend()}
+            onClick={() => void ipc.openLink("releases").catch((e) => setError(String(e)))}
+            className="trace-btn trace-btn-secondary trace-press disabled:opacity-50"
+          >
+            Releases on GitHub <span aria-hidden>↗</span>
+          </button>
+        </div>
+        <p className="text-xs text-ink-faint">
+          Built from source? In the trace folder, run{" "}
+          <code data-selectable className="font-mono text-ink-muted">
             pnpm update-app
           </code>
-          . Add{" "}
-          <code data-selectable className="font-mono text-xs text-ink">
+          , or add{" "}
+          <code data-selectable className="font-mono text-ink-muted">
             -Check
           </code>{" "}
-          to see what an update would bring without changing anything.
+          to see what it would bring first.
         </p>
       </Section>
 

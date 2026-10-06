@@ -3,10 +3,12 @@ import { formatBytes } from "../../lib/format";
 import {
   hasBackend,
   ipc,
+  type LlmStatus,
   type ModelProgress,
   onModelProgress,
   type SystemReport,
 } from "../../lib/ipc";
+import { useLlmStatus } from "../llm/useLlmStatus";
 
 /**
  * First run, as a machine report.
@@ -29,6 +31,7 @@ export function FirstRunScreen({ onReady }: { onReady: () => void }) {
   const [report, setReport] = useState<SystemReport | null>(null);
   const [progress, setProgress] = useState<ModelProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const llm = useLlmStatus();
 
   useEffect(() => {
     if (!hasBackend()) return;
@@ -76,15 +79,24 @@ export function FirstRunScreen({ onReady }: { onReady: () => void }) {
       data-case="headings"
       // A machine report, all of it in capitals: one fixed look, not a
       // theme, so it says so itself rather than through the case ladder.
-      className="flex h-full items-center justify-center overflow-y-auto bg-surface-0 px-6 py-10 uppercase"
+      // Centred by the report's own auto margins, not by the flex box:
+      // centred that way, a report taller than the window lost its top above
+      // the scroll, where no scrolling could reach it.
+      className="flex h-full flex-col overflow-y-auto bg-surface-0 px-6 py-6 uppercase"
     >
-      <div className="w-full max-w-2xl border border-line-strong">
+      <div className="m-auto w-full max-w-2xl border border-line-strong">
         <TapeStrip />
 
-        <div className="border-b border-line-strong px-6 py-5 text-center">
+        <div className="border-b border-line-strong px-6 py-4 text-center">
           <h1 className="text-xl tracking-[0.3em] text-ink">TRACE</h1>
           <p className="mt-1 font-mono text-2xs tracking-system text-ink-muted">
             First run · machine report
+          </p>
+          {/* Said once, before the table: the report answers "can this
+              machine do it", and someone new first needs "do what". */}
+          <p className="mx-auto mt-3 max-w-md text-xs leading-relaxed text-ink-muted normal-case">
+            Records your meetings, transcribes them and writes the notes — all on this machine. One
+            speech model is needed before the first meeting.
           </p>
         </div>
 
@@ -117,10 +129,17 @@ export function FirstRunScreen({ onReady }: { onReady: () => void }) {
             <Group>
               <Row label="Model" value={report.modelName} />
               <Row label="Download" value={formatBytes(report.modelBytes)} />
-              <Row label="Target" value={report.modelDir} wrap />
+              <Row label="Target" value={report.modelDir} wrap="anywhere" />
               {report.diskFreeBytes !== null && (
                 <Row label="Free" value={`${formatBytes(report.diskFreeBytes)} available`} />
               )}
+            </Group>
+
+            {/* Summaries are Ollama's, and optional: a transcript is written
+                without it. Reported here so the first meeting's missing
+                summary is not the first anyone hears of it. */}
+            <Group>
+              <Row label="Summaries" value={<Summaries status={llm.status} />} wrap="words" />
             </Group>
 
             <Group last>
@@ -136,7 +155,7 @@ export function FirstRunScreen({ onReady }: { onReady: () => void }) {
                       disabled={!hasBackend()}
                       className="border border-line-strong px-4 py-1.5 font-mono text-2xs tracking-system text-ink trace-press hover:bg-ink hover:text-surface-0 disabled:opacity-40"
                     >
-                      [ Install ]
+                      [ Download speech model ]
                     </button>
                   }
                 />
@@ -158,6 +177,36 @@ export function FirstRunScreen({ onReady }: { onReady: () => void }) {
       </div>
     </div>
   );
+}
+
+/** Ollama's state, in the report's terse voice, with the way to get it. */
+function Summaries({ status }: { status: LlmStatus | null }) {
+  if (status === null) return <span className="text-ink-faint">checking…</span>;
+  switch (status.state) {
+    case "ready":
+      return <span>Ollama · {status.model}</span>;
+    case "no_model":
+      return <span>Ollama · no model yet — choose one later, under models</span>;
+    case "not_running":
+      return <span>Ollama · installed, not running</span>;
+    case "not_installed":
+      return (
+        <span className="flex flex-col items-start gap-2 normal-case">
+          <span className="uppercase">Ollama · not found</span>
+          <span className="font-sans text-2xs leading-relaxed text-ink-muted">
+            Optional: a free app that runs AI models on this computer. Transcripts work without it;
+            the summary and action items need it.
+          </span>
+          <button
+            type="button"
+            onClick={() => void ipc.openLink("ollama").catch(() => {})}
+            className="border border-line-strong px-3 py-1 font-mono text-2xs tracking-system text-ink trace-press hover:bg-ink hover:text-surface-0"
+          >
+            [ Get Ollama ↗ ]
+          </button>
+        </span>
+      );
+  }
 }
 
 /**
@@ -183,16 +232,25 @@ function Group({ children, last }: { children: React.ReactNode; last?: boolean }
   return <div className={last ? "" : "border-b border-line-strong"}>{children}</div>;
 }
 
-function Row({ label, value, wrap }: { label: string; value: React.ReactNode; wrap?: boolean }) {
+function Row({
+  label,
+  value,
+  wrap,
+}: {
+  label: string;
+  value: React.ReactNode;
+  /** A path breaks anywhere; prose only between words. */
+  wrap?: "anywhere" | "words";
+}) {
   return (
     <div className="flex items-baseline">
-      <span className="w-36 shrink-0 self-stretch border-r border-line-strong px-6 py-2 font-mono text-2xs tracking-system text-ink-muted">
+      <span className="w-36 shrink-0 self-stretch border-r border-line-strong px-6 py-1.5 font-mono text-2xs tracking-system text-ink-muted">
         {label}
       </span>
       <span
         data-selectable
-        className={`min-w-0 flex-1 px-6 py-2 font-mono text-xs text-ink ${
-          wrap ? "break-all" : "truncate"
+        className={`min-w-0 flex-1 px-6 py-1.5 font-mono text-xs text-ink ${
+          wrap === "anywhere" ? "break-all" : wrap === "words" ? "break-words" : "truncate"
         }`}
       >
         {value}

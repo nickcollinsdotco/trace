@@ -88,7 +88,11 @@ export function SettingsScreen() {
   const save = (p: Promise<Settings>) => void p.then(stored).catch((e) => setError(String(e)));
 
   return (
-    <Page className="gap-10">
+    <Page
+      title="Settings"
+      lead="What happens to a meeting: the microphone it starts with, what is kept afterwards, and when the mini window appears."
+      className="gap-10"
+    >
       {error && (
         <p className="font-mono text-2xs text-error">
           <Prompt />

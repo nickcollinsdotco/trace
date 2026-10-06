@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useConfirm } from "../../components/ui/Confirm";
 import { Page } from "../../components/ui/Page";
 import { ProcessingLine } from "../../components/ui/Processing";
@@ -224,7 +224,11 @@ export function CaptureScreen({
       </div>
 
       <div className="flex shrink-0 items-center justify-between border-t border-line px-5 py-3">
-        <SystemLabel>{capture.status?.sessionId.slice(-4).toUpperCase() ?? "----"}</SystemLabel>
+        {/* The session's code used to sit here, which meant nothing to
+            anyone. What people want to know at the foot of a meeting is
+            that what they typed is safe: it is journalled as they type, and
+            survives a crash. */}
+        <SystemLabel>Notes save as you type</SystemLabel>
         <div className="flex items-center gap-3">
           {/*
             Quieter than Stop, and to its left. Discarding is the rarer
@@ -412,13 +416,40 @@ function TranscriptView({
   pendingSpeechMs: number;
   inFlight: number;
 }) {
-  const endRef = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  // Whether the reader is at the newest line. Scrolled up to reread
+  // something, they stay put; at the bottom, they follow.
+  const pinned = useRef(true);
+  const [behind, setBehind] = useState(false);
 
-  // Follow the transcript as it grows. Meetings run long and manually
-  // scrolling to keep up would be its own small misery.
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "nearest" });
-  }, []);
+  /*
+   * Following the transcript as it grows, inside its own box. It once
+   * scrolled the whole page to its end instead — which, had it run more
+   * than once, would have pulled the notes out from under someone typing.
+   * The page around it stays where the user put it.
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: follows each new line and the working line
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    if (pinned.current) el.scrollTop = el.scrollHeight;
+    else setBehind(true);
+  }, [segments.length, inFlight > 0 || pendingSpeechMs > 0]);
+
+  const onScroll = () => {
+    const el = box.current;
+    if (!el) return;
+    pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    if (pinned.current) setBehind(false);
+  };
+
+  const toLatest = () => {
+    const el = box.current;
+    if (!el) return;
+    pinned.current = true;
+    setBehind(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  };
 
   if (segments.length === 0) {
     return (
@@ -434,32 +465,49 @@ function TranscriptView({
   }
 
   return (
-    <div data-selectable className="flex flex-col gap-2">
-      {segments.map((segment) => (
-        <div key={segment.id} className="trace-segment-in flex gap-3 font-mono text-xs">
-          <span className="shrink-0 tabular-nums text-ink-faint">
-            {formatElapsed(segment.startMs)}
-          </span>
-          <span className="w-12 shrink-0 trace-caps-label tracking-system text-phosphor-muted">
-            {segment.source === "microphone" ? "you" : "them"}
-          </span>
-          <span className="text-ink">{segment.text}</span>
-        </div>
-      ))}
-      <ProcessingLine pendingSpeechMs={pendingSpeechMs} inFlight={inFlight} />
-      <div ref={endRef} />
+    <div className="relative">
+      <div
+        ref={box}
+        onScroll={onScroll}
+        data-selectable
+        className="flex max-h-[min(24rem,42vh)] flex-col gap-2 overflow-y-auto pr-2"
+      >
+        {segments.map((segment) => (
+          <div key={segment.id} className="trace-segment-in flex gap-3 font-mono text-xs">
+            <span className="shrink-0 tabular-nums text-ink-faint">
+              {formatElapsed(segment.startMs)}
+            </span>
+            <span className="w-12 shrink-0 trace-caps-label tracking-system text-phosphor-muted">
+              {segment.source === "microphone" ? "you" : "them"}
+            </span>
+            <span className="text-ink">{segment.text}</span>
+          </div>
+        ))}
+        <ProcessingLine pendingSpeechMs={pendingSpeechMs} inFlight={inFlight} />
+      </div>
+      {behind && (
+        <button
+          type="button"
+          onClick={toLatest}
+          className="trace-btn trace-btn-secondary absolute right-3 bottom-2 rounded-pill bg-surface-2 trace-press"
+        >
+          <span aria-hidden>↓</span> Latest
+        </button>
+      )}
     </div>
   );
 }
 
 function Banner({ tone, children }: { tone: "warn" | "error"; children: React.ReactNode }) {
+  // The column, like the page under it, so a long message wraps at a
+  // readable width instead of running the width of the window.
   const styles =
     tone === "error"
       ? "border-error/40 bg-error-dim text-error"
       : "border-warn/40 bg-warn-dim text-warn";
   return (
-    <div className={`shrink-0 border-b px-5 py-2 text-2xs ${styles}`} role="status">
-      {children}
+    <div className={`shrink-0 border-b py-2 text-xs ${styles}`} role="status">
+      <p className="trace-column">{children}</p>
     </div>
   );
 }

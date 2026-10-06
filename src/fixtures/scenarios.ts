@@ -458,6 +458,14 @@ export const SCENARIOS: Scenario[] = [
   },
 
   {
+    id: "library-ollama-missing",
+    name: "No Ollama yet",
+    group: "Library",
+    note: "A new user who has never installed Ollama. A setup step, not a fault: calm, with the link, and a way to say transcripts are enough.",
+    screen: "library",
+    state: { ...POPULATED, llm: { state: "not_installed" }, summaryInstalled: [] },
+  },
+  {
     id: "library-ollama-closed",
     name: "Ollama closed",
     group: "Library",
@@ -640,9 +648,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: "capture-error",
-    name: "A stream failed",
+    name: "Live transcription failed",
     group: "Capture",
-    note: "One device died mid-meeting. The other keeps recording.",
+    note: "A chunk of live transcription failed. Said with what is safe: recording carries on, and the saved note is transcribed again from the audio.",
     screen: "capture",
     state: {
       ...POPULATED,
@@ -653,7 +661,7 @@ export const SCENARIOS: Scenario[] = [
         {
           atMs: 0,
           event: EVENT.captureError,
-          payload: { source: "system", message: "device disconnected" },
+          payload: { source: "system", message: "inference failed: out of memory" },
         },
       ],
     },
@@ -857,8 +865,24 @@ export const SCENARIOS: Scenario[] = [
         installed: false,
         name: "parakeet-tdt-0.6b-v3-int8",
         downloadBytes: 680 * 1_048_576,
-        directory: "C:UsersyouAppDataLocalTRACEmodels",
+        directory: "C:\\Users\\you\\AppData\\Local\\TRACE\\models",
       },
+    },
+  },
+  {
+    id: "first-run-no-ollama",
+    name: "Machine report, no Ollama",
+    group: "First run",
+    note: "The usual first launch: no Ollama either. Reported as optional, with the link, so the first missing summary is not a surprise.",
+    screen: "firstrun",
+    state: {
+      model: {
+        installed: false,
+        name: "parakeet-tdt-0.6b-v3-int8",
+        downloadBytes: 680 * 1_048_576,
+        directory: "C:\\Users\\you\\AppData\\Local\\TRACE\\models",
+      },
+      llm: { state: "not_installed" },
     },
   },
   {
@@ -872,7 +896,7 @@ export const SCENARIOS: Scenario[] = [
         installed: false,
         name: "parakeet-tdt-0.6b-v3-int8",
         downloadBytes: 680 * 1_048_576,
-        directory: "C:UsersyouAppDataLocalTRACEmodels",
+        directory: "C:\\Users\\you\\AppData\\Local\\TRACE\\models",
       },
       immediate: [
         { atMs: 0, event: EVENT.modelProgress, payload: { phase: "downloading", percent: 47 } },
@@ -890,7 +914,7 @@ export const SCENARIOS: Scenario[] = [
         installed: false,
         name: "parakeet-tdt-0.6b-v3-int8",
         downloadBytes: 680 * 1_048_576,
-        directory: "C:UsersyouAppDataLocalTRACEmodels",
+        directory: "C:\\Users\\you\\AppData\\Local\\TRACE\\models",
       },
       failures: {
         install_model:
@@ -977,6 +1001,14 @@ export const SCENARIOS: Scenario[] = [
     note: "Both kinds of model: speech (TRACE's own files) and summaries (Ollama's).",
     screen: "models",
     state: POPULATED,
+  },
+  {
+    id: "models-ollama-missing",
+    name: "Models, no Ollama",
+    group: "Pages",
+    note: "Ollama not installed: speech models as usual, summaries say what Ollama is and link to it.",
+    screen: "models",
+    state: { ...POPULATED, llm: { state: "not_installed" }, summaryInstalled: [] },
   },
   {
     id: "models-ollama-closed",

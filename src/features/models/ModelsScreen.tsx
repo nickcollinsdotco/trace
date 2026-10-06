@@ -24,7 +24,11 @@ import { useLlmStatus } from "../llm/useLlmStatus";
  */
 export function ModelsScreen() {
   return (
-    <Page className="gap-10">
+    <Page
+      title="Models"
+      lead="One model turns speech into text; another writes the summary and action items. Both run on this computer."
+      className="gap-10"
+    >
       <SpeechModels />
       <SummaryModelsSection />
     </Page>
@@ -100,7 +104,7 @@ function SpeechModels() {
   return (
     <Section title="Transcription">
       <p className="text-sm text-ink-muted">
-        Turns speech into text on this machine. The choice applies from the next meeting.
+        Parakeet, run by TRACE itself. A change applies from the next meeting.
       </p>
       {error && (
         <p className="font-mono text-2xs text-error">
@@ -224,22 +228,20 @@ function SummaryModelsSection() {
       .catch((e) => setError(String(e)));
   }
 
-  const running = llm.status !== null && llm.status.state !== "not_running";
+  const offline = llm.status?.state === "not_running" || llm.status?.state === "not_installed";
+  const running = llm.status !== null && !offline;
   const notInstalled = models?.recommended.filter((r) => !r.installed) ?? [];
 
   return (
     <Section title="Summaries">
       <p className="text-sm text-ink-muted">
-        Writes the summary and action items after a meeting, through Ollama. Larger models write
-        better notes and need more video memory.
+        Run by Ollama when a meeting ends. Larger models write better notes and need more video
+        memory.
       </p>
-      {/* Only when closed: with Ollama running, the downloads below are the fix
-          for "no model", so the notice's terminal command would be a detour. */}
-      <LlmNotice
-        status={llm.status?.state === "not_running" ? llm.status : null}
-        onRecheck={llm.recheck}
-        context="models"
-      />
+      {/* Only when Ollama is closed or missing: with it running, the
+          downloads below are the fix for "no model", and the notice's own
+          download button would be a second way to the same thing. */}
+      <LlmNotice status={offline ? llm.status : null} onRecheck={llm.recheck} context="models" />
       {error && (
         <p className="font-mono text-2xs text-error">
           <Prompt />

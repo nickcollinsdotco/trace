@@ -788,6 +788,30 @@ pub fn delete_note(manager: State<'_, CaptureManager>, note_path: String) -> Cmd
     store::delete_note(&root, &PathBuf::from(note_path)).map_err(err)
 }
 
+/// Show a note's file in Explorer, selected.
+///
+/// Only inside the notes folder: the path arrives from the page, and this
+/// hands it to the shell.
+#[tauri::command]
+pub fn reveal_note(
+    app: AppHandle,
+    manager: State<'_, CaptureManager>,
+    note_path: String,
+) -> CmdResult<()> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let root = manager.notes_root().map_err(err)?;
+    let path = PathBuf::from(note_path);
+    let inside = match (path.canonicalize(), root.canonicalize()) {
+        (Ok(p), Ok(r)) => p.starts_with(r),
+        _ => false,
+    };
+    if !inside {
+        return Err("That note is no longer in the notes folder".into());
+    }
+    app.opener().reveal_item_in_dir(&path).map_err(err)
+}
+
 /// Rename a saved note, moving the file to match.
 ///
 /// Returns the new path, which the caller needs: the old one no longer exists.
@@ -866,6 +890,23 @@ pub async fn llm_status() -> crate::synthesis::ollama::Readiness {
     tauri::async_runtime::spawn_blocking(crate::synthesis::ollama::Readiness::check)
         .await
         .unwrap_or(crate::synthesis::ollama::Readiness::NotRunning)
+}
+
+/// The app's few links out, by name.
+///
+/// A fixed table rather than any URL the page asks for: TRACE never goes
+/// online by itself, and its one way to the browser should not be able to
+/// become a general one.
+#[tauri::command]
+pub fn open_link(app: AppHandle, link: String) -> CmdResult<()> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let url = match link.as_str() {
+        "ollama" => "https://ollama.com/download",
+        "releases" => "https://github.com/nickcollinsdotco/trace/releases",
+        other => return Err(format!("unknown link {other}")),
+    };
+    app.opener().open_url(url, None::<&str>).map_err(err)
 }
 
 /// Open Ollama. The UI polls `llm_status` afterwards to learn when it is up.
@@ -1040,7 +1081,7 @@ pub async fn summary_models() -> SummaryModels {
                     model: m,
                 })
                 .collect(),
-            loaded: if matches!(llm, Readiness::NotRunning) {
+            loaded: if matches!(llm, Readiness::NotRunning | Readiness::NotInstalled) {
                 Vec::new()
             } else {
                 OllamaProvider::loaded()

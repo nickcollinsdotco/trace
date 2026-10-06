@@ -192,12 +192,17 @@ export function Collapsible({
 
 export type CaptureState = "idle" | "capturing" | "transcribing" | "processing" | "error";
 
+/*
+ * In sentence case: capitals are the case ladder's to give (type.css), and
+ * hard-coded ones shouted in the themes that set none. "Recording" rather
+ * than "capturing", the word the sidebar and the mini window already use.
+ */
 const STATUS: Record<CaptureState, { label: string; dot: string; text: string; live: boolean }> = {
-  idle: { label: "IDLE", dot: "bg-ink-faint", text: "text-ink-faint", live: false },
-  capturing: { label: "CAPTURING", dot: "bg-phosphor", text: "text-phosphor", live: true },
-  transcribing: { label: "TRANSCRIBING", dot: "bg-phosphor", text: "text-phosphor", live: true },
-  processing: { label: "PROCESSING", dot: "bg-warn", text: "text-warn", live: true },
-  error: { label: "SIGNAL LOST", dot: "bg-error", text: "text-error", live: false },
+  idle: { label: "Idle", dot: "bg-ink-faint", text: "text-ink-faint", live: false },
+  capturing: { label: "Recording", dot: "bg-phosphor", text: "text-phosphor", live: true },
+  transcribing: { label: "Transcribing", dot: "bg-phosphor", text: "text-phosphor", live: true },
+  processing: { label: "Saving", dot: "bg-warn", text: "text-warn", live: true },
+  error: { label: "Signal lost", dot: "bg-error", text: "text-error", live: false },
 };
 
 export function StatusDot({ state }: { state: CaptureState }) {

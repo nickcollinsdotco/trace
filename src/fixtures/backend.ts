@@ -424,7 +424,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         }
 
         case "summary_models": {
-          const running = llm.state !== "not_running";
+          const running = llm.state !== "not_running" && llm.state !== "not_installed";
           const installed = running
             ? summaryInstalled.map((m) => ({ ...m, active: m.name === activeSummary() }))
             : [];
@@ -582,6 +582,9 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
         case "reveal_notes_folder":
           return state.root;
+        case "reveal_note":
+        case "open_link":
+          return null;
         case "regenerate_notes": {
           const path = args?.notePath as string;
           if (jobs.some((j) => j.notePath === path && j.outcome === null)) {
@@ -611,7 +614,8 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
             speechModel: state.systemReport.modelName,
             speechInstalled: model.installed,
             llm,
-            ollamaVersion: llm.state === "not_running" ? null : "0.12.3",
+            ollamaVersion:
+              llm.state === "not_running" || llm.state === "not_installed" ? null : "0.12.3",
             preferredModels: ["qwen3:14b", "qwen3:8b", "gemma3:12b"],
             loadedModels: loaded(),
             contextTokens: 8192,

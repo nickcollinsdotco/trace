@@ -10,6 +10,8 @@ export function describeLlm(llm: LlmStatus): string {
       return `running, no model installed (suggested: ${llm.suggested})`;
     case "not_running":
       return "not running";
+    case "not_installed":
+      return "not installed";
   }
 }
 

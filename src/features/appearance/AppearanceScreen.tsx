@@ -61,7 +61,11 @@ export function AppearanceScreen() {
   const preset = presetOf(screen);
 
   return (
-    <Page className="gap-10">
+    <Page
+      title="Appearance"
+      lead="How TRACE looks and moves. Changes apply at once and stay on this computer; nothing here touches your notes."
+      className="gap-10"
+    >
       <Section title="Theme">
         <p className="text-sm text-ink-muted">
           Point at a theme to see it; choose one to use it — or press <Key>1</Key>–

@@ -1380,6 +1380,12 @@ describe("Gallery", () => {
     const para = await screen.findByText(/deploy went out friday/);
     expect(para.textContent).toContain("no incidents\nblocked on the auth migration");
     expect(para.className).toContain("whitespace-pre-line");
+
+    // Generated Markdown is wrapped where its source was; that is not a
+    // break, and kept as one the summary broke mid-sentence.
+    await openScenario(user, "Enhanced note");
+    const summary = await screen.findByText(/The team reviewed the current pricing page/);
+    expect(summary.className).not.toContain("whitespace-pre-line");
   });
 
   it("says which model wrote the notes, and when, in words", async () => {

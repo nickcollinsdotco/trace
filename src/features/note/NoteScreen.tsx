@@ -310,7 +310,7 @@ export function NoteScreen({
               />
             )
           ) : sections.hasNotes ? (
-            <Parts markdown={sections.notes} them={them} />
+            <Parts markdown={sections.notes} them={them} breaks />
           ) : (
             <p className="font-mono text-xs text-ink-faint">
               <Prompt />
@@ -344,18 +344,21 @@ function Parts({
   markdown,
   them,
   closed = [],
+  breaks = false,
 }: {
   markdown: string;
   them: string | null;
   /** Headings, lower-case, that start closed. */
   closed?: string[];
+  /** Keep single line breaks: the user's own notes, typed a line at a time. */
+  breaks?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-10">
       {splitParts(markdown).map((part, i) =>
         part.heading === null ? (
           // biome-ignore lint/suspicious/noArrayIndexKey: static document render
-          <NoteBody key={i} markdown={part.body} them={them} />
+          <NoteBody key={i} markdown={part.body} them={them} breaks={breaks} />
         ) : (
           <Collapsible
             // biome-ignore lint/suspicious/noArrayIndexKey: headings can repeat in a hand-edited note
@@ -367,7 +370,7 @@ function Parts({
                 keep the heading; under it, a gap read as content failing to
                 load. */}
             {part.body ? (
-              <NoteBody markdown={part.body} them={them} />
+              <NoteBody markdown={part.body} them={them} breaks={breaks} />
             ) : (
               <p className="text-sm text-ink-faint">None.</p>
             )}
@@ -758,7 +761,15 @@ function NotesPending() {
   );
 }
 
-function NoteBody({ markdown, them = null }: { markdown: string; them?: string | null }) {
+function NoteBody({
+  markdown,
+  them = null,
+  breaks = false,
+}: {
+  markdown: string;
+  them?: string | null;
+  breaks?: boolean;
+}) {
   const { body } = splitFrontmatter(markdown);
   const blocks = body.split("\n\n").filter((b) => b.trim().length > 0);
 
@@ -768,13 +779,13 @@ function NoteBody({ markdown, them = null }: { markdown: string; them?: string |
         // Blocks have no stable identity of their own; index is the honest key
         // for a static, non-reorderable rendering of a file's contents.
         // biome-ignore lint/suspicious/noArrayIndexKey: static document render
-        <Block key={i} text={block.trim()} them={them} />
+        <Block key={i} text={block.trim()} them={them} breaks={breaks} />
       ))}
     </article>
   );
 }
 
-function Block({ text, them }: { text: string; them: string | null }) {
+function Block({ text, them, breaks }: { text: string; them: string | null; breaks: boolean }) {
   if (text.startsWith("# ")) {
     return <h1 className="trace-title text-2xl text-ink">{text.slice(2)}</h1>;
   }
@@ -850,9 +861,17 @@ function Block({ text, them }: { text: string; them: string | null }) {
     return <p className="text-xs italic text-ink-faint">{text.replace(/^\*|\*$/g, "")}</p>;
   }
 
-  // Line breaks kept: notes are typed a line per thought, and run together
-  // they read as one sentence that never was.
-  return <p className="whitespace-pre-line text-lg leading-relaxed text-ink">{text}</p>;
+  /*
+   * The user's notes keep their line breaks: typed a line per thought, run
+   * together they read as one sentence that never was. Everything else is
+   * Markdown, where a single break is only where an editor wrapped the line
+   * — kept there, a summary broke mid-sentence wherever its source did.
+   */
+  return (
+    <p className={`text-lg leading-relaxed text-ink ${breaks ? "whitespace-pre-line" : ""}`}>
+      {text}
+    </p>
+  );
 }
 
 /**

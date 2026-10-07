@@ -21,7 +21,14 @@ import { AppearanceScreen } from "../features/appearance/AppearanceScreen";
 import { CaptureScreen } from "../features/capture/CaptureScreen";
 import { FirstRunScreen } from "../features/firstrun/FirstRunScreen";
 import { Boot, FoundFile, Rain, useSecrets, useWordmarkClicks } from "../features/fun/Eggs";
-import { FunContext, type FunControl, loadFun, saveFun } from "../features/fun/fun";
+import {
+  FunContext,
+  type FunControl,
+  loadFun,
+  loadNarrator,
+  saveFun,
+  saveNarrator,
+} from "../features/fun/fun";
 import { LibraryScreen } from "../features/library/LibraryScreen";
 import { useMiniShortcut } from "../features/mini/shortcut";
 import { ModelsScreen } from "../features/models/ModelsScreen";
@@ -58,7 +65,7 @@ export function App() {
   const palette = usePalette();
   const captureKey = useOtherWindow((path) => setRoute({ name: "note", path }));
   const fun = useFunMode();
-  const [egg, setEgg] = useEggs(fun.on);
+  const [egg, setEgg] = useEggs();
   const miniShortcut = useMiniShortcut();
 
   /*
@@ -192,9 +199,10 @@ function useOtherWindow(openNote: (path: string) => void): number {
   return captureKey;
 }
 
-/** Fun mode, remembered between launches. */
+/** Fun mode and the narrator, remembered between launches. */
 function useFunMode(): FunControl {
   const [on, setOn] = useState(loadFun);
+  const [narrator, setNarrator] = useState(loadNarrator);
   return useMemo(
     () => ({
       on,
@@ -202,8 +210,13 @@ function useFunMode(): FunControl {
         saveFun(next);
         setOn(next);
       },
+      narrator,
+      setNarrator: (next: boolean) => {
+        saveNarrator(next);
+        setNarrator(next);
+      },
     }),
-    [on],
+    [on, narrator],
   );
 }
 
@@ -214,9 +227,10 @@ type Egg = "boot" | "rain" | "found";
  *
  * Never over a meeting being recorded (docs/13 Q6): the recording screen is
  * where the user works, and it may be on a shared screen. The boot sequence
- * plays at launch in Fun mode; the rest answer their secrets in any mode.
+ * plays at every launch — a flourish any key ends — and the rest answer
+ * their secrets.
  */
-function useEggs(funOn: boolean): [Egg | null, (egg: Egg | null) => void] {
+function useEggs(): [Egg | null, (egg: Egg | null) => void] {
   const [egg, setEgg] = useState<Egg | null>(null);
 
   const play = (next: Egg) => {
@@ -232,10 +246,9 @@ function useEggs(funOn: boolean): [Egg | null, (egg: Egg | null) => void] {
       .catch(() => {});
   };
 
-  // Launch only: turning Fun mode on later is greeted by the narrator.
   // biome-ignore lint/correctness/useExhaustiveDependencies: once, at launch
   useEffect(() => {
-    if (funOn) play("boot");
+    play("boot");
   }, []);
 
   useSecrets((secret) => play(secret === "konami" ? "rain" : "boot"));

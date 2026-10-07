@@ -84,8 +84,6 @@
   --fill-hot: #ffffff;
   --fill-track:
     repeating-conic-gradient(rgb(255 255 255 / 45%) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px;
-  --fill-hatch:
-    repeating-conic-gradient(rgb(255 255 255 / 30%) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px;
 }
 
 [data-theme="report"] .trace-section {
@@ -158,7 +156,6 @@
   --fill-active: #ff5a2d;
   --fill-hot: #ffd23f;
   --fill-track: repeating-linear-gradient(45deg, rgb(255 255 255 / 12%) 0 2px, transparent 2px 6px);
-  --fill-hatch: repeating-linear-gradient(45deg, rgb(255 90 45 / 35%) 0 2px, transparent 2px 8px);
 }
 
 [data-theme="industrial"] .trace-section {
@@ -230,8 +227,6 @@
   --fill-hot: var(--color-warn);
   --fill-track:
     radial-gradient(circle at center, rgb(255 255 255 / 45%) 0.6px, transparent 0.7px) 0 0 / 3px 3px;
-  --fill-hatch:
-    radial-gradient(circle at center, rgb(255 255 255 / 30%) 0.6px, transparent 0.7px) 0 0 / 4px 4px;
 
   --gauge-open: "[ ";
   --gauge-close: " ]";
@@ -317,8 +312,6 @@
   --fill-active: #ededee;
   --fill-hot: var(--color-warn);
   --fill-track: rgb(255 255 255 / 8%);
-  --fill-hatch:
-    radial-gradient(circle at center, rgb(255 255 255 / 10%) 0.7px, transparent 0.8px) 0 0 / 8px 8px;
 
   --field-padding: 0.8rem 1.1rem;
   --field-bg: rgb(255 255 255 / 4%);
@@ -387,7 +380,6 @@
   --fill-active: var(--color-phosphor);
   --fill-hot: var(--color-warn);
   --fill-track: repeating-linear-gradient(90deg, rgb(255 176 0 / 30%) 0 2px, transparent 2px 5px);
-  --fill-hatch: repeating-linear-gradient(90deg, rgb(255 176 0 / 18%) 0 2px, transparent 2px 6px);
 
   --field-bg: transparent;
   --field-bg-focus: rgb(255 176 0 / 6%);
@@ -415,6 +407,12 @@
 
 [data-theme="shell"] .trace-statusbar * {
   color: inherit;
+}
+
+/* The narrator's arrival is in the accent, which here is the bar itself: its
+   first words would type out amber on amber. */
+[data-theme="shell"] .trace-narrator-line {
+  animation: none;
 }
 
 /* ---------------------------------------------------------------------
@@ -463,8 +461,6 @@
   --fill-hot: var(--color-warn);
   --fill-track:
     radial-gradient(circle at center, rgb(62 240 122 / 40%) 0.7px, transparent 0.8px) 0 0 / 3px 3px;
-  --fill-hatch:
-    radial-gradient(circle at center, rgb(62 240 122 / 25%) 0.7px, transparent 0.8px) 0 0 / 4px 4px;
 
   --field-bg: transparent;
   --field-bg-focus: rgb(62 240 122 / 6%);
@@ -573,7 +569,6 @@
   --fill-active: var(--color-phosphor);
   --fill-hot: var(--color-warn);
   --fill-track: rgb(26 255 128 / 12%);
-  --fill-hatch: repeating-linear-gradient(45deg, rgb(26 255 128 / 18%) 0 1px, transparent 1px 6px);
 
   --field-bg: transparent;
   --field-bg-focus: rgb(26 255 128 / 6%);
@@ -673,7 +668,6 @@
   --fill-active: #00ffff;
   --fill-hot: #ff00ff;
   --fill-track: repeating-linear-gradient(90deg, #0000ff 0 4px, transparent 4px 6px);
-  --fill-hatch: repeating-linear-gradient(90deg, rgb(0 0 255 / 70%) 0 4px, transparent 4px 7px);
 
   --field-bg: #000000;
   --field-bg-focus: #000000;
@@ -739,6 +733,12 @@
   color: #00ffff;
 }
 
+/* The narrator speaks in its Fastext colour, not in the bar's usual ink. */
+[data-theme="teletext"] .trace-narrator-line {
+  color: inherit;
+  animation: none;
+}
+
 /* ---------------------------------------------------------------------
  * scope — a Tektronix oscilloscope.
  *
@@ -784,7 +784,6 @@
   --fill-active: var(--color-phosphor);
   --fill-hot: var(--color-warn);
   --fill-track: rgb(57 255 106 / 8%);
-  --fill-hatch: repeating-linear-gradient(90deg, rgb(57 255 106 / 16%) 0 1px, transparent 1px 5px);
 
   --field-bg: transparent;
   --field-bg-focus: rgb(57 255 106 / 5%);

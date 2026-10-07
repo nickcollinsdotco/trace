@@ -74,7 +74,8 @@ export function StatusBar({
   const active = speech?.find((m) => m.active);
 
   return (
-    <footer className="trace-statusbar grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)] items-center gap-5 border-t border-line px-4 py-1.5 font-mono text-2xs text-ink-muted">
+    // The sides as wide as they need and no wider; the narrator has the rest.
+    <footer className="trace-statusbar grid shrink-0 grid-cols-[minmax(0,max-content)_minmax(0,1fr)_minmax(0,max-content)] items-center gap-5 border-t border-line px-4 py-1.5 font-mono text-2xs text-ink-muted">
       <span className="flex min-w-0 items-center gap-5">
         {speech && (
           <ModelsPicker
@@ -89,12 +90,12 @@ export function StatusBar({
         <ActivityEntry jobs={jobs} onOpenNote={onOpenNote} />
       </span>
 
-      {/* Fun mode's commentary, centred, where it is seen rather than tucked
-          against the models. Anything the bar genuinely needs to say — a job
-          running, no speech model — comes first, and the narrator steps
-          aside for it. */}
-      {/* Capped, or a long line would take the room the models need. */}
-      <span className="flex max-w-[48ch] min-w-0 justify-center">
+      {/* The narrator, centred in all the room between, where it is seen
+          rather than tucked against the models. Anything the bar genuinely
+          needs to say — a job running, no speech model — comes first, and
+          the narrator steps aside for it. Capped at a comfortable line; it
+          was 48ch, and cut most of what it said short. */}
+      <span className="flex min-w-0 justify-center">
         <Narrator
           page={page}
           busy={jobs.some(isRunning) || Boolean(speech && !active?.installed)}

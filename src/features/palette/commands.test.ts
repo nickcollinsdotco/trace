@@ -86,6 +86,20 @@ describe("hidden commands", () => {
     expect(ids).not.toMatch(/--why|--who|sudo|--changelog/);
   });
 
+  it("list in trace --help only flags that answer", () => {
+    const help = (hiddenReply("trace --help") ?? []).join(" ");
+    const flags = help.match(/--[a-z]+/g) ?? [];
+    expect(flags.length).toBeGreaterThan(8);
+    for (const flag of flags) expect(hiddenReply(`trace ${flag}`)).not.toBeNull();
+    expect(hiddenReply("ls /system")).not.toBeNull();
+  });
+
+  it("draw in plain ASCII, which every theme's font has", () => {
+    for (const q of ["trace --banner", "trace --diag", "trace --top", "ls /system"]) {
+      for (const line of hiddenReply(q) ?? []) expect(line).toMatch(/^[ -~]*$/);
+    }
+  });
+
   it("print the latest changes for trace --changelog, and Enter opens the rest", () => {
     const reply = hiddenReply("trace --changelog") ?? [];
     expect(reply[0]).toBe(`${CHANGELOG[0]?.version} — ${CHANGELOG[0]?.title}`);

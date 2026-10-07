@@ -26,6 +26,40 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.27.0",
+    date: "2026-10-07",
+    title: "The machine talks",
+    notes: [
+      "The narrator is on by default, jokes included, and can be quieted under Appearance → Play or from Ctrl+K. Between its reports: machine thoughts, a little ASCII, a word on the hour, hints at the secrets. Click it. Then click it again.",
+      "It types left to right in place, like someone at a keyboard — pausing at full stops — instead of growing out from the middle. It is a size larger, arrives in the accent, and has the whole middle of the status bar, so long lines are no longer cut off.",
+      "The boot sequence plays at every launch; any key or click ends it. Fun mode is hidden for now.",
+      "New hidden commands in Ctrl+K, drawn in ASCII. trace --help lists them.",
+      "The Signal panel flicks back through past weeks with its arrows, and its year view shows every day of the past year as a square, brighter for busier. Click a week to open it.",
+      "Screen effects sit behind the words by default — grain, scanlines, dot grid, glass and the refresh bar — so nothing drifts across what you are reading. Glass and the refresh bar can go behind now too. Anything still over from before is moved behind once.",
+      "With a frame of lines (rule or ascii), the page's column keeps most of the effects out from under the words; they show in full in the margins.",
+      "Empty states lose the diagonal stripes: a faint grid of + marks round the edges, clear behind the words, and corner marks.",
+      "The mini window opens already the right size instead of jumping to it, its options menu appears without flickering, and opening and closing the menu no longer creeps the window up the screen.",
+      "Pages no longer shift sideways when they grow tall enough to scroll — switching the meetings list between compact and list, for one.",
+      "Fixed: a second, offset focus box around the Ctrl+K line, and around a meeting being renamed.",
+      "Fixed: the new-meeting title showed the system caret beside its block cursor.",
+    ],
+    screens: {
+      "fun-narrator":
+        "The narrator, on by default. Watch it type in place, left to right; click it several times.",
+      "palette-drawing": "New: trace --banner, spaces kept.",
+      palette: "No second focus box round the command line.",
+      "signal-year": "New: the past year as a grid. Click a column.",
+      "signal-week-back": "New: two weeks back — the arrows, and the week's own numbers.",
+      library:
+        "The Signal panel's week arrows and week/year switch. Compact and list keep the column still.",
+      "library-empty": "No more stripes: + marks at the edges, corner marks.",
+      "mini-options": "The menu, in the real window, opening without a flicker or a jump.",
+      appearance: "Play: the narrator's switch. Effects start behind; try crt with the rule frame.",
+      "fun-boot": "Renamed Booting: it plays at every launch now.",
+      "capture-setup": "One cursor in the empty title, not two.",
+    },
+  },
+  {
     version: "0.26.0",
     date: "2026-10-06",
     title: "Ready for someone new",

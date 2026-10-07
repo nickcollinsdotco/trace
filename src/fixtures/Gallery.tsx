@@ -560,7 +560,14 @@ function Preview({ scenario }: { scenario: Scenario }) {
   const current: Page | null =
     scenario.screen === "note" || scenario.screen === "specimen" ? null : scenario.screen;
   return (
-    <FunContext.Provider value={{ on: scenario.fun !== undefined, setOn: noop }}>
+    <FunContext.Provider
+      value={{
+        on: scenario.fun !== undefined,
+        setOn: noop,
+        narrator: scenario.fun !== undefined || scenario.narrator === true,
+        setNarrator: noop,
+      }}
+    >
       <Shell
         current={current}
         onNavigate={noop}
@@ -574,6 +581,7 @@ function Preview({ scenario }: { scenario: Scenario }) {
         {scenario.screen === "library" && (
           <LibraryScreen
             initialSearch={scenario.search ?? ""}
+            signal={scenario.signal}
             onNewMeeting={noop}
             onOpenNote={noop}
           />

@@ -137,6 +137,7 @@ pub fn run() {
             commands::open_gallery,
             commands::open_mini,
             commands::fit_mini,
+            commands::mini_ready,
             commands::protect_mini,
             commands::set_mini_auto,
             commands::set_mini_shortcut,

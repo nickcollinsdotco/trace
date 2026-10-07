@@ -457,30 +457,48 @@ function EffectRow({
 }
 
 /**
- * Fun mode's switch. App-wide, unlike everything above it, which belongs to
- * a family: a narrator that came and went with the theme would be a puzzle.
+ * The narrator's switch. App-wide, unlike everything above it, which belongs
+ * to a family: a narrator that came and went with the theme would be a
+ * puzzle. Fun mode's switch sat beside it, and is hidden for now (fun.ts).
  */
 function FunSection() {
   const fun = useFun();
   return (
-    <Section title="Fun mode">
-      <label className="flex cursor-pointer items-start gap-3">
-        <input
-          type="checkbox"
-          checked={fun.on}
-          onChange={(e) => fun.setOn(e.target.checked)}
-          className="mt-1 accent-(--color-phosphor)"
-        />
-        <span className="flex flex-col gap-1">
-          <span className="text-sm text-ink">Let the machine talk</span>
-          <span className="text-2xs text-ink-faint">
-            A narrator in the status bar, deadpan, about what the app is doing — never about what
-            anyone said. The boot sequence at launch. During a meeting it speaks only of the
-            meeting, and anything the status bar genuinely needs to say comes first.
-          </span>
-        </span>
-      </label>
+    <Section title="Play">
+      <Toggle
+        checked={fun.narrator}
+        onChange={fun.setNarrator}
+        label="Let the machine talk"
+        note="A narrator in the status bar, deadpan, about what the app is doing — never about what anyone said — with machine thoughts in between, a word on the hour, and an answer when it is clicked. During a meeting it speaks only of the meeting, and anything the status bar genuinely needs to say comes first."
+      />
     </Section>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+  note,
+}: {
+  checked: boolean;
+  onChange: (on: boolean) => void;
+  label: string;
+  note: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-1 accent-(--color-phosphor)"
+      />
+      <span className="flex flex-col gap-1">
+        <span className="text-sm text-ink">{label}</span>
+        <span className="text-2xs text-ink-faint">{note}</span>
+      </span>
+    </label>
   );
 }
 

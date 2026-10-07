@@ -14,7 +14,7 @@ import {
   withReset,
   withTheme,
 } from "./appearance";
-import { presetOf } from "./screen";
+import { presetOf, presetScreen } from "./screen";
 
 afterEach(() => localStorage.clear());
 
@@ -114,6 +114,22 @@ describe("storage", () => {
       JSON.stringify({ retro: { filter: "vhs", strength: "strong" } }),
     );
     expect(presetOf(loadAppearance().families.retro.screen)).toBe("film");
+  });
+
+  it("moves a screen saved before 0.27 behind, once, and then leaves it be", () => {
+    const old = presetScreen("crt");
+    old.scanlines.place = "over";
+    old.glass.place = "over";
+    localStorage.setItem("trace.appearance.families", JSON.stringify({ retro: { screen: old } }));
+    let a = loadAppearance();
+    expect(a.families.retro.screen.scanlines.place).toBe("behind");
+    expect(a.families.retro.screen.glass.place).toBe("behind");
+    expect(presetOf(a.families.retro.screen)).toBe("crt");
+
+    // Put back over on purpose: that sticks.
+    a = withEffect(withTheme(a, "shell"), "scanlines", { place: "over" });
+    saveAppearance(a);
+    expect(loadAppearance().families.retro.screen.scanlines.place).toBe("over");
   });
 
   it("round-trips a mixed screen", () => {

@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import {
   type Effect,
   type EffectSetting,
+  movedBehind,
   type Preset,
   presetScreen,
   readScreen,
@@ -89,6 +90,8 @@ const ADJUSTMENTS_KEY = "trace.appearance.adjustments";
 /** Read once, to move the old global overrides onto the theme they were made on. */
 const OVERRIDES_KEY = "trace.appearance.overrides";
 const FAMILIES_KEY = "trace.appearance.families";
+/** Set once a saved screen has had its textures moved behind (screen.ts). */
+const BEHIND_KEY = "trace.appearance.behind";
 /** Read once, to carry a CRT-mode choice over into the filter that replaced it. */
 const LEGACY_CRT_KEY = "trace.appearance.crt";
 
@@ -105,12 +108,12 @@ function loadFamilies(theme: Theme): Record<Family, FamilySettings> {
       Record<string, unknown> | undefined
     > | null;
     if (raw) {
+      const placed = localStorage.getItem(BEHIND_KEY) !== null;
       for (const f of FAMILIES) {
         const saved = raw[f];
         const legacy = typeof saved?.filter === "string" ? LEGACY_FILTER[saved.filter] : undefined;
-        const screen = legacy
-          ? presetScreen(legacy)
-          : readScreen(saved?.screen, families[f].screen);
+        const read = legacy ? presetScreen(legacy) : readScreen(saved?.screen, families[f].screen);
+        const screen = placed ? read : movedBehind(read);
         families[f] = { screen };
         const remembered = themeId(saved?.theme);
         if (isTheme(remembered) && THEME_FAMILY[remembered] === f) {
@@ -185,6 +188,7 @@ export function saveAppearance(a: Appearance): void {
     localStorage.setItem(ADJUSTMENTS_KEY, JSON.stringify(a.adjustments));
     localStorage.removeItem(OVERRIDES_KEY);
     localStorage.setItem(FAMILIES_KEY, JSON.stringify(a.families));
+    localStorage.setItem(BEHIND_KEY, "1");
     localStorage.removeItem(LEGACY_CRT_KEY);
   } catch {
     // Not worth surfacing — the choice simply does not persist.

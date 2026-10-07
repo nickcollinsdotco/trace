@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { THEMES } from "../../design/theme";
 import { secretFor } from "./Eggs";
-import { freshEar, listen, narrate, segmentMilestone } from "./lines";
+import { freshEar, keyDelay, listen, narrate, segmentMilestone } from "./lines";
 
 describe("the narrator's lines", () => {
   it("remarks on every step of the capitals ladder", () => {
@@ -33,9 +33,32 @@ describe("the narrator's lines", () => {
   });
 
   it("never claims the microphone is open while idle", () => {
-    for (let tick = 0; tick < 10; tick++) {
+    for (let tick = 0; tick < 40; tick++) {
       expect(narrate({ kind: "idle", notes: 6, tick })).not.toMatch(/listening/);
     }
+  });
+
+  it("mixes thoughts in with the reports, in plain ASCII", () => {
+    const lines = Array.from({ length: 40 }, (_, tick) =>
+      narrate({ kind: "idle", notes: 6, tick }),
+    );
+    expect(new Set(lines).size).toBeGreaterThan(15);
+    expect(lines).toContain("6 traces on file.");
+    expect(lines).toContain("signal over noise.");
+    for (const line of lines) expect(line).toMatch(/^[ -~]*$/);
+  });
+
+  it("says the hour with a remark, and gives up a secret to persistent poking", () => {
+    expect(narrate({ kind: "hour", hour: 9 })).toMatch(/^09:00\. /);
+    expect(narrate({ kind: "hour", hour: 14 })).toBe("14:00. on the hour, exactly.");
+    expect(narrate({ kind: "poke", count: 1 })).toBe("yes?");
+    expect(narrate({ kind: "poke", count: 99 })).toContain("trace --help");
+  });
+
+  it("types like a person: a pause after a full stop, quick inside a word", () => {
+    expect(keyDelay(".", 0)).toBeGreaterThan(keyDelay(" ", 1));
+    expect(keyDelay(" ", 0)).toBeGreaterThan(keyDelay("a", 0));
+    expect(keyDelay("a", 1)).toBeLessThan(keyDelay(",", 0));
   });
 
   it("speaks every hundredth segment, once", () => {

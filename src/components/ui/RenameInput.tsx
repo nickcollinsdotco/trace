@@ -59,7 +59,7 @@ export function RenameInput({
       autoFocus
       data-selectable
       spellCheck={false}
-      className={`w-full min-w-0 rounded-xs bg-surface-2 px-1.5 py-0.5 -mx-1.5 outline-none ring-1 ring-phosphor ${className}`}
+      className={`w-full min-w-0 rounded-xs bg-surface-2 px-1.5 py-0.5 -mx-1.5 trace-bare-field ring-1 ring-phosphor ${className}`}
     />
   );
 }

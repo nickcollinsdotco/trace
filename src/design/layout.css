@@ -36,13 +36,20 @@
 }
 
 /* A column flexbox, so auto margins on the column can centre it when the
-   alignment rule asks for that. */
+   alignment rule asks for that.
+
+   The scrollbar's room is kept whether or not there is anything to scroll.
+   Without it, a page that grew past the window's height — the library
+   switched from compact to list, a section opened, a filter cleared — got a
+   scrollbar, lost its width, and the centred column jumped sideways by half
+   of it. Measured: 5px at every switch. */
 .trace-scroll {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 /*
@@ -169,10 +176,12 @@
 }
 
 /*
- * Fields whose underline brightening is the focus: the mini window's name,
- * and the scope view's line for notes. The app's focus box was heavy for a
- * window that size, and sat hard against text with no padding of its own. A plain rule rather than
- * a utility, because the global :focus-visible rule is unlayered and so beats
+ * Fields that show focus their own way: the mini window's name and the scope
+ * view's line for notes by an underline brightening, the palette's command
+ * line by the panel it sits in, a rename by its ring. The app's focus box was
+ * heavy for a window that size, and sat hard against text with no padding of
+ * its own; on the palette it drew a second box, offset, round the line. A
+ * plain rule rather than a utility, because the global :focus-visible rule is unlayered and so beats
  * any Tailwind utility, which lives in a layer — `focus-visible:outline-none`
  * was tried and did nothing.
  */

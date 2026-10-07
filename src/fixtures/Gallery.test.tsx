@@ -388,11 +388,12 @@ describe("Gallery", () => {
     await openScenario(user, "Appearance");
     const main = await screen.findByRole("main");
 
-    // Retro starts on soft lines; Modern, where Carbon is, on clean glass.
+    // Retro starts on soft lines, behind the words; Modern, where Carbon is,
+    // on clean glass.
     expect(container.querySelector("[data-fx-scanlines]")).toBeNull();
     await user.click(await within(main).findByRole("button", { name: /shell/ }));
     await waitFor(() =>
-      expect(container.querySelector('[data-fx-scanlines="over"]')).not.toBeNull(),
+      expect(container.querySelector('[data-fx-scanlines="behind"]')).not.toBeNull(),
     );
     await user.click(within(main).getByRole("button", { name: "crt" }));
     await waitFor(() =>
@@ -406,12 +407,14 @@ describe("Gallery", () => {
       expect(container.querySelector('[data-screen-preset="crt"]')).not.toBeNull(),
     );
 
-    // One effect moved by hand: the mix is custom, and grain goes behind.
+    // One effect moved by hand: the mix is custom. Grain starts behind, and
+    // can be brought over the letters.
     const grain = within(main).getByRole("slider", { name: "Grain" });
     fireEvent.change(grain, { target: { value: "60" } });
-    const placement = within(main).getByRole("group", { name: "Grain placement" });
-    await user.click(within(placement).getByRole("button", { name: "behind" }));
     await waitFor(() => expect(container.querySelector('[data-fx-grain="behind"]')).not.toBeNull());
+    const placement = within(main).getByRole("group", { name: "Grain placement" });
+    await user.click(within(placement).getByRole("button", { name: "over" }));
+    await waitFor(() => expect(container.querySelector('[data-fx-grain="over"]')).not.toBeNull());
     expect(container.querySelector("[data-screen-preset]")).toBeNull();
     expect(within(main).getByText("custom")).toBeInTheDocument();
 
@@ -1204,7 +1207,7 @@ describe("Gallery", () => {
     expect(within(palette).queryByRole("listbox")).toBeNull();
   });
 
-  it("lets the narrator speak in Fun mode, and only then", async () => {
+  it("lets the narrator speak where it is on, and answer a poke", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
 
@@ -1212,17 +1215,55 @@ describe("Gallery", () => {
     const bar = await screen.findByRole("contentinfo");
     expect(within(bar).queryByRole("status")).toBeNull();
 
-    await openScenario(user, "Fun mode, the narrator");
-    const funBar = await screen.findByRole("contentinfo");
-    expect(
-      await within(funBar).findByRole("status", { name: /the machine will now speak/ }),
-    ).toBeInTheDocument();
+    await openScenario(user, "The narrator");
+    const plainBar = await screen.findByRole("contentinfo");
+    const plain = await within(plainBar).findByRole("status", { name: /^online\./ });
+    await user.click(within(plain).getByRole("button", { name: "Poke the narrator" }));
+    expect(await within(plainBar).findByRole("status", { name: "yes?" })).toBeInTheDocument();
   });
 
-  it("boots in Fun mode, line by line, to READY", async () => {
+  it("flicks the signal panel back through the weeks, and out to the year", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
-    await openScenario(user, "Fun mode, booting");
+    await openScenario(user, "Meetings");
+
+    const strip = await screen.findByRole("list", { name: "Meetings per day this week" });
+    const found = strip.closest("section");
+    if (!found) throw new Error("no signal panel");
+    const panel = within(found);
+    const next = panel.getByRole("button", { name: "Next week" });
+    expect(next).toBeDisabled();
+    await user.click(panel.getByRole("button", { name: "Previous week" }));
+    expect(panel.getByText("Last week")).toBeInTheDocument();
+    expect(next).toBeEnabled();
+
+    await user.click(panel.getByRole("button", { name: "year" }));
+    const weeks = panel.getByRole("list", { name: "Meetings per week, the past year" });
+    const columns = within(weeks).getAllByRole("button");
+    expect(columns).toHaveLength(53);
+    // This week's column opens this week.
+    const latest = columns.at(-1);
+    if (!latest) throw new Error("no columns");
+    await user.click(latest);
+    expect(panel.getByText("This week")).toBeInTheDocument();
+    localStorage.removeItem("trace.signal.view");
+  });
+
+  it("draws a hidden command's ASCII with its spaces kept", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Palette, a drawing");
+
+    const palette = await screen.findByRole("dialog", { name: "Command palette" });
+    expect(within(palette).getByText("conversations leave traces.")).toBeInTheDocument();
+    const art = palette.querySelector("output");
+    expect(art?.className).toContain("whitespace-pre");
+  });
+
+  it("boots line by line, to READY", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Booting");
 
     const boot = await screen.findByRole("status", { name: "TRACE starting" });
     expect(boot).toHaveTextContent("TRACE / INITIALIZING");

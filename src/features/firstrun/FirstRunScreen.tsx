@@ -82,7 +82,7 @@ export function FirstRunScreen({ onReady }: { onReady: () => void }) {
       // Centred by the report's own auto margins, not by the flex box:
       // centred that way, a report taller than the window lost its top above
       // the scroll, where no scrolling could reach it.
-      className="flex h-full flex-col overflow-y-auto bg-surface-0 px-6 py-6 uppercase"
+      className="flex h-full flex-col overflow-y-auto bg-surface-0 px-6 py-6 uppercase [scrollbar-gutter:stable_both-edges]"
     >
       <div className="m-auto w-full max-w-2xl border border-line-strong">
         <TapeStrip />

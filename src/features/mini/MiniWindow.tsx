@@ -147,6 +147,9 @@ export function MiniWindow({
   const stack = useRef<HTMLDivElement>(null);
   const card = useRef<HTMLDivElement>(null);
   const kind = phase.kind;
+  // The size last asked for: the same size asked again is a resize Windows
+  // would do for nothing, and two at once raced each other (windows.rs).
+  const asked = useRef("");
   // biome-ignore lint/correctness/useExhaustiveDependencies: menu and details change the stack's height, so they re-measure it
   useLayoutEffect(() => {
     if (initial || !hasBackend()) return;
@@ -165,13 +168,49 @@ export function MiniWindow({
         : kind === "idle" || kind === "recording"
           ? BAR_WIDTH
           : el.clientWidth;
-      void ipc.fitMini(width, content.getBoundingClientRect().height).catch(() => {});
+      const height = content.getBoundingClientRect().height;
+      const size = `${Math.round(width)}×${Math.round(height)}`;
+      if (size === asked.current) return;
+      asked.current = size;
+      // Shown only once sized (windows.rs), so it never appears at the
+      // wrong size and then jumps. After the fit: the reveal waits for it.
+      void ipc
+        .fitMini(width, height)
+        .catch(() => {})
+        .finally(() => void ipc.miniReady().catch(() => {}));
     };
     measure();
     void document.fonts?.ready.then(measure);
     window.addEventListener("storage", measure);
     return () => window.removeEventListener("storage", measure);
   }, [kind, initial, menu, details, offer]);
+
+  /*
+   * The menu waits, unseen, until the window has grown to hold it. Drawn at
+   * once, it showed clipped to the bar's height for a frame or two and then
+   * jumped into place as the window caught up. Never longer than a moment:
+   * if the window cannot grow, the menu shows anyway.
+   */
+  const [menuFits, setMenuFits] = useState(true);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: details change the height the menu needs
+  useLayoutEffect(() => {
+    const fits = () =>
+      (stack.current?.getBoundingClientRect().height ?? 0) <= window.innerHeight + 1;
+    if (!menu || initial || !hasBackend() || fits()) {
+      setMenuFits(true);
+      return;
+    }
+    setMenuFits(false);
+    const check = () => {
+      if (fits()) setMenuFits(true);
+    };
+    window.addEventListener("resize", check);
+    const fallback = window.setTimeout(() => setMenuFits(true), 400);
+    return () => {
+      window.removeEventListener("resize", check);
+      window.clearTimeout(fallback);
+    };
+  }, [menu, details, initial]);
 
   return (
     <div
@@ -186,6 +225,7 @@ export function MiniWindow({
       <div ref={stack} className="flex shrink-0 flex-col gap-1.5">
         {menu && (
           <OptionsMenu
+            shown={menuFits}
             onClose={() => setMenu(false)}
             wave={wave}
             onWave={setWave}
@@ -397,6 +437,7 @@ function Offer({ onDone }: { onDone: () => void }) {
  * switches that are set once and left, not reached for during a call.
  */
 function OptionsMenu({
+  shown,
   onClose,
   wave,
   onWave,
@@ -405,6 +446,8 @@ function OptionsMenu({
   hidden,
   onHidden,
 }: {
+  /** False while the window is still growing to hold it. */
+  shown: boolean;
   onClose: () => void;
   wave: boolean;
   onWave: (on: boolean) => void;
@@ -415,9 +458,10 @@ function OptionsMenu({
 }) {
   const first = useRef<HTMLButtonElement>(null);
   const shortcut = useMiniShortcut();
+  // Once it can be seen: a hidden menu cannot take focus.
   useEffect(() => {
-    first.current?.focus();
-  }, []);
+    if (shown) first.current?.focus();
+  }, [shown]);
 
   return (
     <div className="flex justify-end">
@@ -430,7 +474,9 @@ function OptionsMenu({
         // As wide as its longest line, so a wide typeface widens the menu —
         // and the window with it — rather than wrapping a line. No shadow:
         // the window ends at the menu's edge and would cut it off square.
-        className="w-max min-w-64 rounded-md border border-line-strong bg-surface-2 py-1 whitespace-nowrap"
+        className={`w-max min-w-64 rounded-md border border-line-strong bg-surface-2 py-1 whitespace-nowrap transition-opacity duration-100 ${
+          shown ? "opacity-100" : "invisible opacity-0"
+        }`}
       >
         <MenuSwitch refTo={first} checked={wave} onChange={onWave}>
           Waveform

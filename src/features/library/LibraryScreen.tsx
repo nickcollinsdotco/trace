@@ -19,7 +19,7 @@ import { LlmNotice } from "../llm/LlmNotice";
 import { useLlmStatus } from "../llm/useLlmStatus";
 import { applyFilters, parseQuery, searchText, setToken } from "./query";
 import { SearchBar, type View } from "./SearchBar";
-import { SignalPanel } from "./SignalPanel";
+import { SignalPanel, type View as SignalView } from "./SignalPanel";
 
 /*
  * Still "gists" on disk: the list view is the old Summaries toggle, and a
@@ -52,11 +52,14 @@ export function LibraryScreen({
   onNewMeeting,
   onOpenNote,
   initialSearch = "",
+  signal,
 }: {
   onNewMeeting: () => void;
   onOpenNote: (path: string) => void;
   /** Pre-filled query, so clicking a tag on a note lands here searching it. */
   initialSearch?: string;
+  /** How the signal panel opens, for the gallery. */
+  signal?: { view?: SignalView; back?: number } | undefined;
 }) {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [recoverable, setRecoverable] = useState<RecoverableSession[]>([]);
@@ -195,7 +198,7 @@ export function LibraryScreen({
         Meetings
       </h1>
 
-      {hasBackend() && !loading && <SignalPanel notes={notes} />}
+      {hasBackend() && !loading && <SignalPanel notes={notes} initial={signal} />}
 
       {/* Interrupted meetings come first: there is unsaved work here and it
             is the only thing on this screen that can still be lost. */}

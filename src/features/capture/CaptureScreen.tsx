@@ -181,7 +181,10 @@ export function CaptureScreen({
         <ScopeStrip mode={scopeMode} onMode={setScopeMode} onExpand={() => setScopeOpen(true)} />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* The scrollbar's room kept on both sides, so this column stays
+          centred under the strip above, which does not scroll, whether or
+          not the notes have grown long enough to need one. */}
+      <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
         <div className="trace-column flex flex-col gap-6 py-5">
           {/* Notes get the most room. This ordering is the product's opinion. */}
           <Section title="Notes">
@@ -329,7 +332,7 @@ function SetupPanel({
               // here, and everything else has a sensible default.
               // biome-ignore lint/a11y/noAutofocus: single-purpose entry screen
               autoFocus
-              className={`trace-field trace-title-input text-2xl ${title ? "" : "caret-transparent"}`}
+              className="trace-field trace-title-input text-2xl"
             />
             {title === "" && (
               <span

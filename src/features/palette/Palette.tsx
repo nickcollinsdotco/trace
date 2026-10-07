@@ -206,19 +206,23 @@ export function Palette({
           aria-activedescendant={items[active] ? `trace-palette-${active}` : undefined}
           autoComplete="off"
           spellCheck={false}
-          className="h-12 min-w-0 flex-1 bg-transparent font-mono text-sm text-ink outline-none placeholder:text-ink-faint"
+          className="trace-bare-field h-12 min-w-0 flex-1 bg-transparent font-mono text-sm text-ink placeholder:text-ink-faint"
         />
       </div>
 
       {reply ? (
         <output
           aria-live="polite"
-          className="block px-5 py-5 font-mono text-sm leading-relaxed text-phosphor"
+          // Spaces kept and lines unwrapped: some answers are drawn in ASCII,
+          // and a picture collapsed or wrapped is no picture.
+          className="block overflow-x-auto px-5 py-5 font-mono text-sm leading-snug whitespace-pre text-phosphor"
         >
-          {reply.map((line) => (
+          {reply.map((line, i) => (
             <span
-              key={line}
-              className={`block ${line.startsWith("enter:") ? "pt-3 text-ink-faint" : ""}`}
+              // By position: a drawing repeats its blank lines.
+              // biome-ignore lint/suspicious/noArrayIndexKey: lines never move
+              key={i}
+              className={`block min-h-[1lh] ${line.startsWith("enter:") ? "pt-3 text-ink-faint" : ""}`}
             >
               {line}
             </span>

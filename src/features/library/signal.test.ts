@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { NoteSummary } from "../../lib/ipc";
-import { ago, heights, milestone, thisWeek, weekStats } from "./signal";
+import {
+  ago,
+  heatLevel,
+  heights,
+  isoWeek,
+  milestone,
+  thisWeek,
+  weekStats,
+  weeksOnFile,
+  yearGrid,
+  yearStats,
+} from "./signal";
 
 function note(date: string, durationMs: number | null, title = date): NoteSummary {
   return {
@@ -55,6 +66,46 @@ describe("signal", () => {
     expect(stats.meetings).toBe(2);
     expect(stats.totalMs).toBe(88 * 60_000);
     expect(stats.longest?.title).toBe("b");
+  });
+
+  it("flicks back a week at a time, and knows how far there is to go", () => {
+    const notes = [note("2026-09-15", 1), note("2026-09-02", 1)];
+    expect(thisWeek(notes, NOW, 1).map((d) => d.iso)[0]).toBe("2026-09-14");
+    expect(thisWeek(notes, NOW, 1).some((d) => d.today)).toBe(false);
+    expect(weekStats(notes, NOW, 1).meetings).toBe(1);
+    expect(weeksOnFile(notes, NOW)).toBe(3);
+    expect(weeksOnFile([], NOW)).toBe(0);
+  });
+
+  it("numbers weeks as ISO 8601 does", () => {
+    expect(isoWeek(NOW)).toBe(39);
+    // 1 January 2027 is a Friday, so it belongs to 2026's last week.
+    expect(isoWeek(new Date(2027, 0, 1))).toBe(53);
+    expect(isoWeek(new Date(2027, 0, 4))).toBe(1);
+  });
+
+  it("lays the year out a column a week, ending this week, with tomorrow blank", () => {
+    const grid = yearGrid([note("2026-09-23", 1), note("2026-09-22", 1)], NOW);
+    expect(grid).toHaveLength(53);
+    const last = grid.at(-1);
+    expect(last?.back).toBe(0);
+    expect(last?.monday).toBe("2026-09-21");
+    expect(last?.total).toBe(2);
+    expect(last?.days.map((d) => d.future)).toEqual([false, false, false, true, true, true, true]);
+    expect(grid.filter((w) => w.month !== null).length).toBeGreaterThanOrEqual(12);
+  });
+
+  it("counts a streak through a quiet weekend but not a quiet weekday", () => {
+    // Thursday, Friday, Monday, Tuesday: four in a row. Then a gap.
+    const notes = ["2026-09-10", "2026-09-11", "2026-09-14", "2026-09-15", "2026-09-17"].map((d) =>
+      note(d, 1),
+    );
+    const stats = yearStats(yearGrid(notes, NOW));
+    expect(stats.streak).toBe(4);
+    expect(stats.days).toBe(5);
+    expect(stats.meetings).toBe(5);
+    expect(stats.busiest?.monday).toBe("2026-09-14");
+    expect(heatLevel(9)).toBe(4);
   });
 
   it("says how long ago in words", () => {

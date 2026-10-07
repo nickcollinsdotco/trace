@@ -126,6 +126,12 @@ pub enum Open {
 #[derive(Default)]
 pub struct MiniState {
     inner: std::sync::Mutex<MiniInner>,
+    /// Held for the whole of a resize or a settle. Fits arrive as commands
+    /// that run at once on different threads, and Windows applies a move or
+    /// a resize later than asked (tao posts them asynchronously): one fit
+    /// read the size from before another's resize and the position from
+    /// after its move, and the window crept up by the menu's height.
+    turn: std::sync::Mutex<()>,
 }
 
 #[derive(Default)]
@@ -142,6 +148,13 @@ struct MiniInner {
     /// and a 150% screen it lost a third of its height each crossing, until
     /// it was gone. Settling puts this size back.
     wanted: Option<(f64, f64)>,
+    /// The bottom-right corner the window is anchored to, in logical pixels.
+    /// Every resize is placed from this rather than from where the window
+    /// seems to be at that instant, which may be a move not yet applied. Set
+    /// where TRACE puts the window, and where a drag leaves it.
+    corner: Option<(f64, f64)>,
+    /// Asked for, so it takes focus once it is shown.
+    focus_on_show: bool,
 }
 
 impl MiniState {
@@ -149,6 +162,15 @@ impl MiniState {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         f(&mut guard)
     }
+
+    fn turn(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.turn.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+/// Where a window of `size` sits to keep its bottom-right at `corner`.
+pub fn from_corner(corner: (f64, f64), size: (f64, f64)) -> (f64, f64) {
+    ((corner.0 - size.0).round(), (corner.1 - size.1).round())
 }
 
 fn mode(app: &AppHandle) -> crate::settings::MiniAuto {
@@ -184,6 +206,7 @@ pub fn open_mini(app: &AppHandle, how: Open) -> tauri::Result<()> {
             // Asked for because it cannot be seen, quite possibly: whatever
             // left it off every screen or shrunk to nothing, asking for it
             // brings it back.
+            let _turn = state.turn();
             keep_size(app, &existing)?;
             if !reachable(&existing)? {
                 place_default(app, &existing)?;
@@ -220,6 +243,7 @@ pub fn open_mini(app: &AppHandle, how: Open) -> tauri::Result<()> {
     state.with(|s| {
         s.auto = how != Open::Asked;
         s.wanted = None;
+        s.corner = None;
     });
 
     // On the monitor the main window is on: that is where the user is. Where
@@ -231,6 +255,7 @@ pub fn open_mini(app: &AppHandle, how: Open) -> tauri::Result<()> {
         let saved = crate::settings::load().mini_places;
         let (x, y) = remembered(&saved, &name, area, size).unwrap_or_else(|| mini_spot(area, size));
         window.set_position(LogicalPosition::new(x, y))?;
+        state.with(|s| s.corner = Some((x + size.0, y + size.1)));
     }
 
     // Snap, restore its size, and remember the place once a drag has come
@@ -243,8 +268,48 @@ pub fn open_mini(app: &AppHandle, how: Open) -> tauri::Result<()> {
         }
     });
 
+    // Shown once the page has sized it (`reveal_mini`), not now: shown at
+    // once, it appeared at the bar's default size, empty, and then jumped to
+    // fit what it held. A page that never says so is shown anyway.
+    state.with(|s| s.focus_on_show = how == Open::Asked);
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(REVEAL_FALLBACK_MS));
+        if let Err(e) = reveal_mini(&handle) {
+            crate::diagnostics::log(format!("could not show the mini window: {e}"));
+        }
+    });
+    Ok(())
+}
+
+/// How long the mini window waits for its page before showing regardless.
+const REVEAL_FALLBACK_MS: u64 = 1_500;
+
+/// Show the mini window, once its page has sized it. Waits a moment for the
+/// resize to land first: Windows applies it later than asked, and showing
+/// sooner showed the jump this exists to hide. Does nothing if it is shown.
+pub fn reveal_mini(app: &AppHandle) -> tauri::Result<()> {
+    let Some(window) = app.get_webview_window(MINI) else {
+        return Ok(());
+    };
+    if window.is_visible()? {
+        return Ok(());
+    }
+    let state = app.state::<MiniState>();
+    {
+        let _turn = state.turn();
+        let wanted = state.with(|s| s.wanted).unwrap_or(MINI_SIZE);
+        for _ in 0..10 {
+            let scale = window.scale_factor()?;
+            let size = window.inner_size()?.to_logical::<f64>(scale);
+            if (size.width - wanted.0).abs() < 1.0 && (size.height - wanted.1).abs() < 1.0 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
     window.show()?;
-    if how == Open::Asked {
+    if state.with(|s| std::mem::take(&mut s.focus_on_show)) {
         window.set_focus()?;
     }
     Ok(())
@@ -259,27 +324,40 @@ fn main_monitor(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<Option
 }
 
 /// Put the window back to the size its content asked for, keeping its
-/// bottom-right corner, if Windows has rescaled it since.
+/// bottom-right corner, if Windows has rescaled it since. The caller holds
+/// the turn.
 fn keep_size(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<()> {
     let wanted = app
         .state::<MiniState>()
         .with(|s| s.wanted)
         .unwrap_or(MINI_SIZE);
-    resize_from_corner(window, wanted)
+    resize_from_corner(app, window, wanted)
 }
 
-fn resize_from_corner(window: &WebviewWindow, (width, height): (f64, f64)) -> tauri::Result<()> {
+/// Size the window, keeping its bottom-right corner where it is anchored.
+/// The caller holds the turn.
+fn resize_from_corner(
+    app: &AppHandle,
+    window: &WebviewWindow,
+    (width, height): (f64, f64),
+) -> tauri::Result<()> {
+    let state = app.state::<MiniState>();
     let scale = window.scale_factor()?;
     let current = window.inner_size()?.to_logical::<f64>(scale);
-    if (current.width - width).abs() < 1.0 && (current.height - height).abs() < 1.0 {
+    let at = window.outer_position()?.to_logical::<f64>(scale);
+    // No corner yet only before the window was ever placed: then where it is
+    // now is the best there is.
+    let corner = state
+        .with(|s| s.corner)
+        .unwrap_or((at.x + current.width, at.y + current.height));
+    state.with(|s| s.corner = Some(corner));
+    let (x, y) = from_corner(corner, (width, height));
+    let sized = (current.width - width).abs() < 1.0 && (current.height - height).abs() < 1.0;
+    if sized && (at.x - x).abs() < 1.0 && (at.y - y).abs() < 1.0 {
         return Ok(());
     }
-    let at = window.outer_position()?.to_logical::<f64>(scale);
     window.set_size(LogicalSize::new(width, height))?;
-    window.set_position(LogicalPosition::new(
-        at.x + current.width - width,
-        at.y + current.height - height,
-    ))
+    window.set_position(LogicalPosition::new(x, y))
 }
 
 /// Whether the window can be found: its middle on some screen's work area.
@@ -318,9 +396,13 @@ fn place_default(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<()> {
     let Some(monitor) = main_monitor(app, window)? else {
         return Ok(());
     };
-    let scale = window.scale_factor()?;
-    let size = window.inner_size()?.to_logical::<f64>(scale);
-    let (x, y) = mini_spot(logical_area(&monitor), (size.width, size.height));
+    let size = app
+        .state::<MiniState>()
+        .with(|s| s.wanted)
+        .unwrap_or(MINI_SIZE);
+    let (x, y) = mini_spot(logical_area(&monitor), size);
+    app.state::<MiniState>()
+        .with(|s| s.corner = Some((x + size.0, y + size.1)));
     window.set_position(LogicalPosition::new(x, y))
 }
 
@@ -332,8 +414,12 @@ pub fn reset_mini(app: &AppHandle) -> tauri::Result<()> {
     let Some(window) = app.get_webview_window(MINI) else {
         return open_mini(app, Open::Asked);
     };
-    keep_size(app, &window)?;
-    place_default(app, &window)?;
+    {
+        let state = app.state::<MiniState>();
+        let _turn = state.turn();
+        keep_size(app, &window)?;
+        place_default(app, &window)?;
+    }
     window.unminimize()?;
     window.show()?;
     window.set_focus()
@@ -417,13 +503,22 @@ fn settle(app: &AppHandle) -> tauri::Result<()> {
     let Some(monitor) = window.current_monitor()? else {
         return Ok(());
     };
-    keep_size(app, &window)?;
+    let state = app.state::<MiniState>();
+    let _turn = state.turn();
+    // Where the window has come to rest is now its corner: a drag moved it,
+    // or TRACE did and this agrees. Read from where it is and the size it
+    // should be, not the size it reports — Windows may have rescaled it on
+    // the way to a screen of different scaling, which keep_size undoes.
     let scale = window.scale_factor()?;
     let at = window.outer_position()?.to_logical::<f64>(scale);
-    let size = window.inner_size()?.to_logical::<f64>(scale);
-    let size = (size.width, size.height);
-    let (x, y) = snapped((at.x, at.y), size, logical_area(&monitor));
-    if (x - at.x).abs() >= 1.0 || (y - at.y).abs() >= 1.0 {
+    let current = window.inner_size()?.to_logical::<f64>(scale);
+    let size = state.with(|s| s.wanted).unwrap_or(MINI_SIZE);
+    state.with(|s| s.corner = Some((at.x + current.width, at.y + current.height)));
+    keep_size(app, &window)?;
+    let (left, top) = from_corner((at.x + current.width, at.y + current.height), size);
+    let (x, y) = snapped((left, top), size, logical_area(&monitor));
+    if (x - left).abs() >= 1.0 || (y - top).abs() >= 1.0 {
+        state.with(|s| s.corner = Some((x + size.0, y + size.1)));
         window.set_position(LogicalPosition::new(x, y))?;
     }
     let name = monitor.name().cloned().unwrap_or_default();
@@ -561,8 +656,10 @@ pub fn fit_mini(app: &AppHandle, wanted: (f64, f64)) -> tauri::Result<()> {
         return Ok(());
     };
     let size = mini_fit(wanted);
-    app.state::<MiniState>().with(|s| s.wanted = Some(size));
-    resize_from_corner(&window, size)
+    let state = app.state::<MiniState>();
+    let _turn = state.turn();
+    state.with(|s| s.wanted = Some(size));
+    resize_from_corner(app, &window, size)
 }
 
 /// Whether the shortcut failed to register: another app holds it.
@@ -689,6 +786,20 @@ pub const EVENT_OPEN_NOTE: &str = "trace://open-note";
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_menu_opening_and_closing_never_moves_the_bar() {
+        // Anchored at one corner, however often the menu comes and goes: the
+        // window used to creep up by the menu's height on a race.
+        let corner = (1904.0, 1000.0);
+        let bar = from_corner(corner, MINI_SIZE);
+        for _ in 0..5 {
+            let tall = from_corner(corner, (360.0, 220.0));
+            assert_eq!(tall, (1544.0, 780.0));
+            assert_eq!(from_corner(corner, MINI_SIZE), bar);
+        }
+        assert_eq!(bar, (1544.0, 944.0));
+    }
 
     #[test]
     fn the_mini_window_sits_right_and_low() {

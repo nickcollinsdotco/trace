@@ -949,6 +949,12 @@ pub async fn fit_mini(app: AppHandle, width: f64, height: f64) -> CmdResult<()> 
     crate::windows::fit_mini(&app, (width, height)).map_err(err)
 }
 
+/// The mini window's page has sized it: show it.
+#[tauri::command]
+pub async fn mini_ready(app: AppHandle) -> CmdResult<()> {
+    crate::windows::reveal_mini(&app).map_err(err)
+}
+
 /// Hide the mini window from screen shares, or show it in them.
 #[tauri::command]
 pub async fn protect_mini(app: AppHandle, hidden: bool) -> CmdResult<()> {

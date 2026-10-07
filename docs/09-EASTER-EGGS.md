@@ -526,13 +526,23 @@ Avoid the heaviest block characters except in special screens.
 
 As of 2026-10-01 (docs/13, Stage 5b):
 
-- **§2 boot sequence** — at launch in Fun mode, and on typing `trace`
-  outside a text field.
+- **§2 boot sequence** — at every launch (since 0.27), and on typing
+  `trace` outside a text field. Any key or click ends it.
 - **§16 found file** — seven clicks on the wordmark within four seconds.
 - **§18 hidden commands** — in the command palette, exact input only.
-- **The narrator** (§8, §10, §11 in spirit) — Fun mode's status-bar line.
+- **The narrator** (§8, §10, §11 in spirit) — the status-bar line. On by
+  default since 0.27, with machine thoughts and boot quotes (§11, §17)
+  between its reports, a word on the hour, hints at the secrets, and an
+  answer when clicked — the sixth click gives up `trace --help`. None of it
+  needs Fun mode, which is hidden for now.
 - **The Konami code** — phosphor rain over the window, using the app's own
   glyphs rather than katakana.
+- **More hidden commands** (0.27) — `trace --banner`, `trace --diag` (§7),
+  `trace --top` (§10), `ls /system` (§15), `cat /system/readme.txt`, and
+  `trace --help` listing them. Plain ASCII only: most themes' fonts have no
+  box-drawing or block characters.
+- **Fun mode's sign-off** — a boot quote (§17) at the end of the library's
+  signal line, one a day. Only with Fun mode on, which is hidden for now.
 
 ## 20. Easter-egg rules
 

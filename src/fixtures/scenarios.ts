@@ -14,6 +14,7 @@
  */
 
 import type { ConfirmOptions } from "../components/ui/Confirm";
+import { isoDay } from "../features/library/signal";
 import { EVENT, type Job, type JobOutcome, type NoteSummary, type StepKind } from "../lib/ipc";
 import type { BackendState, ScriptedEvent } from "./backend";
 import {
@@ -69,6 +70,14 @@ export interface Scenario {
   scopeView?: boolean;
   /** Fun mode on, and an easter egg already playing if one is named. */
   fun?: { egg?: "boot" | "found" | "rain" };
+  /**
+   * The narrator speaking, without Fun mode. Off in every other scenario,
+   * though on by default in the app: a line typing itself into every
+   * screenshot would make each one a little different.
+   */
+  narrator?: boolean;
+  /** How the library's signal panel opens: the year, or a week gone by. */
+  signal?: { view?: "week" | "year"; back?: number };
   state: Partial<BackendState>;
 }
 
@@ -192,6 +201,49 @@ const TAGS: Record<string, string[]> = {
 };
 
 const POPULATED: Partial<BackendState> = { notes: NOTES, bodies: BODIES, tags: TAGS };
+
+/**
+ * A year of meetings, for the signal panel's grid: busy weekdays, quiet
+ * weekends, a fortnight off in August and a heavier run before a launch.
+ * Scattered by a fixed sequence, so the picture is the same every time.
+ */
+function yearOfNotes(): NoteSummary[] {
+  const titles = ["Weekly sync", "Design review", "1:1 with Dev", "Client call", "Planning"];
+  const out: NoteSummary[] = [];
+  let seed = 7;
+  const next = () => {
+    seed = (seed * 48_271) % 2_147_483_647;
+    return seed / 2_147_483_647;
+  };
+  for (let days = 4; days < 364; days++) {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    const weekend = d.getDay() === 0 || d.getDay() === 6;
+    const holiday = d.getMonth() === 7 && d.getDate() > 4 && d.getDate() < 19;
+    const crunch = days > 40 && days < 70;
+    const chance = holiday ? 0 : weekend ? 0.05 : crunch ? 0.9 : 0.45;
+    let count = next() < chance ? 1 + Math.floor(next() * (crunch ? 3 : 2)) : 0;
+    while (count-- > 0) {
+      const title = titles[Math.floor(next() * titles.length)] ?? "Weekly sync";
+      out.push({
+        path: `C:\\Users\\you\\Documents\\TRACE\\year-${days}-${count}.md`,
+        title,
+        // The local date, as the backend writes it: isoDaysAgo's is UTC's,
+        // and after midnight in summer that is yesterday, which moved every
+        // meeting onto the day before and filled the weekends.
+        date: isoDay(d),
+        type: "general",
+        gist: null,
+        tags: [],
+        participants: [],
+        startedAt: startedDaysAgo(days, 9 + count * 2),
+        durationMs: (20 + Math.floor(next() * 50)) * MINUTE,
+        signal: null,
+      });
+    }
+  }
+  return out;
+}
 
 /** A library tagged the way a year of use tags it: more than one bar holds. */
 const MANY_TAGS: Partial<BackendState> = {
@@ -395,6 +447,24 @@ export const SCENARIOS: Scenario[] = [
     group: "Library",
     note: "Several meetings across every date group.",
     screen: "library",
+    state: POPULATED,
+  },
+  {
+    id: "signal-year",
+    name: "Signal, the year",
+    group: "Library",
+    note: "The signal panel's year: a square a day, a column a week, brighter for busier. A column opens its week; days to come are blank.",
+    screen: "library",
+    signal: { view: "year" },
+    state: { ...POPULATED, notes: [...NOTES, ...yearOfNotes()] },
+  },
+  {
+    id: "signal-week-back",
+    name: "Signal, a week gone by",
+    group: "Library",
+    note: "Flicked back with the arrows: the week's own numbers and days, and the wave plays its last meeting if one kept its shape. The forward arrow stops at this week.",
+    screen: "library",
+    signal: { view: "week", back: 2 },
     state: POPULATED,
   },
   {
@@ -940,19 +1010,21 @@ export const SCENARIOS: Scenario[] = [
 
   /* --- Fun mode ---------------------------------------------------- */
   {
+    // Its id from when the narrator was Fun mode's, so the changelog's
+    // history still finds it.
     id: "fun-narrator",
-    name: "Fun mode, the narrator",
+    name: "The narrator",
     group: "Pages",
-    note: "The narrator in the status bar's spare room: events and counts, never what was said.",
+    note: "On by default: events and counts, never what was said, with machine thoughts between. Types left to right in place, arrives in the accent and settles. Click it, more than once.",
     screen: "library",
-    fun: {},
+    narrator: true,
     state: POPULATED,
   },
   {
     id: "fun-boot",
-    name: "Fun mode, booting",
+    name: "Booting",
     group: "Pages",
-    note: "The boot sequence: at launch in Fun mode, or typing trace anywhere. Any key ends it.",
+    note: "The boot sequence: at every launch, or typing trace anywhere. Any key ends it.",
     screen: "library",
     fun: { egg: "boot" },
     state: POPULATED,
@@ -992,6 +1064,15 @@ export const SCENARIOS: Scenario[] = [
     note: "Exact input only, never suggested: docs/09-EASTER-EGGS.md §18.",
     screen: "library",
     palette: "trace --why",
+    state: POPULATED,
+  },
+  {
+    id: "palette-drawing",
+    name: "Palette, a drawing",
+    group: "Pages",
+    note: "trace --banner. Plain ASCII, spaces kept, never wrapped; trace --help lists the rest.",
+    screen: "library",
+    palette: "trace --banner",
     state: POPULATED,
   },
   {

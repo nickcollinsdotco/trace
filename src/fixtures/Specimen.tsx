@@ -223,7 +223,8 @@ export function Specimen() {
             <span className="relative min-w-0 flex-1">
               <input
                 aria-label="Meeting title"
-                className="trace-field trace-title-input text-2xl caret-transparent"
+                placeholder="Untitled meeting"
+                className="trace-field trace-title-input text-2xl"
               />
               <span
                 aria-hidden

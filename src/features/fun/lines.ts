@@ -43,7 +43,15 @@ export type NarratorEvent =
   | { kind: "crosstalk" }
   | { kind: "quiet" }
   | { kind: "idle"; notes: number | null; tick: number }
-  | { kind: "awake" };
+  /** Coming on: at launch, or switched on. */
+  | { kind: "online" }
+  /** Fun mode switched on, or off. */
+  | { kind: "awake" }
+  | { kind: "asleep" }
+  /** The clock reached the hour. */
+  | { kind: "hour"; hour: number }
+  /** The narrator was clicked, this many times in a row. */
+  | { kind: "poke"; count: number };
 
 const PAGE_LINES: Record<Page, string> = {
   library: "meetings. all of them on this machine.",
@@ -54,8 +62,33 @@ const PAGE_LINES: Record<Page, string> = {
   about: "about. a short document about ourselves.",
 };
 
+/*
+ * Idle thoughts, mixed in with the plain reports: machine thoughts and boot
+ * quotes (docs/09 §11, §17), a little ASCII, and now and then a hint at a
+ * secret. Plain ASCII, for the same reason as the palette's drawings.
+ */
+const FUN_IDLE = [
+  "> noise filtered. signal retained.",
+  "...__.-'^'-.__..  carrier steady.",
+  "signal over noise.",
+  "[OK] local index. [OK] context buffer. [--] awaiting session.",
+  "conversations leave traces.",
+  "psst. ctrl+k, then: trace --why",
+  "remember what matters.",
+  "defragmenting nothing. [##########] done.",
+  ">_",
+  "the wordmark likes to be clicked. seven times.",
+  "memory ok. 64K+ free.",
+  "up up down down left right left right b a. just saying.",
+  "context restored.",
+  "type trace anywhere. not in a field.",
+];
+
 /** Idle lines, taken in turn. None claims the microphone is open: it is not. */
 function idleLine(notes: number | null, tick: number): string {
+  // Every other remark is a thought rather than a report.
+  if (tick % 2 === 1) return FUN_IDLE[Math.floor(tick / 2) % FUN_IDLE.length] ?? ">_";
+  const plain = Math.floor(tick / 2);
   const lines = [
     "idle. microphone closed.",
     notes === null ? "nothing to report." : `${notes} ${notes === 1 ? "trace" : "traces"} on file.`,
@@ -65,8 +98,27 @@ function idleLine(notes: number | null, tick: number): string {
       ? "no meetings yet. no hurry."
       : "every one of them has a timestamp.",
   ];
-  return lines[tick % lines.length] ?? "still here.";
+  return lines[plain % lines.length] ?? "still here.";
 }
+
+/** The hour, said. Most hours are just the hour. */
+const HOUR_LINES: Record<number, string> = {
+  0: "a new day, technically.",
+  9: "the first standup of the day, statistically.",
+  12: "lunch. the microphone is closed for it.",
+  15: "the slump. nothing scheduled about it.",
+  17: "one more meeting, said nobody.",
+};
+
+/** Poked, the narrator answers — and if poked enough, gives something up. */
+const POKES = [
+  "yes?",
+  "input received.",
+  "still here.",
+  "that does nothing. it will keep doing nothing.",
+  "persistence noted.",
+  "fine. ctrl+k, then: trace --help",
+];
 
 export function narrate(event: NarratorEvent): string {
   switch (event.kind) {
@@ -93,9 +145,31 @@ export function narrate(event: NarratorEvent): string {
       return "…the room goes quiet.";
     case "idle":
       return idleLine(event.notes, event.tick);
+    case "online":
+      return "online. nothing leaves this machine.";
     case "awake":
-      return "fun mode. the machine will now speak.";
+      return "fun mode on. things may happen.";
+    case "asleep":
+      return "fun mode off. things will not happen.";
+    case "hour": {
+      const hh = String(event.hour).padStart(2, "0");
+      return `${hh}:00. ${HOUR_LINES[event.hour] ?? "on the hour, exactly."}`;
+    }
+    case "poke":
+      return POKES[Math.min(event.count, POKES.length) - 1] ?? "yes?";
   }
+}
+
+/**
+ * How long after typing `prev` the next key lands, in milliseconds, given a
+ * random 0–1. Quick inside a word, a beat at a space, a pause after
+ * punctuation: a person at a keyboard, not a printer.
+ */
+export function keyDelay(prev: string, random: number): number {
+  if (/[.!?]/.test(prev)) return 170 + random * 170;
+  if (/[,:;]/.test(prev)) return 100 + random * 90;
+  if (prev === " ") return 40 + random * 50;
+  return 16 + random * 40;
 }
 
 /** Every hundred segments is worth a word; fewer would chatter. */

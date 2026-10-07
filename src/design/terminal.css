@@ -42,6 +42,20 @@
   background: currentColor;
 }
 
+/* A narrator's line arrives in the accent and settles into the bar's own
+ * colour: noticed once, then left alone. Louder than the rest of the bar,
+ * which is the point — it was in the faintest ink, and nobody saw it. */
+@keyframes trace-narrator-arrive {
+  from {
+    color: var(--color-phosphor);
+  }
+}
+
+.trace-narrator-line {
+  color: var(--color-ink-muted);
+  animation: trace-narrator-arrive 2.4s var(--ease-out) both;
+}
+
 /* ---------------------------------------------------------------------
  * Recording pulse. Communicates one thing: audio is being captured.
  * Deliberately slow — a fast blink reads as an error, not a state.
@@ -434,12 +448,55 @@
 }
 
 /*
- * Empty states. bagels fills its no-data panel with hatching rather than
- * leaving a hole, which reads as "nothing here yet" instead of "something
- * failed to load" — a distinction this product needs to make often.
+ * Empty states. bagels fills its no-data panel rather than leaving a hole,
+ * which reads as "nothing here yet" instead of "something failed to load" —
+ * a distinction this product needs to make often.
+ *
+ * It filled it with diagonal hatching at first, edge to edge and under the
+ * words, which was loud and read as a warning stripe. Now it is a plotter's
+ * ground: a + at every crossing of a faint grid, gone from the middle where
+ * the words are, and a viewfinder's corners marking the frame. Drawn with a
+ * mask, so the marks take the theme's own line colour.
  */
 .trace-hatch {
-  background-image: var(--fill-hatch);
+  position: relative;
+  isolation: isolate;
+}
+
+.trace-hatch::before,
+.trace-hatch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.trace-hatch::before {
+  z-index: -1;
+  background: var(--color-line-strong);
+  mask-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M12 9.5v5M9.5 12h5' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse 70% 75% at 50% 50%, transparent 35%, #000 95%);
+  mask-composite: intersect;
+  mask-position: center;
+  opacity: 0.8;
+}
+
+/* The corners: four short brackets, as a camera's viewfinder frames a shot. */
+.trace-hatch::after {
+  --arm: 14px;
+  --mark: var(--color-line-strong);
+  background:
+    linear-gradient(var(--mark), var(--mark)) top left / var(--arm) 1px,
+    linear-gradient(var(--mark), var(--mark)) top left / 1px var(--arm),
+    linear-gradient(var(--mark), var(--mark)) top right / var(--arm) 1px,
+    linear-gradient(var(--mark), var(--mark)) top right / 1px var(--arm),
+    linear-gradient(var(--mark), var(--mark)) bottom left / var(--arm) 1px,
+    linear-gradient(var(--mark), var(--mark)) bottom left / 1px var(--arm),
+    linear-gradient(var(--mark), var(--mark)) bottom right / var(--arm) 1px,
+    linear-gradient(var(--mark), var(--mark)) bottom right / 1px var(--arm);
+  background-repeat: no-repeat;
 }
 
 /* ---------------------------------------------------------------------
@@ -572,6 +629,13 @@
   color: transparent;
 }
 
+/* Empty, the hint's block cursor is the caret, and the system one would blink
+   beside it. A rule rather than `caret-transparent`: `.trace-field` sets the
+   caret's colour unlayered, so it beat the utility and both cursors showed. */
+.trace-title-input:placeholder-shown {
+  caret-color: transparent;
+}
+
 /* ---------------------------------------------------------------------
  * Native select.
  *
@@ -655,6 +719,43 @@ select.trace-field option {
   background: var(--fill-active);
   opacity: 0.7;
   min-height: 2px;
+}
+
+/* ---------------------------------------------------------------------
+ * Heat grid — the signal panel's past year, a square a day. Filled like the
+ * wave, so a theme's meter treatment reaches it; how busy a day was is how
+ * much of the fill shows. An empty day is a faint square, not nothing, so
+ * the year keeps its shape; a day still to come is nothing at all.
+ * ------------------------------------------------------------------ */
+.trace-heat-cell {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 1px;
+  background: var(--color-line);
+}
+
+.trace-heat-cell:not([data-level="0"], [data-level="future"]) {
+  background: var(--fill-active);
+}
+
+.trace-heat-cell[data-level="1"] {
+  opacity: 0.35;
+}
+
+.trace-heat-cell[data-level="2"] {
+  opacity: 0.6;
+}
+
+.trace-heat-cell[data-level="3"] {
+  opacity: 0.8;
+}
+
+.trace-heat-cell[data-level="future"] {
+  background: none;
+}
+
+.trace-heat-week:hover .trace-heat-cell:not([data-level="future"]) {
+  outline: 1px solid var(--color-line-strong);
 }
 
 /*

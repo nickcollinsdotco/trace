@@ -35,6 +35,15 @@ describe("effects", () => {
     expect(withEffectSetting(presetScreen("none"), "grain", { amount: -5 }).grain.amount).toBe(0);
   });
 
+  it("start behind the letters wherever they can go", () => {
+    const s = presetScreen("crt");
+    expect(s.scanlines.place).toBe("behind");
+    expect(s.glass.place).toBe("behind");
+    expect(s.roll.place).toBe("behind");
+    expect(s.vignette.place).toBe("over");
+    expect(s.glow.place).toBe("over");
+  });
+
   it("cannot put a vignette behind the letters, which it could only darken", () => {
     const s = withEffectSetting(presetScreen("none"), "vignette", { amount: 50, place: "behind" });
     expect(s.vignette.place).toBe("over");
@@ -73,17 +82,15 @@ describe("applyScreen", () => {
   it("draws only the effects that are on, and names the preset", () => {
     const el = document.createElement("div");
     applyScreen(presetScreen("film"), el);
-    expect(el.getAttribute("data-fx-grain")).toBe("over");
+    expect(el.getAttribute("data-fx-grain")).toBe("behind");
     expect(el.style.getPropertyValue("--fx-grain")).toBe("0.45");
     expect(el.hasAttribute("data-fx-scanlines")).toBe(false);
     expect(el.getAttribute("data-screen-preset")).toBe("film");
     expect(el.style.getPropertyValue("--fx-grain-size")).toBe("1");
-    expect(el.hasAttribute("data-fx-behind")).toBe(false);
-
-    applyScreen(presetScreen("grid"), el);
     expect(el.hasAttribute("data-fx-behind")).toBe(true);
 
     applyScreen(presetScreen("none"), el);
+    expect(el.hasAttribute("data-fx-behind")).toBe(false);
     for (const e of EFFECTS) expect(el.hasAttribute(`data-fx-${e}`)).toBe(false);
     expect(el.hasAttribute("data-screen-preset")).toBe(false);
   });

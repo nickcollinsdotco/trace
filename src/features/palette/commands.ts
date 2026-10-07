@@ -139,12 +139,13 @@ export function buildCommands(ctx: PaletteContext): Command[] {
 
   if (ctx.fun) {
     const fun = ctx.fun;
+    // Fun mode itself is not offered while it is hidden (fun.ts).
     commands.push({
-      id: "app:fun",
+      id: "app:narrator",
       group: "App",
-      label: fun.on ? "Turn fun mode off" : "Turn fun mode on",
-      keywords: "fun narrator easter eggs play boot",
-      run: () => fun.setOn(!fun.on),
+      label: fun.narrator ? "Quiet the narrator" : "Let the narrator speak",
+      keywords: "narrator status bar commentary talk mute",
+      run: () => fun.setNarrator(!fun.narrator),
     });
   }
 
@@ -253,6 +254,57 @@ const HIDDEN: Record<string, string[]> = {
   "trace --coffee": ["brewing.................. ok", "the meeting can wait four minutes."],
   "trace --cloud": ["no.", "everything stays on this machine."],
   "sudo trace": ["nice try.", "TRACE has no root. only roots."],
+  // Plain ASCII throughout: most themes' fonts have no box-drawing or block
+  // characters, and borrowed ones come from a font of another width.
+  "trace --banner": [
+    " _____   ____       _       ____   _____",
+    String.raw`|_   _| |  _ \     / \     / ___| | ____|`,
+    String.raw`  | |   | |_) |   / _ \   | |     |  _|`,
+    String.raw`  | |   |  _ <   / ___ \  | |___  | |___`,
+    String.raw`  |_|   |_| \_\ /_/   \_\  \____| |_____|`,
+    "",
+    "          conversations leave traces.",
+  ],
+  "trace --diag": [
+    "TRACE DIAGNOSTIC CONSOLE",
+    "",
+    "SYSTEM .............. ONLINE",
+    "MEMORY .............. 64K+",
+    "AUDIO ............... PRESENT",
+    "HUMAN INPUT ......... YES",
+    "NOISE ............... ACCEPTABLE",
+    "MEANING ............. FOUND",
+    "",
+    "STATUS: NOMINAL",
+  ],
+  "trace --top": [
+    "CPU     [###.......]",
+    "MEMORY  [#####.....]",
+    "SIGNAL  [########..]",
+    "NOISE   [##........]",
+    "",
+    "everything appears to be",
+    "exactly where it should be.",
+  ],
+  "ls /system": [
+    "/CORE      AUDIO.SYS  SIGNAL.SYS  MEMORY.SYS",
+    "/CONTEXT   PEOPLE.DB  PROJECTS.DB  HISTORY.DB",
+    "/OUTPUT    SUMMARY.MD  ACTIONS.MD  TRACE.MD",
+    "/README.TXT",
+  ],
+  "cat /system/readme.txt": [
+    "TRACE exists to remember what people forget.",
+    "",
+    "so we kept a trace.",
+    "(the rest is on the wordmark. seven times.)",
+  ],
+  "trace --help": [
+    "usage: trace [--why] [--who] [--status] [--noise] [--signal]",
+    "             [--memory] [--coffee] [--cloud] [--banner]",
+    "             [--diag] [--top] [--changelog]",
+    "",
+    "see also: ls /system",
+  ],
 };
 
 function normalise(query: string): string {

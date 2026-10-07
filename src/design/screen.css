@@ -62,7 +62,9 @@
 
 [data-fx-grain="behind"] .trace-fx-grain,
 [data-fx-scanlines="behind"] .trace-fx-scanlines,
-[data-fx-dots="behind"] .trace-fx-dots {
+[data-fx-dots="behind"] .trace-fx-dots,
+[data-fx-glass="behind"] .trace-fx-glass,
+[data-fx-roll="behind"] .trace-fx-roll {
   z-index: -1;
 }
 
@@ -75,6 +77,52 @@
 [data-fx-behind][data-frame="box"] .trace-section,
 [data-fx-behind] [data-frame="box"] .trace-section {
   background-color: var(--color-surface-0);
+}
+
+/*
+ * A frame of lines only — rule or ascii — draws no box to keep a texture
+ * out, so behind meant under every word on the page, and the effects read as
+ * heavy as they ever did over it. There the column itself takes the ground,
+ * most of the way, feathered at its edges: the texture shows fully in the
+ * margins and only as a trace under the words. Box and card frames fill their
+ * own sections and keep the texture between them.
+ */
+:is([data-fx-behind][data-frame="rule"], [data-fx-behind][data-frame="ascii"])
+  .trace-scroll
+  > .trace-column,
+[data-fx-behind] :is([data-frame="rule"], [data-frame="ascii"]) .trace-scroll > .trace-column {
+  position: relative;
+  isolation: isolate;
+}
+
+:is([data-fx-behind][data-frame="rule"], [data-fx-behind][data-frame="ascii"])
+  .trace-scroll
+  > .trace-column::before,
+[data-fx-behind]
+  :is([data-frame="rule"], [data-frame="ascii"])
+  .trace-scroll
+  > .trace-column::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--color-surface-0) 82%, transparent);
+  mask-image:
+    linear-gradient(
+      to right,
+      transparent,
+      #000 var(--page-gutter),
+      #000 calc(100% - var(--page-gutter)),
+      transparent
+    ),
+    linear-gradient(
+      transparent,
+      #000 var(--page-top),
+      #000 calc(100% - var(--page-bottom)),
+      transparent
+    );
+  mask-composite: intersect;
 }
 
 /* Not selects: they already have a solid fill, and their chevron is a

@@ -148,7 +148,7 @@
  *
  *   1. --label-*   how a system label is set        (terminal.css)
  *   2. --frame     how a section is framed          (rule | box)
- *   3. --fill-*    how meters and empty states fill (solid | dither | ramp)
+ *   3. --fill-*    how meters fill                  (solid | dither | ramp)
  * ------------------------------------------------------------------ */
 :root {
   /* The height of a button (terminal.css). The modern family is roomier. */
@@ -189,15 +189,10 @@
   /* Read by the sidebar. One value, so collapsing it is one change. */
   --sidebar-width: 13rem;
 
-  /* Meters, progress bars, and the hatch behind empty states. */
+  /* Meters and progress bars. */
   --fill-active: var(--color-phosphor);
   --fill-hot: var(--color-warn);
   --fill-track: rgb(255 255 255 / 7%);
-  --fill-hatch: repeating-linear-gradient(
-    45deg,
-    var(--color-line-strong) 0 1px,
-    transparent 1px 7px
-  );
 }
 
 /* ---------------------------------------------------------------------

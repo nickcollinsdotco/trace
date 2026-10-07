@@ -438,6 +438,8 @@ export const ipc = {
   openMini: () => call<void>("open_mini"),
   /** Size the mini window to its content, within its cap; the bar stays put. */
   fitMini: (width: number, height: number) => call<void>("fit_mini", { width, height }),
+  /** The mini window has sized itself: show it. Opened hidden until then. */
+  miniReady: () => call<void>("mini_ready"),
   /** Hide the mini window from screen shares, or show it in them. */
   protectMini: (hidden: boolean) => call<void>("protect_mini", { hidden }),
   /** Closes the mini window. Never stops a meeting. */

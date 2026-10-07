@@ -24,10 +24,12 @@ export type Effect = (typeof EFFECTS)[number];
  * Behind means underneath: the texture shows on the page's ground, and every
  * letter, card, box and field is drawn over it (screen.css). It was a blend
  * at first — lighten, over everything — which spared bright letters but
- * still covered every dark card, so "behind" and "over" looked the same. The
- * vignette is not one of these: it darkens, and the ground is already dark.
+ * still covered every dark card, so "behind" and "over" looked the same.
+ * Glass and the refresh bar only lighten, so they can go under too. The
+ * vignette cannot: it darkens, and the ground is already dark. Nor can glow,
+ * which is a halo round the letters themselves.
  */
-export const PLACEABLE: readonly Effect[] = ["grain", "scanlines", "dots"];
+export const PLACEABLE: readonly Effect[] = ["grain", "scanlines", "dots", "glass", "roll"];
 
 export const PLACES = ["over", "behind"] as const;
 
@@ -84,15 +86,20 @@ export const EFFECT_NOTES: Record<Effect, string> = {
   roll: "A soft band of light rolling down the screen.",
 };
 
-/** Where each effect starts. Dots belong to the ground; the rest to the glass. */
+/**
+ * Where each effect starts: behind, wherever it can be. Over the letters was
+ * the default until 0.27, and a texture drifting across the words being read
+ * was the jarring part of every preset — on the ground it is atmosphere, and
+ * putting it over is a choice made on purpose.
+ */
 const DEFAULT_PLACE: Record<Effect, Place> = {
-  grain: "over",
-  scanlines: "over",
+  grain: "behind",
+  scanlines: "behind",
   dots: "behind",
   vignette: "over",
-  glass: "over",
+  glass: "behind",
   glow: "over",
-  roll: "over",
+  roll: "behind",
 };
 
 export const PRESETS = ["none", "lines", "lofi", "crt", "film", "grid"] as const;
@@ -175,6 +182,22 @@ export function readScreen(raw: unknown, fallback: Screen): Screen {
         typeof s?.size === "number" && SIZES[e]?.includes(s.size) ? s.size : fallback[e].size;
       return [e, { amount, place, size }];
     }),
+  ) as Screen;
+}
+
+/**
+ * A screen saved before textures went behind by default, moved there. Over
+ * was the default then and almost nobody chose it, so a texture still over is
+ * taken as never having been placed. Once only (appearance.ts).
+ */
+export function movedBehind(screen: Screen): Screen {
+  return Object.fromEntries(
+    EFFECTS.map((e) => [
+      e,
+      PLACEABLE.includes(e) && screen[e].place === "over"
+        ? { ...screen[e], place: DEFAULT_PLACE[e] }
+        : screen[e],
+    ]),
   ) as Screen;
 }
 

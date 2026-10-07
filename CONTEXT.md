@@ -88,13 +88,14 @@ _Avoid_: Theme builder (as a place), editor mode
 ### Play
 
 **Fun mode**:
-An app-wide switch that makes easter eggs frequent, gives motion more
-character and hands the status bar to the narrator.
+An app-wide switch for the louder play. Off, and hidden for now: nothing
+offers it until there is play worth putting behind it.
 _Avoid_: Hacker mode
 
 **Narrator**:
-The running commentary on what the app is doing, shown in the status bar in
-fun mode. It speaks about events and counts, never about what was said.
+The running commentary on what the app is doing, shown in the status bar.
+On by default, with its own switch apart from fun mode, and dry jokes
+included. It speaks about events and counts, never about what was said.
 
 **Easter egg**:
 A rare, playful response to something the user did or something that

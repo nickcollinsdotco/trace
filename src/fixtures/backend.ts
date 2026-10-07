@@ -483,6 +483,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         // Window management: nothing to do in a gallery that has no windows.
         case "open_mini":
         case "fit_mini":
+        case "mini_ready":
         case "protect_mini":
         case "close_mini":
         case "reset_mini":

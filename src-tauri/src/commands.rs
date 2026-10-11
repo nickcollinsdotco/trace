@@ -246,6 +246,11 @@ pub fn update_notes(manager: State<'_, CaptureManager>, text: String) -> CmdResu
 }
 
 #[tauri::command]
+pub fn capture_notes(manager: State<'_, CaptureManager>) -> CmdResult<String> {
+    manager.notes().map_err(err)
+}
+
+#[tauri::command]
 pub fn set_title(manager: State<'_, CaptureManager>, title: String) -> CmdResult<()> {
     manager.set_title(title).map_err(err)
 }

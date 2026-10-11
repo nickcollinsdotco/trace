@@ -98,6 +98,7 @@ pub fn run() {
             commands::capture_status,
             commands::scope_frame,
             commands::update_notes,
+            commands::capture_notes,
             commands::set_title,
             commands::stop_capture,
             commands::list_notes,

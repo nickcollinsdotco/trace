@@ -45,6 +45,13 @@ export function CaptureScreen({
   const [scopeOpen, setScopeOpen] = useState(initialScopeView);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
+  // Whether `notes` holds what the meeting already has. Until it does the
+  // field is read-only: each save is the whole text, so a keystroke into an
+  // empty field would replace everything typed before the screen was left.
+  const [notesLoaded, setNotesLoaded] = useState(false);
+  // Lines from the scope view before then. Its field clears on Enter, so a
+  // line refused here would be gone; they are added once the notes arrive.
+  const earlyLines = useRef<string[]>([]);
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [micDevice, setMicDevice] = useState<string | null>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
@@ -69,6 +76,34 @@ export function CaptureScreen({
   }
 
   const recording = capture.status !== null;
+
+  const { loadNotes, setNotes: saveNotes } = capture;
+  useEffect(() => {
+    // Forgotten when the meeting ends, so the next one reads its own.
+    if (!recording) {
+      setNotesLoaded(false);
+      earlyLines.current = [];
+      return;
+    }
+    if (notesLoaded) return;
+    let disposed = false;
+    const settle = (text: string) => {
+      if (disposed) return;
+      const lines = earlyLines.current;
+      earlyLines.current = [];
+      const next = lines.reduce(withLine, text);
+      setNotes(next);
+      if (lines.length > 0) saveNotes(next);
+      setNotesLoaded(true);
+    };
+    void loadNotes().then(settle, () => {
+      // No meeting after all, so there is nothing to overwrite.
+      settle("");
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [recording, notesLoaded, loadNotes, saveNotes]);
 
   // "Just start typing" — focus the notes field the moment recording begins.
   // Keyed on whether it is recording, not on the status itself: the status is
@@ -131,7 +166,11 @@ export function CaptureScreen({
   }
 
   const appendNote = (line: string) => {
-    const next = notes && !notes.endsWith("\n") ? `${notes}\n${line}` : `${notes}${line}`;
+    if (!notesLoaded) {
+      earlyLines.current.push(line);
+      return;
+    }
+    const next = withLine(notes, line);
     setNotes(next);
     capture.setNotes(next);
   };
@@ -199,7 +238,9 @@ export function CaptureScreen({
             <textarea
               ref={notesRef}
               value={notes}
+              readOnly={!notesLoaded}
               onChange={(e) => {
+                if (!notesLoaded) return;
                 setNotes(e.target.value);
                 capture.setNotes(e.target.value);
               }}
@@ -521,6 +562,10 @@ function Banner({ tone, children }: { tone: "warn" | "error"; children: React.Re
       <p className="trace-column">{children}</p>
     </div>
   );
+}
+
+function withLine(notes: string, line: string): string {
+  return notes && !notes.endsWith("\n") ? `${notes}\n${line}` : `${notes}${line}`;
 }
 
 /** Convert a 0..1 RMS level to dBFS for the meter readout. */

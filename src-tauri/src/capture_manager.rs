@@ -124,6 +124,10 @@ struct Active {
     /// `None` when Ollama was not ready.
     model_hold: Option<crate::synthesis::ollama::ModelHold>,
     mic: Option<String>,
+    /// The latest notes journalled, so a recording screen opened mid-meeting
+    /// starts from them. Each journal entry is the whole text, so a screen
+    /// that started empty would replace them all with its first keystroke.
+    notes: String,
 }
 
 /// The application's capture state. One meeting at a time, by design.
@@ -256,6 +260,7 @@ impl CaptureManager {
             speech,
             model_hold,
             mic,
+            notes: String::new(),
         });
 
         Ok(status)
@@ -333,13 +338,21 @@ impl CaptureManager {
     /// Journalled as a whole snapshot on every call, so the debounce lives in
     /// the UI where it belongs rather than risking a lost final edit here.
     pub fn update_notes(&self, text: String) -> Result<(), ManagerError> {
-        let guard = self.active.lock().map_err(|_| ManagerError::NotActive)?;
-        let active = guard.as_ref().ok_or(ManagerError::NotActive)?;
+        let mut guard = self.active.lock().map_err(|_| ManagerError::NotActive)?;
+        let active = guard.as_mut().ok_or(ManagerError::NotActive)?;
 
         if let Ok(mut journal) = active.journal.lock() {
-            journal.append(&JournalEvent::Notes { text })?;
+            journal.append(&JournalEvent::Notes { text: text.clone() })?;
         }
+        active.notes = text;
         Ok(())
+    }
+
+    /// The running meeting's notes as last saved.
+    pub fn notes(&self) -> Result<String, ManagerError> {
+        let guard = self.active.lock().map_err(|_| ManagerError::NotActive)?;
+        let active = guard.as_ref().ok_or(ManagerError::NotActive)?;
+        Ok(active.notes.clone())
     }
 
     pub fn set_title(&self, title: String) -> Result<(), ManagerError> {
@@ -1227,6 +1240,7 @@ mod tests {
             m.update_notes("x".into()),
             Err(ManagerError::NotActive)
         ));
+        assert!(matches!(m.notes(), Err(ManagerError::NotActive)));
         // `stop` itself needs an AppHandle; this covers the same guard.
         assert!(matches!(m.take_active(), Err(ManagerError::NotActive)));
         assert!(matches!(

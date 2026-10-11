@@ -429,6 +429,8 @@ export const ipc = {
   scopeFrame: (points?: number) =>
     call<StreamWave[] | null>("scope_frame", { points: points ?? null }),
   updateNotes: (text: string) => call<void>("update_notes", { text }),
+  /** The running meeting's notes as last saved, for a recording screen opened mid-meeting. */
+  captureNotes: () => call<string>("capture_notes"),
   setTitle: (title: string) => call<void>("set_title", { title }),
   stopCapture: () => call<FinishedMeeting>("stop_capture"),
   /** The mic check. Stops itself unless `micPreviewLevel` keeps being polled. */

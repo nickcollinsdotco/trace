@@ -18,6 +18,23 @@ const STATUS_POLL_MS = 200;
  */
 const NOTES_DEBOUNCE_MS = 800;
 
+/*
+ * Every notes write, in order, for the life of the page rather than of one
+ * recording screen. Each write is the whole text, so two arriving out of
+ * order would leave the older one standing; and a screen opened again must
+ * read the notes only after the screen before it has finished saving them.
+ */
+let notesWrites: Promise<void> = Promise.resolve();
+
+function writeNotes(text: string): Promise<void> {
+  notesWrites = notesWrites
+    .then(() => ipc.updateNotes(text))
+    .catch(() => {
+      /* reported by the next command that fails */
+    });
+  return notesWrites;
+}
+
 export interface CaptureState {
   status: CaptureStatus | null;
   segments: LiveSegment[];
@@ -153,11 +170,8 @@ export function useCapture() {
     }
     const text = pendingNotes.current;
     pendingNotes.current = null;
-    if (text !== null) {
-      await ipc.updateNotes(text).catch(() => {
-        /* reported by the next command that fails */
-      });
-    }
+    if (text !== null) writeNotes(text);
+    await notesWrites;
   }, []);
 
   const setNotes = useCallback((text: string) => {
@@ -167,8 +181,18 @@ export function useCapture() {
       const pending = pendingNotes.current;
       pendingNotes.current = null;
       notesTimer.current = null;
-      if (pending !== null) void ipc.updateNotes(pending).catch(() => {});
+      if (pending !== null) void writeNotes(pending);
     }, NOTES_DEBOUNCE_MS);
+  }, []);
+
+  // Leaving the screen saves at once, rather than leaving the last words to
+  // a timer that belongs to a screen no longer there.
+  useEffect(() => () => void flushNotes(), [flushNotes]);
+
+  /** The notes as saved, once every write already made has landed. */
+  const loadNotes = useCallback(async () => {
+    await notesWrites;
+    return ipc.captureNotes();
   }, []);
 
   const stop = useCallback(async () => {
@@ -192,5 +216,5 @@ export function useCapture() {
     }
   }, [flushNotes]);
 
-  return { ...state, start, stop, setNotes };
+  return { ...state, start, stop, setNotes, loadNotes };
 }

@@ -282,6 +282,8 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
   let startedAt: number | null = state.recording ? Date.now() : null;
   let segmentCount = 0;
+  // Kept, so the recording screen opened again finds what was typed.
+  let captureNotes = "";
   // Mutable, so the first-run scenario can be watched all the way through to
   // "Ready" instead of snapping back to "no model" when the download finishes.
   let model = state.model;
@@ -489,6 +491,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         case "start_capture": {
           startedAt = Date.now();
           segmentCount = 0;
+          captureNotes = "";
           startScriptOnce();
           return status(state, startedAt, segmentCount, args?.title as string);
         }
@@ -509,6 +512,10 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
             ? null
             : waves(Date.now() - startedAt, Number(args?.points ?? 512));
         case "update_notes":
+          captureNotes = String(args?.text ?? "");
+          return null;
+        case "capture_notes":
+          return captureNotes;
         case "set_title":
           return null;
         case "stop_capture": {

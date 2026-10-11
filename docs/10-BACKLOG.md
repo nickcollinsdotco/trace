@@ -133,7 +133,7 @@ seeing how far apart the widths really are.
 
 Asked for in the design upgrades: something better than the 0.97 push-in,
 and hovers with character. A first cut was built and dropped (PR #18,
-branch `stage-5a-motion`, kept for reference): a scramble that redrew labels
+branch `archive/stage-5a-motion` on origin, kept for reference): a scramble that redrew labels
 through block characters on hover, a flash and a glyph burst on press for
 Retro, and an ink ripple for Modern.
 
@@ -584,7 +584,8 @@ What the audit found besides, worst first. Evidence is `file:line` as of
 
 ### Can lose data
 
-1. **Typed notes are wiped after leaving the recording screen.**
+1. ~~**Typed notes are wiped after leaving the recording screen.**~~
+   **Fixed 2026-10-10** (`6ca5afc`): the backend holds the notes.
    `CaptureScreen.tsx` keeps them in local `useState("")`, and the journal
    stores notes as whole snapshots (`capture_manager.rs`, `update_notes`).
    Come back to the screen and the box is empty; the next keystroke journals
@@ -594,14 +595,20 @@ What the audit found besides, worst first. Evidence is `file:line` as of
    the mini window or the scope. *Fix:* the backend holds the notes
    (`capture_status` or a `capture_notes` command); the screen restores them
    on mount and flushes on unmount. Small to medium.
-2. **WAVs are unreadable after a power cut or a hard kill.** `audio/wav.rs`
+2. ~~**WAVs are unreadable after a power cut or a hard kill.**~~
+   **Fixed in 0.28.1**: flushed every second, mended on read. `audio/wav.rs`
    rewrites the header only in `finalize`; hound's `Drop` would do it, but
    release builds are `panic = "abort"` and a power cut runs nothing. The
    header then claims zero samples, so the full-quality pass, `wav_check` and
    any re-run read nothing. *Fix:* `WavWriter::flush()` every few seconds —
    hound documents it as a checkpoint — and repair the header from the file
    length when one says zero. Small.
-3. **A Documents folder synced by OneDrive uploads the audio.**
+3. ~~**A Documents folder synced by OneDrive uploads the audio.**~~
+   **Fixed in 0.29.0.** Sessions live in `%LOCALAPPDATA%\TRACE\sessions`
+   and are moved there from `.sessions` on each launch; replay finds a WAV
+   beside its journal, not at the path journalled. About warns when the
+   notes folder is in OneDrive or Dropbox. Still not built: choosing the
+   notes folder. What it was:
    `store/paths.rs` puts the notes root, `.sessions` included, under
    `dirs::document_dir()`, which Known Folder Move redirects into OneDrive.
    That is ~690 MB an hour of raw meeting audio leaving the machine, plus

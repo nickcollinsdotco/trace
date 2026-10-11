@@ -140,18 +140,54 @@ pub struct CaptureManager {
 impl CaptureManager {
     /// Where notes are written. Overridable for tests via `TRACE_NOTES_ROOT`.
     pub fn notes_root(&self) -> Result<PathBuf, store::StoreError> {
-        if let Some(root) = self.notes_root.lock().ok().and_then(|g| g.clone()) {
-            return Ok(root);
+        match self.notes_root_override() {
+            Some(root) => Ok(root),
+            None => paths::default_notes_root(),
         }
-        if let Some(env) = std::env::var_os("TRACE_NOTES_ROOT") {
-            return Ok(PathBuf::from(env));
-        }
-        paths::default_notes_root()
     }
 
     pub fn set_notes_root(&self, root: PathBuf) {
         if let Ok(mut guard) = self.notes_root.lock() {
             *guard = Some(root);
+        }
+    }
+
+    /// The notes root a test or `TRACE_NOTES_ROOT` set, if any.
+    fn notes_root_override(&self) -> Option<PathBuf> {
+        self.notes_root
+            .lock()
+            .ok()
+            .and_then(|g| g.clone())
+            .or_else(|| std::env::var_os("TRACE_NOTES_ROOT").map(PathBuf::from))
+    }
+
+    /// Where sessions are kept: local app data, or inside an overridden
+    /// notes root, so a test's meetings never land among real ones.
+    pub fn sessions_root(&self) -> Result<PathBuf, store::StoreError> {
+        match self.notes_root_override() {
+            Some(root) => Ok(paths::sessions_beside(&root)),
+            None => paths::default_sessions_root(),
+        }
+    }
+
+    /// Bring sessions recorded before 0.29 out of the notes folder.
+    ///
+    /// Every launch, not once: a session in use by another running TRACE is
+    /// left where it is, and the next launch finds it finished.
+    pub fn move_old_sessions(&self) {
+        let (Ok(notes), Ok(sessions)) = (self.notes_root(), self.sessions_root()) else {
+            return;
+        };
+        let old = paths::sessions_beside(&notes);
+        if old == sessions || !old.exists() {
+            return;
+        }
+        let moved = paths::move_sessions(&old, &sessions);
+        if moved.moved + moved.left > 0 {
+            diagnostics::log(format!(
+                "sessions moved out of the notes folder: {} moved, {} left",
+                moved.moved, moved.left
+            ));
         }
     }
 
@@ -180,10 +216,9 @@ impl CaptureManager {
             mic_device.as_deref().unwrap_or("default")
         ));
 
-        let notes_root = self.notes_root()?;
         let now = chrono::Local::now();
         let session_id = format!("sess-{}", now.timestamp_millis());
-        let dir = paths::session_dir(&notes_root, &session_id);
+        let dir = paths::session_dir(&self.sessions_root()?, &session_id);
 
         let mut journal = Journal::open(&dir)?;
         journal.append(&JournalEvent::SessionStarted {
@@ -1274,5 +1309,10 @@ mod tests {
         let custom = PathBuf::from("/tmp/trace-test-root");
         m.set_notes_root(custom.clone());
         assert_eq!(m.notes_root().unwrap(), custom);
+        assert_eq!(
+            m.sessions_root().unwrap(),
+            custom.join(".sessions"),
+            "a test's sessions escaped its sandbox"
+        );
     }
 }

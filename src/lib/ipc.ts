@@ -110,7 +110,7 @@ export interface SummaryModels {
   loaded: LoadedModel[];
 }
 
-export type Folder = "notes" | "models" | "logs";
+export type Folder = "notes" | "sessions" | "models" | "logs";
 
 export interface ModelProgress {
   /** Which speech model the progress is for. */
@@ -242,6 +242,8 @@ export interface FinishedMeeting {
 export interface AppInfo {
   version: string;
   devBuild: boolean;
+  /** The service syncing the notes folder, if TRACE can tell. */
+  notesSyncedBy: string | null;
 }
 
 /** A model Ollama has in memory, and how much of it is on the GPU. */

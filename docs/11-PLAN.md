@@ -257,8 +257,9 @@ inspected and may differ.
 **The install directory and the data directory are the same folder.** NSIS
 installs per user (`INSTALLMODE "currentUser"`) to `%LOCALAPPDATA%\TRACE`.
 The code keeps its data there too: models (`models::models_root`),
-`settings.json` and `logs\`. So `trace.exe`, the runtime DLLs, `models\` and
-`settings.json` all sit side by side. Notes and sessions live elsewhere, in
+`settings.json`, `logs\`, and since 0.29.0 `sessions\` — the journals and
+meeting audio. So `trace.exe`, the runtime DLLs, `models\`, `sessions\` and
+`settings.json` all sit side by side. Notes live elsewhere, in
 `Documents\TRACE` (`store/paths.rs`).
 
 **Uninstalling keeps the models, settings and logs, by accident rather than

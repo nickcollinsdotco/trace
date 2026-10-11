@@ -182,6 +182,16 @@ pub fn replay(session_dir: impl AsRef<Path>) -> Result<Replay, StoreError> {
         meeting.status = MeetingStatus::Draft;
     }
 
+    // The journal records each WAV's absolute path, which a session moved
+    // since — out of the notes folder in 0.29 — no longer has. The audio is
+    // always beside its journal, so that is where it is looked for.
+    let mut streams = work.streams;
+    for stream in &mut streams {
+        if let Some(name) = stream.path.file_name() {
+            stream.path = session_dir.as_ref().join(name);
+        }
+    }
+
     Ok(Replay {
         meeting,
         corrupt_lines,
@@ -189,7 +199,7 @@ pub fn replay(session_dir: impl AsRef<Path>) -> Result<Replay, StoreError> {
         notes_interrupted: work.underway,
         note_path: work.note_path,
         transcript_replaced: work.transcript_replaced,
-        streams: work.streams,
+        streams,
     })
 }
 
@@ -532,5 +542,29 @@ mod tests {
     fn a_missing_journal_is_an_io_error_not_a_panic() {
         let dir = temp_dir("missing").join("nope");
         assert!(replay(&dir).is_err());
+    }
+
+    #[test]
+    fn a_moved_session_finds_its_audio_beside_the_journal() {
+        // Journalled where it was recorded, then the session moved.
+        let dir = temp_dir("moved");
+        let mut j = Journal::open(&dir).unwrap();
+        j.append(&started()).unwrap();
+        j.append(&JournalEvent::StreamFinished(Box::new(StreamOutcome {
+            source: StreamSource::Microphone,
+            path: PathBuf::from("C:/Users/x/OneDrive/Documents/TRACE/.sessions/s/mic.wav"),
+            device_name: "mic".into(),
+            sample_rate: 48_000,
+            frames_captured: 48_000,
+            chunks_dropped: 0,
+            stream_errors: 0,
+            silence_padded_frames: 0,
+            start_offset_ms: 0,
+            error: None,
+        })))
+        .unwrap();
+
+        let r = replay(&dir).unwrap();
+        assert_eq!(r.streams[0].path, dir.join("mic.wav"));
     }
 }

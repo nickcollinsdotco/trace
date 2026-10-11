@@ -26,6 +26,20 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.28.1",
+    date: "2026-10-11",
+    title: "Recordings that survive a crash",
+    notes: [
+      "A recording cut off by a power cut or a forced quit is no longer read back as empty. TRACE keeps each recording's length up to date every second while it records, and mends one that missed the last update the next time it opens it.",
+      "Saving a meeting that was still recording when TRACE closed keeps its audio as Settings → Audio says, as it would for any meeting. It used to be deleted along with everything else once the note was written.",
+      "Those recovered meetings can now have their notes regenerated, like any other.",
+    ],
+    screens: {
+      "library-recovery":
+        "Looks the same. Save as note now keeps the meeting's journal, and its audio as Settings → Audio says.",
+    },
+  },
+  {
     version: "0.28.0",
     date: "2026-10-10",
     title: "A good citizen",

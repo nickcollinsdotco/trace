@@ -696,6 +696,25 @@ pub fn dismiss_interrupted(session_dir: &std::path::Path) {
     release_session_audio(session_dir);
 }
 
+/// Settle the audio of a meeting recovered after TRACE stopped mid-recording.
+///
+/// Its WAVs were never finalised, so their headers are mended now, while
+/// nothing holds them, rather than leaving that to whoever opens them next.
+/// Then they go as the retention setting says, like any meeting's.
+pub fn finish_recovered(session_dir: &std::path::Path) {
+    for source in [StreamSource::Microphone, StreamSource::System] {
+        let path = session_dir.join(format!("{}.wav", source.file_stem()));
+        if let Ok(crate::audio::wav::Repair::Repaired { frames }) = crate::audio::wav::repair(&path)
+        {
+            diagnostics::log(format!(
+                "recovered {} audio: {frames} frames",
+                source.file_stem()
+            ));
+        }
+    }
+    release_session_audio(session_dir);
+}
+
 /// Release the audio of an interrupted meeting that no longer needs it: its
 /// full-quality pass finished before the notes were cut off.
 pub fn release_unneeded_audio(interrupted: &store::Interrupted) {

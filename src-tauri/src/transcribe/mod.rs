@@ -237,10 +237,11 @@ struct Wav16k {
 
 impl Wav16k {
     fn open(path: &Path) -> Result<Self, TranscribeError> {
-        let reader = hound::WavReader::open(path).map_err(|e| TranscribeError::ReadWav {
-            path: path.display().to_string(),
-            source: e,
-        })?;
+        let reader =
+            crate::audio::wav::open_reader(path).map_err(|e| TranscribeError::ReadWav {
+                path: path.display().to_string(),
+                source: e,
+            })?;
         let spec = reader.spec();
         let resampler = Some(crate::audio::resample::To16k::new(spec.sample_rate)?);
         Ok(Self {
@@ -377,6 +378,38 @@ mod tests {
 
         assert!(whole.len() >= 5, "every kind of cut is exercised");
         assert_eq!(streamed, whole);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_recording_cut_off_by_a_crash_is_read_in_full() {
+        // The full-quality pass after a restart: a header that still says
+        // zero must not turn a meeting into an empty transcript.
+        let dir = std::env::temp_dir().join(format!("trace-stream-crash-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let intact = dir.join("intact.wav");
+        write_wav(
+            &intact,
+            &[(0.5, false), (3.0, true), (1.0, false), (2.0, true)],
+        );
+        let mut bytes = std::fs::read(&intact).unwrap();
+        bytes[4..8].fill(0);
+        bytes[40..44].fill(0);
+        let crashed = dir.join("mic.wav");
+        std::fs::write(&crashed, bytes).unwrap();
+
+        let chunks = |path: &Path| {
+            let mut out = Vec::new();
+            stream_chunks(path, |c| {
+                out.push(c);
+                Ok(())
+            })
+            .unwrap();
+            out
+        };
+        let expected = chunks(&intact);
+        assert!(!expected.is_empty());
+        assert_eq!(chunks(&crashed), expected);
         std::fs::remove_dir_all(&dir).ok();
     }
 

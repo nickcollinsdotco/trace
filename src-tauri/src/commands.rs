@@ -448,7 +448,8 @@ pub fn recoverable_sessions(
         .collect())
 }
 
-/// Write a recovered session to Markdown and discard its journal.
+/// Write a recovered session to Markdown, then close it as a finished
+/// meeting whose audio follows the retention setting.
 #[tauri::command]
 pub fn recover_session(
     manager: State<'_, CaptureManager>,
@@ -459,8 +460,16 @@ pub fn recover_session(
     let root = manager.notes_root().map_err(err)?;
 
     let path = store::write_note(&root, &replay.meeting).map_err(err)?;
-    // Discarded only once the note exists.
-    let _ = store::discard_session(&dir);
+    // Closed only once the note exists.
+    match store::close_recovered(&dir) {
+        Ok(()) => crate::capture_manager::finish_recovered(&dir),
+        // A journal left open would offer the meeting again next launch, and
+        // recovering it twice writes two notes. Deleting the session, as
+        // recovery always used to, is the lesser loss.
+        Err(_) => {
+            let _ = store::discard_session(&dir);
+        }
+    }
 
     Ok(path.display().to_string())
 }

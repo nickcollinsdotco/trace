@@ -197,6 +197,23 @@ pub fn discard_session(session_dir: &std::path::Path) -> Result<(), StoreError> 
     Ok(())
 }
 
+/// Close the journal of a meeting cut off while recording, once its note is
+/// written.
+///
+/// It then reads as any finished meeting: no longer offered for recovery, its
+/// notes can be regenerated, and its audio goes as the retention setting says
+/// rather than with the folder. Recovery used to delete the lot, which threw
+/// away audio the user had asked to keep and the journal regenerating needs.
+///
+/// The end is when the journal last changed — its final event is the nearest
+/// thing to when recording stopped that survived — not now, which could be
+/// days later and would make the meeting that long.
+pub fn close_recovered(session_dir: &std::path::Path) -> Result<(), StoreError> {
+    let stopped = std::fs::metadata(session_dir.join("session.jsonl"))?.modified()?;
+    let ended_at = chrono::DateTime::<chrono::Local>::from(stopped).to_rfc3339();
+    journal::Journal::open(session_dir)?.append(&journal::JournalEvent::SessionEnded { ended_at })
+}
+
 /// Delete a finished session's audio but keep its journal.
 ///
 /// The two have wildly different costs and lifetimes. Audio is roughly 690 MB
@@ -508,6 +525,55 @@ mod tests {
 
         j.append(&JournalEvent::NotesFinished).unwrap();
         assert!(scan_interrupted(&root, |_| false).is_empty());
+    }
+
+    #[test]
+    fn a_recovered_meeting_is_closed_not_deleted() {
+        use journal::{Journal, JournalEvent};
+
+        let root = scratch("recovered");
+        let session = paths::session_dir(&root, "sess-700");
+        let mut j = Journal::open(&session).unwrap();
+        j.append(&JournalEvent::SessionStarted {
+            id: "sess-700".into(),
+            title: "Cut off".into(),
+            date: "2026-09-06".into(),
+            started_at: "2026-09-06T10:00:00Z".into(),
+        })
+        .unwrap();
+        drop(j); // the crash
+        std::fs::write(session.join("mic.wav"), b"audio").unwrap();
+        let stopped = std::fs::metadata(session.join("session.jsonl"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        assert_eq!(scan_recoverable(&root).len(), 1);
+
+        close_recovered(&session).unwrap();
+
+        assert!(scan_recoverable(&root).is_empty(), "offered again");
+        let replay = journal::replay(&session).unwrap();
+        assert!(replay.was_finished);
+        let ended =
+            chrono::DateTime::parse_from_rfc3339(&replay.meeting.ended_at.unwrap()).unwrap();
+        assert_eq!(
+            ended.timestamp(),
+            chrono::DateTime::<chrono::Utc>::from(stopped).timestamp(),
+            "ended when the journal stopped, not when recovered"
+        );
+        assert!(
+            session.join("mic.wav").exists(),
+            "audio is retention's call"
+        );
+    }
+
+    #[test]
+    fn closing_a_session_with_no_journal_fails_rather_than_inventing_one() {
+        let root = scratch("recovered-gone");
+        let session = paths::session_dir(&root, "sess-701");
+        std::fs::create_dir_all(&session).unwrap();
+        assert!(close_recovered(&session).is_err());
+        assert!(!session.join("session.jsonl").exists());
     }
 
     #[test]

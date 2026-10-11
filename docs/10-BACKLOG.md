@@ -625,7 +625,8 @@ What the audit found besides, worst first. Evidence is `file:line` as of
    after, and say on the recording screen when a stream has died. Medium.
 5. ~~**Windows can sleep mid-recording.**~~ **Fixed in 0.29.1**
    (`awake.rs`), recording and writing notes. Lid and Sleep still sleep.
-   A real sleep and wake is still untested; `examples/awake_check.rs`. Nothing calls
+   Verified 2026-10-11: `powercfg /requests` lists trace.exe under SYSTEM
+   mid-meeting. A real sleep and wake is still untested. Nothing calls
    `SetThreadExecutionState`. A call app usually keeps the machine awake; an
    in-person meeting with only TRACE running does not, least of all on
    battery. What wake does to the timeline is unmeasured. *Fix:*

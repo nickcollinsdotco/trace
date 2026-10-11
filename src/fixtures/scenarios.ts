@@ -13,6 +13,7 @@
  * to design if you never see it.
  */
 
+import type { UpdateView } from "../app/UpdateEntry";
 import type { ConfirmOptions } from "../components/ui/Confirm";
 import { isoDay } from "../features/library/signal";
 import {
@@ -71,6 +72,8 @@ export interface Scenario {
   miniDetails?: boolean;
   /** The mini window asking, once, whether to open by itself. */
   miniOffer?: boolean;
+  /** The status bar's update entry already past the click that checks. */
+  update?: UpdateView;
   /** About opened at What's new, as the status bar's link opens it. */
   aboutFocus?: "whats-new";
   /** The recording screen opened on its full-screen scope. */
@@ -1327,6 +1330,39 @@ export const SCENARIOS: Scenario[] = [
     state: {
       ...POPULATED,
       appInfo: { version: "0.1.0", devBuild: true, notesSyncedBy: "OneDrive" },
+    },
+  },
+  {
+    id: "update-available",
+    name: "Update available",
+    group: "Pages",
+    note: 'After clicking the version: a newer one found. Click "update available" to watch it download; clicking the version on any other screen shows "up to date".',
+    screen: "about",
+    update: { kind: "available", version: "0.31.0" },
+    state: { ...POPULATED, latestVersion: "0.31.0" },
+  },
+  {
+    id: "update-downloading",
+    name: "Update downloading",
+    group: "Pages",
+    note: 'The bar in the version\'s place while the update downloads. Held still here; the live one is a click away in "Update available".',
+    screen: "about",
+    update: { kind: "downloading", version: "0.31.0", percent: 42 },
+    state: { ...POPULATED, latestVersion: "0.31.0" },
+  },
+  {
+    id: "update-failed",
+    name: "Update check failed",
+    group: "Pages",
+    note: "Offline, or GitHub not answering. Said beside the version, with the reason on hover; clicking the version again retries.",
+    screen: "about",
+    state: {
+      ...POPULATED,
+      failures: { check_for_update: "could not reach GitHub — check your connection" },
+    },
+    update: {
+      kind: "failed",
+      message: "could not reach GitHub — check your connection",
     },
   },
   {

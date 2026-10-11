@@ -91,7 +91,7 @@ export function AboutScreen({
       {/* Second, after the version it describes: an update is the moment
           someone comes here, and this is what they came for. */}
       <div ref={whatsNew} className="scroll-mt-16">
-        <WhatsNew />
+        <WhatsNew open={focus === "whats-new"} />
       </div>
 
       <Section title="Folders">

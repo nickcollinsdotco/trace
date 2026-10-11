@@ -443,7 +443,7 @@ Audio already keeps them, and `chunk_check` replays the VAD over them. A
 filler-word toggle remains an idea. Synthesis already guards against a
 runaway filler (`synthesis/prompt.rs`), but the transcript keeps them.
 
-## In-app updates — later, after code signing
+## In-app updates — UI built, mechanism next
 
 **Idea.** An "Update available" notice in the status bar, as Handy has, that
 downloads and installs a new version from inside the app.
@@ -466,13 +466,53 @@ That is enough while TRACE has one user who builds it from source.
    Windows certificate: it proves an update came from us, and losing it means
    no installed copy can ever update again. It must live somewhere safer than
    a laptop.
-4. **The UI**: a status-bar notice and an About entry, following the same
-   "say it, do not hide it" rule as the Ollama notice.
+4. ~~**The UI**~~ — built in 0.29.0, see below.
 
-**Why not now.** It is the one feature that would make TRACE contact the
-network on its own. That has to be a visible, opt-out setting, not a default
-added in passing — the product promise is that nothing needs a network after
-setup.
+**Why a click, not a background check.** A background check would be the one
+thing that made TRACE contact the network on its own. That would have to be a
+visible, opt-out setting, not a default added in passing — the product promise
+is that nothing needs a network after setup. A click on the version is the
+user asking, which keeps the promise without a setting.
+
+### Built (0.29.0)
+
+The version in the status bar is the button (`src/app/UpdateEntry.tsx`):
+checking → up to date / update available · vX / couldn't check, then a
+download bar in its place, then "restarting to install". Gallery scenarios
+`update-available`, `update-downloading`, `update-failed`. The fake backend
+answers the commands; **Rust does not**, so the installed app says "couldn't
+check" on every click.
+
+### Pick up next
+
+The frontend contract is fixed in `src/lib/ipc.ts`; build Rust to it:
+
+- `check_for_update` → `{ latest: string | null }` (null when current).
+- `install_update` → resolves when downloaded, then the app closes itself and
+  runs the installer. Emits `trace://update-progress` `{ percent }` while
+  downloading.
+
+Open decisions, in order:
+
+1. **Where an update comes from.** No GitHub Releases exist yet. Either the
+   path above (CI release builds + `tauri-plugin-updater`, after the signing
+   decision), or a stopgap for the one user who builds from source: the
+   installed app knows the repo it was built from (`env!("CARGO_MANIFEST_DIR")`
+   baked in), checks by `git fetch` and reading `origin/main`'s
+   `tauri.conf.json`, and "downloads" by running `scripts/update.ps1 -Yes`
+   — in which case the bar is build steps (pull, install, build, install),
+   not bytes, and the label should say so.
+2. **Refuse while recording.** Installing closes TRACE. `UpdateEntry` should
+   not offer the download while a meeting is recording or notes are being
+   written — the status bar already has `jobs`, and `useRecordingElapsed`
+   in `Shell` knows about recording.
+3. **About's wording.** About still says "TRACE never checks for updates by
+   itself", which stays true, but it should mention that clicking the version
+   checks once that works.
+
+Small loose end: on About with What's new closed, the status bar's
+"what's new" link does not open it (`Collapsible` only reads `defaultOpen`
+on mount). Key `WhatsNew` on each request to open it, or lift `open`.
 
 ## Library and meeting management
 

@@ -26,6 +26,24 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.30.0",
+    date: "2026-10-12",
+    title: "The version checks for updates",
+    notes: [
+      "Clicking the version at the bottom right checks for a newer TRACE, and says what it found beside it. Only a click checks — TRACE still never goes online by itself. The checking itself is not built yet, so for now it says it couldn't check.",
+      "What's new on About is closed until opened, and each version's notes are one line until clicked. Versions not seen yet open on their own, and the status bar's \"what's new\" opens the section.",
+    ],
+    screens: {
+      "update-available":
+        'New. Click "update available" to watch the download bar fill in the version\'s place, then "restarting to install".',
+      "update-downloading": "New. The bar held at 42%.",
+      "update-failed":
+        'New. "couldn\'t check" in amber beside the version; the reason is on hover.',
+      about: "What's new is closed. Opening it shows each version cut to a line.",
+      "about-whats-new": "Opens with What's new expanded and the unseen versions in full.",
+    },
+  },
+  {
     version: "0.29.2",
     date: "2026-10-11",
     title: "No sideways scrollbar",

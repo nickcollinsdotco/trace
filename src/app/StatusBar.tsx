@@ -18,6 +18,7 @@ import {
 } from "../lib/ipc";
 import { shortModel } from "../lib/names";
 import type { Page } from "./Sidebar";
+import { UpdateEntry, type UpdateView } from "./UpdateEntry";
 
 /**
  * The bottom bar: which models are in play, what they are doing, and which
@@ -31,7 +32,8 @@ import type { Page } from "./Sidebar";
  * that downloads them.
  *
  * Three parts: the models and background work on the left, the narrator in
- * the middle where it is seen, the build on the right.
+ * the middle where it is seen, the build on the right — which is also where
+ * updates are checked for and fetched.
  */
 export function StatusBar({
   page = null,
@@ -39,6 +41,7 @@ export function StatusBar({
   onManageModels,
   onOpenNote,
   onWhatsNew,
+  initialUpdate,
 }: {
   /** Where the user is, for the narrator. */
   page?: Page | null;
@@ -47,6 +50,7 @@ export function StatusBar({
   onOpenNote?: ((path: string) => void) | undefined;
   /** After an update: where its changes are read. */
   onWhatsNew?: (() => void) | undefined;
+  initialUpdate?: UpdateView | undefined;
 }) {
   const [speech, setSpeech] = useState<SpeechModel[] | null>(null);
   const updated = useUnseenVersion();
@@ -115,7 +119,7 @@ export function StatusBar({
           </button>
         )}
         {info?.devBuild && <span className="text-warn">dev</span>}
-        {info && <span>v{info.version}</span>}
+        {info && <UpdateEntry version={info.version} initial={initialUpdate} />}
       </span>
     </footer>
   );

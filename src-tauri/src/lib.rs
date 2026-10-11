@@ -10,6 +10,7 @@
 
 pub mod activity;
 pub mod audio;
+pub mod awake;
 pub mod capture_manager;
 pub mod commands;
 pub mod diagnostics;
@@ -120,6 +121,8 @@ pub fn run() {
             commands::system_report,
             commands::get_settings,
             commands::set_audio_retention,
+            commands::audio_beyond_retention,
+            commands::release_audio_beyond_retention,
             commands::set_summary_memory,
             commands::set_default_mic,
             commands::speech_models,

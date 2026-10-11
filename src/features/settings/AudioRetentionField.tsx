@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { type AudioRetention, hasBackend, ipc } from "../../lib/ipc";
+import { formatBytes } from "../../lib/format";
+import { type AudioBeyond, type AudioRetention, hasBackend, ipc } from "../../lib/ipc";
 
 const DEFAULT_LATEST = 5;
 
@@ -18,6 +19,14 @@ const DEFAULT_LATEST = 5;
 export function AudioRetentionField() {
   const [value, setValue] = useState<AudioRetention | null>(null);
   const [count, setCount] = useState(DEFAULT_LATEST);
+  const [beyond, setBeyond] = useState<AudioBeyond | null>(null);
+  const [freed, setFreed] = useState<AudioBeyond | null>(null);
+
+  const measure = () =>
+    void ipc
+      .audioBeyondRetention()
+      .then(setBeyond)
+      .catch(() => setBeyond(null));
 
   useEffect(() => {
     if (!hasBackend()) return;
@@ -28,6 +37,10 @@ export function AudioRetentionField() {
         if (s.audioRetention.mode === "keep_latest") setCount(s.audioRetention.count);
       })
       .catch(() => setValue({ mode: "delete" }));
+    void ipc
+      .audioBeyondRetention()
+      .then(setBeyond)
+      .catch(() => {});
   }, []);
 
   if (value === null) return null;
@@ -35,7 +48,23 @@ export function AudioRetentionField() {
   const store = (next: AudioRetention) =>
     void ipc
       .setAudioRetention(next)
-      .then((s) => setValue(s.audioRetention))
+      .then((s) => {
+        setValue(s.audioRetention);
+        setFreed(null);
+        measure();
+      })
+      .catch(() => {});
+
+  // Offered, never done with the setting: lowering it says what it no
+  // longer keeps, and the audio goes only when asked. The count is typed a
+  // digit at a time, so applying it as it changed would delete on the way.
+  const release = () =>
+    void ipc
+      .releaseAudioBeyondRetention()
+      .then((f) => {
+        setFreed(f);
+        measure();
+      })
       .catch(() => {});
 
   return (
@@ -73,6 +102,26 @@ export function AudioRetentionField() {
           </label>
         )}
       </div>
+      {beyond && beyond.meetings > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-ink-muted">
+            {beyond.meetings} earlier {beyond.meetings === 1 ? "meeting has" : "meetings have"}{" "}
+            audio this no longer keeps, {formatBytes(beyond.bytes)}.
+          </p>
+          <button
+            type="button"
+            onClick={release}
+            className="trace-btn trace-btn-secondary trace-press"
+          >
+            Delete it
+          </button>
+        </div>
+      )}
+      {freed && freed.meetings > 0 && (
+        <p className="text-sm text-ink-muted">
+          Deleted {formatBytes(freed.bytes)} of audio. Notes and transcripts are kept.
+        </p>
+      )}
       <p className="text-2xs text-ink-faint">
         About 690 MB per hour. Keeping some makes transcription problems fixable; notes and
         transcripts are kept either way.

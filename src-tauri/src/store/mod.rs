@@ -259,6 +259,47 @@ pub fn prune_session_audio(sessions_root: &std::path::Path, keep: usize) {
     }
 }
 
+/// Sessions whose audio a lowered setting no longer keeps: finished
+/// meetings with audio, beyond the newest `keep`.
+///
+/// Lowering the setting used to change nothing until the next meeting
+/// ended, and switching to Delete kept every earlier recording for good.
+/// Only meetings TRACE is done with count. One still recording, cut off
+/// before its notes, or with notes being written (`busy`) needs its audio
+/// yet, whatever the setting says.
+pub fn audio_beyond(
+    sessions_root: &std::path::Path,
+    keep: usize,
+    busy: impl Fn(&std::path::Path) -> bool,
+) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(sessions_root) else {
+        return Vec::new();
+    };
+    let done: Vec<String> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|dir| has_audio(dir) && !busy(dir))
+        .filter(|dir| journal::replay(dir).is_ok_and(|r| r.was_finished && !r.notes_interrupted))
+        .filter_map(|dir| dir.file_name()?.to_str().map(str::to_string))
+        .collect();
+    sessions_to_strip(done, keep)
+        .into_iter()
+        .map(|id| sessions_root.join(id))
+        .collect()
+}
+
+/// Bytes of audio in a session.
+pub fn audio_bytes(dir: &std::path::Path) -> u64 {
+    std::fs::read_dir(dir).map_or(0, |entries| {
+        entries
+            .flatten()
+            .filter(|e| e.path().extension().is_some_and(|x| x == "wav"))
+            .filter_map(|e| e.metadata().ok())
+            .map(|m| m.len())
+            .sum()
+    })
+}
+
 fn has_audio(dir: &std::path::Path) -> bool {
     std::fs::read_dir(dir).is_ok_and(|entries| {
         entries
@@ -382,6 +423,56 @@ mod tests {
             sessions_to_strip(ids(&["sess-1", "junk"]), 1),
             ids(&["junk"])
         );
+    }
+
+    #[test]
+    fn only_audio_trace_is_done_with_is_beyond_the_setting() {
+        use journal::{Journal, JournalEvent};
+
+        let root = scratch("beyond");
+        let session = |id: &str, events: &[JournalEvent]| {
+            let dir = root.join(id);
+            let mut j = Journal::open(&dir).unwrap();
+            j.append(&JournalEvent::SessionStarted {
+                id: id.into(),
+                title: "t".into(),
+                date: "2026-10-11".into(),
+                started_at: "2026-10-11T10:00:00Z".into(),
+            })
+            .unwrap();
+            for e in events {
+                j.append(e).unwrap();
+            }
+            std::fs::write(dir.join("mic.wav"), b"audio").unwrap();
+        };
+        let ended = || JournalEvent::SessionEnded {
+            ended_at: "2026-10-11T10:30:00Z".into(),
+        };
+        let notes = || JournalEvent::NotesStarted {
+            note_path: "n.md".into(),
+        };
+        session("sess-100", &[ended()]);
+        session("sess-200", &[ended(), notes(), JournalEvent::NotesFinished]);
+        session("sess-300", &[ended(), notes()]); // notes cut off
+        session("sess-400", &[]); // recording, or cut off
+        session("sess-500", &[ended()]); // notes being written
+        session("sess-600", &[ended()]);
+
+        let busy = |d: &std::path::Path| d.ends_with("sess-500");
+        let ids = |v: Vec<PathBuf>| -> Vec<String> {
+            v.iter()
+                .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+                .collect()
+        };
+        assert_eq!(
+            ids(audio_beyond(&root, 0, busy)),
+            ["sess-100", "sess-200", "sess-600"]
+        );
+        assert_eq!(ids(audio_beyond(&root, 1, busy)), ["sess-100", "sess-200"]);
+        assert!(audio_beyond(&root, 3, busy).is_empty());
+        assert_eq!(audio_bytes(&root.join("sess-100")), 5);
+
+        std::fs::remove_dir_all(&root).ok();
     }
 
     #[test]

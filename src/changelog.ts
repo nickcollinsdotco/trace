@@ -26,6 +26,21 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.29.1",
+    date: "2026-10-11",
+    title: "No sleeping mid-meeting, and audio you no longer keep",
+    notes: [
+      "Windows no longer goes to sleep on its own while a meeting records or its notes are being written. Closing the lid or choosing Sleep still works.",
+      "Lowering Keep audio in Settings now says how much earlier audio it no longer keeps, with a button to delete it. It used to wait for the next meeting, and switching to Delete kept every earlier recording for good.",
+      "The last moments of a meeting survive a power cut: each line of its record is written through to the disk, not left in a cache.",
+      "The stream error every meeting logged now says what it was, and opening the mini window two ways at once no longer logs an error.",
+    ],
+    screens: {
+      "settings-audio-beyond":
+        "New. Below Keep audio: what the setting no longer keeps, and Delete it.",
+    },
+  },
+  {
     version: "0.29.0",
     date: "2026-10-11",
     title: "Recordings stay on this computer, even when Documents is synced",

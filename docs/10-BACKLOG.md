@@ -623,7 +623,9 @@ What the audit found besides, worst first. Evidence is `file:line` as of
    stopped. Free space is read only for the first-run report (`system.rs`).
    *Fix:* check at start (warn below a few hours of audio), every minute
    after, and say on the recording screen when a stream has died. Medium.
-5. **Windows can sleep mid-recording.** Nothing calls
+5. ~~**Windows can sleep mid-recording.**~~ **Fixed in 0.29.1**
+   (`awake.rs`), recording and writing notes. Lid and Sleep still sleep.
+   A real sleep and wake is still untested; `examples/awake_check.rs`. Nothing calls
    `SetThreadExecutionState`. A call app usually keeps the machine awake; an
    in-person meeting with only TRACE running does not, least of all on
    battery. What wake does to the timeline is unmeasured. *Fix:*
@@ -641,7 +643,8 @@ What the audit found besides, worst first. Evidence is `file:line` as of
    file and nothing else, by design — but nothing tells someone who edited
    the Markdown in another app. *Fix:* hash the body when written; if it
    changed, confirm, or keep a `.bak`. Small to medium.
-8. **The journal is flushed, not synced.** `journal.rs` `append` flushes to
+8. ~~**The journal is flushed, not synced.**~~ **Fixed in 0.29.1**:
+   `sync_data` on every append, best-effort. `journal.rs` `append` flushes to
    the OS; a power cut can lose the last seconds. *Fix:* `sync_data` every
    few seconds. Small.
 
@@ -671,13 +674,16 @@ What the audit found besides, worst first. Evidence is `file:line` as of
 
 ### Surprising, or noise
 
-12. **"1 stream errors" on every meeting.** `mic.rs` sends the error text to
+12. ~~**"1 stream errors" on every meeting.**~~ **Half done in 0.29.1**:
+    the first error's text is logged with the count. Still not built:
+    telling the user when errors continue. `mic.rs` sends the error text to
     `eprintln!`, which goes nowhere installed. Exactly one per meeting, on
     NVIDIA Broadcast and the 96 kHz Razer alike, matches the benign startup
     underrun its own comment describes. *Fix:* keep the first error's text in
     `StreamStats` and log it; ignore the first half-second; tell the user
     only if errors continue. Small.
-13. **"a window with label `mini` already exists".** `windows::open_mini`
+13. ~~**"a window with label `mini` already exists".**~~ **Fixed in
+    0.29.1**: the label existing after a failed build is success. `windows::open_mini`
     checks, then builds; the shortcut handler (an async task) and the
     meeting-start trigger under "always" can both pass the check. *Fix:*
     serialise it, or treat the label existing as success. Small.
@@ -685,7 +691,10 @@ What the audit found besides, worst first. Evidence is `file:line` as of
     before it moved to Ctrl+Shift+Alt+M. It also fires when a dev build and
     the installed app run together and the second finds its own shortcut.
     Small, if worth anything.
-15. **Lowering audio retention deletes nothing until later.**
+15. ~~**Lowering audio retention deletes nothing until later.**~~
+    **Fixed in 0.29.1**, as an offer rather than on change: the count is
+    typed a digit at a time. Settings says what the setting no longer
+    keeps and deletes it when asked.
     `set_audio_retention` only stores the choice; audio is released only for
     the meeting just ended, so switching to Delete keeps every kept recording
     indefinitely. *Fix:* apply it on change, saying how much goes. Small.

@@ -104,6 +104,7 @@ cargo run --release --example chunk_check   -- <session dir>   # VAD + chunk bou
 cargo run --release --example wav_check     -- <session dir>   # are the two streams distinct
 cargo run --release --example transcribe_spike -- <session dir>
 cargo run --release --example memory_check  -- [model]          # would the summary model load now?
+cargo run --example awake_check                                # does the keep-awake request reach Windows?
 cargo run --release --example repass_memory -- <whole|stream> [minutes]
 cargo run --release --example thinking_compare -- <session dir> <on|off>
 ```

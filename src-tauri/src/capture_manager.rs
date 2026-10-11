@@ -128,6 +128,8 @@ struct Active {
     /// starts from them. Each journal entry is the whole text, so a screen
     /// that started empty would replace them all with its first keystroke.
     notes: String,
+    /// No idle sleep while recording; the notes job takes over with its own.
+    _awake: crate::awake::Awake,
 }
 
 /// The application's capture state. One meeting at a time, by design.
@@ -296,6 +298,7 @@ impl CaptureManager {
             model_hold,
             mic,
             notes: String::new(),
+            _awake: crate::awake::hold(),
         });
 
         Ok(status)
@@ -559,13 +562,18 @@ impl CaptureManager {
 fn log_streams(summary: &SessionSummary) {
     for s in &summary.streams {
         diagnostics::log(format!(
-            "stream {:?} on \"{}\": {:.0}s at {} Hz, {} chunks dropped, {} stream errors{}",
+            "stream {:?} on \"{}\": {:.0}s at {} Hz, {} chunks dropped, {} stream errors{}{}",
             s.source,
             s.device_name,
             s.duration_secs(),
             s.sample_rate,
             s.chunks_dropped,
             s.stream_errors,
+            // The device's words, not the meeting's: safe for the log.
+            s.first_stream_error
+                .as_deref()
+                .map(|e| format!(" (first: {e})"))
+                .unwrap_or_default(),
             s.error
                 .as_deref()
                 .map(|e| format!(", failed: {e}"))
@@ -782,6 +790,7 @@ pub fn is_underway(session_dir: &std::path::Path) -> bool {
 /// there to catch.
 struct Underway {
     dir: PathBuf,
+    _awake: crate::awake::Awake,
 }
 
 impl Underway {
@@ -799,6 +808,7 @@ impl Underway {
         }
         Self {
             dir: session_dir.to_path_buf(),
+            _awake: crate::awake::hold(),
         }
     }
 }

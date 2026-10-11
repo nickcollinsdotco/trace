@@ -239,7 +239,15 @@ pub fn open_mini(app: &AppHandle, how: Open) -> tauri::Result<()> {
         .focused(how == Open::Asked)
         .theme(Some(tauri::Theme::Dark))
         .visible(false)
-        .build()?;
+        .build();
+    let window = match window {
+        Ok(window) => window,
+        // Opened meanwhile by the other way in: the shortcut's task and a
+        // meeting starting under "always" can both pass the check above at
+        // once. The window is there, which is all either asked for.
+        Err(_) if app.get_webview_window(MINI).is_some() => return Ok(()),
+        Err(e) => return Err(e),
+    };
     state.with(|s| {
         s.auto = how != Open::Asked;
         s.wanted = None;

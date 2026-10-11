@@ -126,6 +126,11 @@ pub struct StreamStats {
     /// and the two demand different responses: the first is usually a benign
     /// startup underrun, the second means the recording has a hole in it.
     pub stream_errors: AtomicU64,
+    /// What the first of those errors said, for the log. Every meeting had
+    /// one, on every device, and with the text going to a console an
+    /// installed app does not have, nobody could say whether it was the
+    /// benign underrun or something worth knowing.
+    pub first_error: std::sync::OnceLock<String>,
     /// Most recent RMS level, scaled to 0..=10_000 so it fits an integer
     /// atomic. Divide by 10_000.0 for the 0..=1 value the meters want.
     pub level_milli: AtomicU64,
@@ -150,6 +155,7 @@ impl Default for StreamStats {
             frames_captured: AtomicU64::new(0),
             chunks_dropped: AtomicU64::new(0),
             stream_errors: AtomicU64::new(0),
+            first_error: std::sync::OnceLock::new(),
             level_milli: AtomicU64::new(0),
             start_offset_ms: AtomicU64::new(OFFSET_UNSET),
             silence_padded_frames: AtomicU64::new(0),

@@ -472,6 +472,17 @@ describe("Gallery", () => {
     expect(screen.queryByText(/Your notes folder is synced/)).not.toBeInTheDocument();
   });
 
+  it("offers to delete audio a lowered setting no longer keeps, and only when asked", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Settings, audio left behind");
+    expect(await screen.findByText(/3 earlier meetings have audio/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Delete it" }));
+    expect(await screen.findByText(/Deleted 1\.9 GiB of audio/)).toBeInTheDocument();
+    expect(screen.queryByText(/earlier meetings have audio/)).not.toBeInTheDocument();
+  });
+
   it("disables regeneration when the journal is gone", async () => {
     const user = userEvent.setup();
     render(<Gallery />);

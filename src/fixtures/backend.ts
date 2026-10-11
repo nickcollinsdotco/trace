@@ -11,6 +11,7 @@
 
 import {
   type AppInfo,
+  type AudioBeyond,
   type CaptureStatus,
   type DeviceInfo,
   type DiagnosticsReport,
@@ -102,6 +103,8 @@ export interface BackendState {
   /** Whether Ollama is usable. Opening it from the notice makes it ready. */
   llm: LlmStatus;
   appInfo: AppInfo;
+  /** Earlier meetings' audio the retention setting no longer keeps. */
+  audioBeyond: AudioBeyond;
   /** Log lines the diagnostics screen shows, oldest first. */
   recentLog: string[];
   speechModels: SpeechModel[];
@@ -172,6 +175,7 @@ export const DEFAULT_STATE: BackendState = {
   failures: {},
   llm: { state: "ready", model: "qwen3:14b" },
   appInfo: { version: "0.1.0", devBuild: true, notesSyncedBy: null },
+  audioBeyond: { meetings: 0, bytes: 0 },
   speechModels: [
     {
       id: "parakeet-tdt-0.6b-v3-int8",
@@ -289,6 +293,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
   let model = state.model;
   let settings = state.settings;
   let llm = state.llm;
+  let audioBeyond = state.audioBeyond;
   let speechModels = state.speechModels.map((m) => ({ ...m }));
   let summaryInstalled = state.summaryInstalled.map((m) => ({ ...m }));
 
@@ -404,6 +409,13 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         case "set_audio_retention":
           settings = { ...settings, audioRetention: args?.retention as Settings["audioRetention"] };
           return settings;
+        case "audio_beyond_retention":
+          return audioBeyond;
+        case "release_audio_beyond_retention": {
+          const freed = audioBeyond;
+          audioBeyond = { meetings: 0, bytes: 0 };
+          return freed;
+        }
         case "set_summary_memory":
           settings = {
             ...settings,

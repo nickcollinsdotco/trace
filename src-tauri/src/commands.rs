@@ -833,6 +833,61 @@ pub fn set_audio_retention(retention: AudioRetention) -> CmdResult<SettingsView>
     Ok(SettingsView::from(&s))
 }
 
+/// Audio from earlier meetings the retention setting no longer keeps.
+#[derive(Debug, serde::Serialize)]
+pub struct AudioBeyond {
+    pub meetings: usize,
+    pub bytes: u64,
+}
+
+fn audio_beyond(manager: &CaptureManager) -> CmdResult<Vec<PathBuf>> {
+    let keep = match crate::settings::load().audio_retention() {
+        AudioRetention::Delete => 0,
+        AudioRetention::KeepLatest { count } => count as usize,
+        AudioRetention::KeepAll => return Ok(Vec::new()),
+    };
+    let sessions = manager.sessions_root().map_err(err)?;
+    Ok(store::audio_beyond(
+        &sessions,
+        keep,
+        crate::capture_manager::is_underway,
+    ))
+}
+
+fn measure(dirs: &[PathBuf]) -> AudioBeyond {
+    AudioBeyond {
+        meetings: dirs.len(),
+        bytes: dirs.iter().map(|d| store::audio_bytes(d)).sum(),
+    }
+}
+
+/// What lowering the setting left behind, for Settings to offer to delete.
+///
+/// Asked, not applied with the setting: the count is typed a digit at a
+/// time, and "15" passes through "1" on the way.
+#[tauri::command]
+pub fn audio_beyond_retention(manager: State<'_, CaptureManager>) -> CmdResult<AudioBeyond> {
+    Ok(measure(&audio_beyond(&manager)?))
+}
+
+/// Delete it. Journals stay, so every note can still be regenerated.
+#[tauri::command]
+pub fn release_audio_beyond_retention(
+    manager: State<'_, CaptureManager>,
+) -> CmdResult<AudioBeyond> {
+    let dirs = audio_beyond(&manager)?;
+    let freed = measure(&dirs);
+    for dir in &dirs {
+        store::discard_session_audio(dir).map_err(err)?;
+    }
+    crate::diagnostics::log(format!(
+        "audio deleted from {} earlier meetings, {} MB",
+        freed.meetings,
+        freed.bytes / 1_000_000
+    ));
+    Ok(freed)
+}
+
 #[tauri::command]
 pub fn set_summary_memory(memory: SummaryMemory) -> CmdResult<SettingsView> {
     let s = crate::settings::update(|s| s.set_summary_memory(memory))?;

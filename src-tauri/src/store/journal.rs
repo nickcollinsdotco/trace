@@ -96,16 +96,22 @@ impl Journal {
         Ok(Self { file, path })
     }
 
-    /// Append an event and flush it to the OS.
+    /// Append an event and sync it to the disk.
     ///
-    /// Flushed on every write. A journal that batches would lose exactly the
-    /// events a crash makes most valuable, and meeting-rate events are far too
-    /// infrequent for the cost to matter.
+    /// On every write. A journal that batches would lose exactly the events a
+    /// crash makes most valuable, and meeting-rate events are far too
+    /// infrequent for the cost to matter. Flushing alone reached the OS, which
+    /// survives TRACE crashing but not the power going: the last seconds of
+    /// the meeting were in a cache that never reached the disk.
+    ///
+    /// The sync is best-effort. Where it cannot be done the line has still
+    /// been written, and failing the append would lose it outright.
     pub fn append(&mut self, event: &JournalEvent) -> Result<(), StoreError> {
         let line = serde_json::to_string(event)?;
         self.file.write_all(line.as_bytes())?;
         self.file.write_all(b"\n")?;
         self.file.flush()?;
+        let _ = self.file.sync_data();
         Ok(())
     }
 
@@ -558,6 +564,7 @@ mod tests {
             frames_captured: 48_000,
             chunks_dropped: 0,
             stream_errors: 0,
+            first_stream_error: None,
             silence_padded_frames: 0,
             start_offset_ms: 0,
             error: None,

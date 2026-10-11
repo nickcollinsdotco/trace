@@ -1278,6 +1278,14 @@ export const SCENARIOS: Scenario[] = [
     state: POPULATED,
   },
   {
+    id: "settings-audio-beyond",
+    name: "Settings, audio left behind",
+    group: "Pages",
+    note: "Keep audio was lowered with recordings already kept: what the setting no longer keeps, and a way to delete it. Nothing goes until asked.",
+    screen: "settings",
+    state: { ...POPULATED, audioBeyond: { meetings: 3, bytes: 2_070_000_000 } },
+  },
+  {
     id: "about",
     name: "About",
     group: "Pages",

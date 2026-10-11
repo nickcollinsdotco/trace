@@ -56,6 +56,9 @@ pub struct StreamOutcome {
     pub frames_captured: u64,
     pub chunks_dropped: u64,
     pub stream_errors: u64,
+    /// The first stream error's text. Absent from journals before 0.29.1.
+    #[serde(default)]
+    pub first_stream_error: Option<String>,
     pub silence_padded_frames: u64,
     /// Offset from session start at which this stream's first sample arrived.
     pub start_offset_ms: u64,
@@ -233,6 +236,7 @@ impl CaptureSession {
                     frames_captured: stats.frames_captured.load(Ordering::Relaxed),
                     chunks_dropped: stats.chunks_dropped.load(Ordering::Relaxed),
                     stream_errors: stats.stream_errors.load(Ordering::Relaxed),
+                    first_stream_error: stats.first_error.get().cloned(),
                     silence_padded_frames: stats.silence_padded_frames.load(Ordering::Relaxed),
                     start_offset_ms: stats.start_offset_ms().unwrap_or(0),
                     error,
@@ -293,6 +297,7 @@ mod tests {
             frames_captured: frames,
             chunks_dropped: 0,
             stream_errors: 0,
+            first_stream_error: None,
             silence_padded_frames: 0,
             start_offset_ms: 0,
             error: error.map(String::from),

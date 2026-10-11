@@ -52,6 +52,12 @@ export type AudioRetention =
   | { mode: "keep_latest"; count: number }
   | { mode: "keep_all" };
 
+/** Audio from earlier meetings that the retention setting no longer keeps. */
+export interface AudioBeyond {
+  meetings: number;
+  bytes: number;
+}
+
 /** When the summary model occupies memory. */
 export type SummaryMemory = "during_meetings" | "while_writing";
 
@@ -409,6 +415,9 @@ export const ipc = {
   getSettings: () => call<Settings>("get_settings"),
   setAudioRetention: (retention: AudioRetention) =>
     call<Settings>("set_audio_retention", { retention }),
+  audioBeyondRetention: () => call<AudioBeyond>("audio_beyond_retention"),
+  /** Deletes it, journals kept; resolves with what was freed. */
+  releaseAudioBeyondRetention: () => call<AudioBeyond>("release_audio_beyond_retention"),
   setSummaryMemory: (memory: SummaryMemory) => call<Settings>("set_summary_memory", { memory }),
   setDefaultMic: (name: string | null) => call<Settings>("set_default_mic", { name }),
   setMiniAuto: (mode: MiniAuto) => call<Settings>("set_mini_auto", { mode }),

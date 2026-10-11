@@ -88,12 +88,12 @@ pub fn run_capture(
         }
     };
 
-    let error_callback = move |err| {
+    let error_callback = move |err: cpal::Error| {
         // Counted separately from dropped chunks. cpal reports a benign
         // underrun on the very first callback of essentially every run; that
         // is a device warning, not lost audio, and conflating the two would
         // make the "did we lose any of the meeting?" signal useless.
-        eprintln!("trace: microphone stream error: {err}");
+        let _ = err_stats.first_error.set(err.to_string());
         err_stats
             .stream_errors
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);

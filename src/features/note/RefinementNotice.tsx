@@ -1,8 +1,16 @@
 import { useState } from "react";
 import { Gauge, Spinner } from "../../components/ui/terminal";
-import type { Job } from "../../lib/ipc";
+import { formatBytes } from "../../lib/format";
+import { ipc, type Job, type MemoryWait, type WaitChoice } from "../../lib/ipc";
 import { JobSteps } from "../activity/JobSteps";
-import { formatDuration, headline, liveFallback, partsDone, startedAt } from "../activity/jobs";
+import {
+  formatDuration,
+  headline,
+  isWaitingForMemory,
+  liveFallback,
+  partsDone,
+  startedAt,
+} from "../activity/jobs";
 import { useNow } from "../activity/useActivity";
 
 /**
@@ -29,7 +37,8 @@ export function RefinementNotice({ job }: { job: Job | null }) {
   if (job === null) return null;
 
   const outcome = job.outcome;
-  const warn = outcome?.state === "failed";
+  const waiting = isWaitingForMemory(job) ? job.waiting : null;
+  const warn = outcome?.state === "failed" || waiting !== null;
   // Notes written from the live transcript because the full-quality pass
   // failed. Said on the line itself; the reason is one click away.
   const fromLive = liveFallback(job) !== null;
@@ -84,11 +93,67 @@ export function RefinementNotice({ job }: { job: Job | null }) {
         </span>
       </button>
 
+      {waiting && <MemoryWaitPanel notePath={job.notePath} wait={waiting} />}
+
       {open && (
         <div className="border-l border-line pl-3">
           <JobSteps job={job} now={now} />
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Notes held back because loading the summary model now could tip the
+ * machine over — the freeze this exists to prevent happened mid-load, on a
+ * computer already busy with a call.
+ *
+ * Open rather than behind the toggle: the user has something to decide, and
+ * the numbers are what let them decide it. Both ways out are theirs. Writing
+ * anyway is allowed, because TRACE only knows what is free, not what the
+ * user is willing to slow down; putting it off ends the wait with the
+ * transcript saved and ↻ to come back to.
+ */
+function MemoryWaitPanel({ notePath, wait }: { notePath: string; wait: MemoryWait }) {
+  const [sent, setSent] = useState<WaitChoice | null>(null);
+  const choose = (choice: WaitChoice) => {
+    setSent(choice);
+    void ipc.memoryWaitChoice(notePath, choice).catch(() => setSent(null));
+  };
+
+  return (
+    <div className="flex flex-col gap-2 rounded-sm border border-warn/40 bg-warn-dim px-3 py-2.5">
+      <p className="text-xs text-ink">
+        Waiting for memory: close some apps, or write notes anyway.
+      </p>
+      <p className="font-mono text-2xs text-ink-muted">
+        The summary model needs {formatBytes(wait.neededBytes)}. Free now:{" "}
+        {formatBytes(wait.ramAvailableBytes)} of memory
+        {wait.gpuFreeBytes !== null && <>, {formatBytes(wait.gpuFreeBytes)} on the graphics card</>}
+        . TRACE checks again every few seconds and carries on by itself when there is room.
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={sent !== null}
+          onClick={() => choose("anyway")}
+          className="trace-btn trace-btn-secondary trace-press disabled:opacity-50"
+        >
+          Write notes anyway
+        </button>
+        <button
+          type="button"
+          disabled={sent !== null}
+          onClick={() => choose("later")}
+          className="trace-btn trace-btn-quiet trace-press disabled:opacity-50"
+        >
+          Later
+        </button>
+        <span className="text-2xs text-ink-faint">
+          Anyway may slow this computer right down while the model loads.
+        </span>
+      </div>
     </div>
   );
 }

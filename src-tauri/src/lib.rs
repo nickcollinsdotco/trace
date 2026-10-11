@@ -15,6 +15,7 @@ pub mod commands;
 pub mod diagnostics;
 /// Meeting domain types. Distinct from `models`, which manages ASR model files.
 pub mod meeting;
+pub mod memory;
 pub mod models;
 pub mod settings;
 pub mod store;
@@ -97,6 +98,7 @@ pub fn run() {
             commands::capture_status,
             commands::scope_frame,
             commands::update_notes,
+            commands::capture_notes,
             commands::set_title,
             commands::stop_capture,
             commands::list_notes,
@@ -105,6 +107,10 @@ pub fn run() {
             commands::recoverable_sessions,
             commands::recover_session,
             commands::discard_session,
+            commands::interrupted_notes,
+            commands::resume_notes,
+            commands::dismiss_interrupted,
+            commands::memory_wait_choice,
             commands::reveal_notes_folder,
             commands::regenerate_notes,
             commands::can_regenerate,

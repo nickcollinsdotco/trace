@@ -261,6 +261,55 @@ pub const SENSITIVE_THRESHOLD: f32 = 0.0025;
 /// threshold to zero and call its own dither speech; the lower clamp stops
 /// that.
 pub fn adaptive_threshold(samples: &[f32], frame_size: usize) -> f32 {
+    let mut energies = FrameEnergies::new(frame_size);
+    energies.push(samples);
+    energies.threshold()
+}
+
+/// Frame energies gathered a piece at a time, for a recording too long to
+/// hold: one number per 30 ms frame, kilobytes for an hour. Frames are cut
+/// from the start of the stream exactly as `adaptive_threshold` cuts them
+/// from a whole buffer, so the threshold is the same however it arrives.
+pub struct FrameEnergies {
+    frame_size: usize,
+    partial: Vec<f32>,
+    energies: Vec<f32>,
+}
+
+impl FrameEnergies {
+    pub fn new(frame_size: usize) -> Self {
+        Self {
+            frame_size,
+            partial: Vec::with_capacity(frame_size),
+            energies: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, mut samples: &[f32]) {
+        if self.frame_size == 0 {
+            return;
+        }
+        while !samples.is_empty() {
+            let take = (self.frame_size - self.partial.len()).min(samples.len());
+            self.partial.extend_from_slice(&samples[..take]);
+            samples = &samples[take..];
+            if self.partial.len() == self.frame_size {
+                let f = &self.partial;
+                self.energies
+                    .push((f.iter().map(|s| s * s).sum::<f32>() / f.len() as f32).sqrt());
+                self.partial.clear();
+            }
+        }
+    }
+
+    /// The threshold for everything pushed. A trailing partial frame is
+    /// ignored, as `adaptive_threshold` ignores it.
+    pub fn threshold(self) -> f32 {
+        threshold_from_energies(self.energies)
+    }
+}
+
+fn threshold_from_energies(mut energies: Vec<f32>) -> f32 {
     /// How far from the noise floor towards the speech level to sit.
     ///
     /// Low, because the two errors are not equal: a threshold slightly too
@@ -273,12 +322,6 @@ pub fn adaptive_threshold(samples: &[f32], frame_size: usize) -> f32 {
     /// Never louder than this — the point at which a threshold starts
     /// discarding ordinary speech. It is the old fixed value.
     const MAX: f32 = 0.012;
-
-    let mut energies: Vec<f32> = samples
-        .chunks(frame_size)
-        .filter(|f| f.len() == frame_size)
-        .map(|f| (f.iter().map(|s| s * s).sum::<f32>() / f.len() as f32).sqrt())
-        .collect();
 
     if energies.is_empty() {
         return MAX;

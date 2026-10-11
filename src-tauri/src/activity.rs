@@ -78,6 +78,31 @@ pub enum Outcome {
     },
 }
 
+/// Notes held back because the summary model has no room to load.
+///
+/// Carried on the job rather than as a failure, because the notes are still
+/// coming: TRACE looks again every few seconds, and the user can close
+/// something, write them anyway, or put them off.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct MemoryWait {
+    pub needed_bytes: u64,
+    pub ram_available_bytes: u64,
+    /// Absent when the GPU's memory cannot be read.
+    pub gpu_free_bytes: Option<u64>,
+    /// Unix milliseconds.
+    pub since: u64,
+}
+
+/// What the user said to a wait for memory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WaitChoice {
+    /// Load the model regardless. Theirs to decide; TRACE only advises.
+    Anyway,
+    /// Stop waiting and leave the notes for later.
+    Later,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Job {
     pub id: u64,
@@ -85,8 +110,14 @@ pub struct Job {
     pub title: String,
     pub queued_at: u64,
     pub steps: Vec<Step>,
+    /// Present while the job is waiting for memory.
+    pub waiting: Option<MemoryWait>,
     /// Absent while the job is queued or running.
     pub outcome: Option<Outcome>,
+    /// Kept for the rest of the job: someone who said "anyway" once should
+    /// not be asked again at every part of the same meeting.
+    #[serde(skip)]
+    choice: Option<WaitChoice>,
 }
 
 impl Job {
@@ -158,7 +189,9 @@ impl Activity {
             title: title.to_string(),
             queued_at: now_ms(),
             steps,
+            waiting: None,
             outcome: None,
+            choice: None,
         });
 
         Ok(id)
@@ -239,6 +272,7 @@ impl Activity {
                 step.failed = failed;
             }
             job.steps.retain(|s| s.started_at.is_some());
+            job.waiting = None;
             job.outcome = Some(outcome);
         });
 
@@ -249,6 +283,36 @@ impl Activity {
                 jobs.list.remove(i);
             }
         }
+    }
+
+    /// Show the job as waiting for memory, or no longer waiting.
+    pub fn set_waiting(&self, id: u64, wait: Option<MemoryWait>) {
+        self.with(id, |job| job.waiting = wait);
+    }
+
+    /// Record the user's answer to a wait, for the job running on this note.
+    /// False when there is no such job, so the UI can say it had finished.
+    pub fn choose(&self, note_path: &str, choice: WaitChoice) -> bool {
+        let mut jobs = self.jobs();
+        match jobs
+            .list
+            .iter_mut()
+            .find(|j| j.note_path == note_path && !j.finished())
+        {
+            Some(job) => {
+                job.choice = Some(choice);
+                true
+            }
+            None => false,
+        }
+    }
+
+    pub fn choice(&self, id: u64) -> Option<WaitChoice> {
+        self.jobs()
+            .list
+            .iter()
+            .find(|j| j.id == id)
+            .and_then(|j| j.choice)
     }
 
     fn with(&self, id: u64, f: impl FnOnce(&mut Job)) {
@@ -270,7 +334,7 @@ impl Default for Activity {
     }
 }
 
-fn now_ms() -> u64 {
+pub fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -443,6 +507,42 @@ mod tests {
         let jobs = a.snapshot();
         assert_eq!(jobs.iter().filter(|j| j.finished()).count(), FINISHED_KEPT);
         assert!(jobs.iter().any(|j| j.id == running));
+    }
+
+    #[test]
+    fn a_choice_reaches_the_running_job_and_stays_for_it() {
+        let a = Activity::new();
+        let id = a.begin("a.md", "A", false).unwrap();
+        a.set_waiting(
+            id,
+            Some(MemoryWait {
+                needed_bytes: 1,
+                ram_available_bytes: 2,
+                gpu_free_bytes: None,
+                since: 3,
+            }),
+        );
+        assert!(a.snapshot()[0].waiting.is_some());
+
+        assert!(a.choose("a.md", WaitChoice::Anyway));
+        assert_eq!(a.choice(id), Some(WaitChoice::Anyway));
+        assert_eq!(a.choice(id), Some(WaitChoice::Anyway), "not consumed");
+        assert!(!a.choose("other.md", WaitChoice::Later));
+
+        a.finish(
+            id,
+            Outcome::Failed {
+                message: "x".into(),
+            },
+        );
+        assert!(
+            a.snapshot()[0].waiting.is_none(),
+            "a finished job waits for nothing"
+        );
+        assert!(
+            !a.choose("a.md", WaitChoice::Later),
+            "nothing left to answer"
+        );
     }
 
     #[test]

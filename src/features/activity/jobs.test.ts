@@ -5,6 +5,7 @@ import {
   formatDuration,
   headline,
   isQueued,
+  isWaitingForMemory,
   liveFallback,
   partsDone,
   stepLabel,
@@ -15,7 +16,7 @@ function step(kind: StepKind, from: number | null = null, to: number | null = nu
 }
 
 function job(steps: JobStep[], outcome: Job["outcome"] = null): Job {
-  return { id: 1, notePath: "a.md", title: "A", queuedAt: 0, steps, outcome };
+  return { id: 1, notePath: "a.md", title: "A", queuedAt: 0, steps, waiting: null, outcome };
 }
 
 const part = (index: number, total: number): StepKind => ({ kind: "part", index, total });
@@ -26,6 +27,19 @@ describe("jobs", () => {
     expect(isQueued(queued)).toBe(true);
     expect(currentStep(queued)).toBeNull();
     expect(headline(queued)).toBe("waiting for another meeting's notes");
+  });
+
+  it("says a job held back for memory is waiting, not writing", () => {
+    const waiting: Job = {
+      ...job([step(part(1, 1), 1)]),
+      waiting: { neededBytes: 1, ramAvailableBytes: 1, gpuFreeBytes: null, since: 1 },
+    };
+    expect(isWaitingForMemory(waiting)).toBe(true);
+    expect(headline(waiting)).toBe("waiting for memory");
+    // Finished, it waits for nothing, whatever a stale snapshot says.
+    expect(isWaitingForMemory({ ...waiting, outcome: { state: "failed", message: "x" } })).toBe(
+      false,
+    );
   });
 
   it("names a single part as the whole job, not 'part 1 of 1'", () => {

@@ -47,6 +47,7 @@ fn main() {
         if p.total > 1 {
             println!("  window {} of {}...", p.window, p.total);
         }
+        Ok(())
     }) {
         Ok((generated, report)) => {
             println!("  took {:.1}s\n", started.elapsed().as_secs_f64());

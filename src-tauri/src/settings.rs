@@ -37,16 +37,35 @@ pub enum AudioRetention {
 }
 
 /// When the summary model occupies memory.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SummaryMemory {
     /// Loaded when a meeting starts, so notes are ready sooner after it ends.
     /// The first load after a boot takes about a minute.
-    #[default]
     DuringMeetings,
     /// Loaded only to write notes, and released straight after — for machines
     /// where the model and a video call compete for the same memory.
     WhileWriting,
+}
+
+/// Memory at which keeping the model loaded through meetings is the default.
+///
+/// The 14B is ~11 GiB loaded, and a meeting is when a call, a browser and
+/// whatever else is open are using the most memory they will all day. Below
+/// this, holding it through the call is how a busy machine was tipped over;
+/// above it, there is room for both. 48 GiB rather than 32 because a "32 GB"
+/// machine reports about 31, and that is the one that froze.
+pub const DURING_MEETINGS_FROM: u64 = 48 << 30;
+
+impl SummaryMemory {
+    /// What a machine with `total_ram` bytes should do unless told otherwise.
+    pub fn recommended(total_ram: u64) -> Self {
+        if total_ram >= DURING_MEETINGS_FROM {
+            Self::DuringMeetings
+        } else {
+            Self::WhileWriting
+        }
+    }
 }
 
 /// When the mini window opens by itself during a meeting (docs/13, Q16).
@@ -98,7 +117,13 @@ pub struct Settings {
     pub speech_model: Option<String>,
     /// Ollama model name. `None` means the first preferred one installed.
     pub summary_model: Option<String>,
-    pub summary_memory: SummaryMemory,
+    /// The user's choice; `None` follows `SummaryMemory::recommended`.
+    summary_memory_choice: Option<SummaryMemory>,
+    /// Superseded by `summary_memory_choice`. Every file used to carry it,
+    /// chosen or not, so only "while writing" — never the old default — can
+    /// be read as a choice. Never written back.
+    #[serde(rename = "summary_memory", skip_serializing)]
+    legacy_summary_memory: Option<SummaryMemory>,
     /// Microphone the setup panel selects first, by device name.
     pub default_mic: Option<String>,
     pub mini_auto: MiniAuto,
@@ -127,6 +152,26 @@ impl Settings {
     pub fn set_audio_retention(&mut self, retention: AudioRetention) {
         self.audio_retention = Some(retention);
     }
+
+    /// The user's choice, or what suits this machine's memory.
+    pub fn summary_memory(&self) -> SummaryMemory {
+        self.summary_memory_for(crate::memory::total_ram())
+    }
+
+    fn summary_memory_for(&self, total_ram: u64) -> SummaryMemory {
+        self.chosen_summary_memory()
+            .unwrap_or_else(|| SummaryMemory::recommended(total_ram))
+    }
+
+    fn chosen_summary_memory(&self) -> Option<SummaryMemory> {
+        self.summary_memory_choice.or(self
+            .legacy_summary_memory
+            .filter(|m| *m == SummaryMemory::WhileWriting))
+    }
+
+    pub fn set_summary_memory(&mut self, memory: SummaryMemory) {
+        self.summary_memory_choice = Some(memory);
+    }
 }
 
 /// Settings as the UI reads them: the retention already resolved, so the
@@ -137,6 +182,11 @@ pub struct SettingsView {
     pub speech_model: String,
     pub summary_model: Option<String>,
     pub summary_memory: SummaryMemory,
+    /// Nobody has chosen, so `summary_memory` is what suits this machine.
+    pub summary_memory_auto: bool,
+    pub summary_memory_recommended: SummaryMemory,
+    /// What the recommendation was made from, so Settings can say so.
+    pub memory_total_bytes: u64,
     pub default_mic: Option<String>,
     pub mini_auto: MiniAuto,
     /// Empty for none.
@@ -152,7 +202,10 @@ impl From<&Settings> for SettingsView {
             audio_retention: s.audio_retention(),
             speech_model: crate::models::active_speech_model().id.to_string(),
             summary_model: s.summary_model.clone(),
-            summary_memory: s.summary_memory,
+            summary_memory: s.summary_memory(),
+            summary_memory_auto: s.chosen_summary_memory().is_none(),
+            summary_memory_recommended: SummaryMemory::recommended(crate::memory::total_ram()),
+            memory_total_bytes: crate::memory::total_ram(),
             default_mic: s.default_mic.clone(),
             mini_auto: s.mini_auto,
             mini_shortcut: s.mini_shortcut(),
@@ -239,6 +292,44 @@ mod tests {
             back.audio_retention(),
             AudioRetention::KeepLatest { count: 5 }
         );
+    }
+
+    const GIB: u64 = 1 << 30;
+
+    #[test]
+    fn the_model_stays_out_of_meetings_unless_the_machine_has_room_for_both() {
+        let s = Settings::default();
+        assert_eq!(s.summary_memory_for(31 * GIB), SummaryMemory::WhileWriting);
+        assert_eq!(
+            s.summary_memory_for(64 * GIB),
+            SummaryMemory::DuringMeetings
+        );
+    }
+
+    #[test]
+    fn a_choice_beats_the_recommendation_either_way() {
+        let mut s = Settings::default();
+        s.set_summary_memory(SummaryMemory::DuringMeetings);
+        assert_eq!(
+            s.summary_memory_for(16 * GIB),
+            SummaryMemory::DuringMeetings
+        );
+        s.set_summary_memory(SummaryMemory::WhileWriting);
+        assert_eq!(s.summary_memory_for(128 * GIB), SummaryMemory::WhileWriting);
+    }
+
+    #[test]
+    fn an_old_file_keeps_only_what_it_can_prove_was_chosen() {
+        // "during_meetings" was written for everyone, chosen or not.
+        let s: Settings = serde_json::from_str(r#"{"summary_memory":"during_meetings"}"#).unwrap();
+        assert_eq!(s.summary_memory_for(31 * GIB), SummaryMemory::WhileWriting);
+        assert_eq!(s.chosen_summary_memory(), None);
+        // "while_writing" was only ever a choice.
+        let s: Settings = serde_json::from_str(r#"{"summary_memory":"while_writing"}"#).unwrap();
+        assert_eq!(s.summary_memory_for(64 * GIB), SummaryMemory::WhileWriting);
+
+        let json = serde_json::to_string(&s).unwrap();
+        assert!(!json.contains("\"summary_memory\""), "{json}");
     }
 
     #[test]

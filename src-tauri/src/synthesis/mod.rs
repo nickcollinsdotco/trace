@@ -31,6 +31,9 @@ pub enum SynthesisError {
     Malformed(String),
     #[error("there is nothing to summarise")]
     EmptyTranscript,
+    /// Stopped between parts by the caller, with its reason.
+    #[error("{0}")]
+    Stopped(String),
 }
 
 /// A source of meeting synthesis.
@@ -76,10 +79,13 @@ pub struct SynthesisProgress {
 }
 
 /// Synthesise a meeting and discard anything the model made up.
+///
+/// `on_progress` is called before every request and may stop the run: it is
+/// where the caller checks there is still memory for the next part.
 pub fn generate(
     provider: &dyn LlmProvider,
     meeting: &Meeting,
-    mut on_progress: impl FnMut(SynthesisProgress),
+    mut on_progress: impl FnMut(SynthesisProgress) -> Result<(), SynthesisError>,
 ) -> Result<(GeneratedMeeting, ValidationReport), SynthesisError> {
     let has_speech = meeting.transcript.iter().any(|s| !s.text.trim().is_empty());
     let has_notes = !meeting.notes.trim().is_empty();
@@ -98,7 +104,7 @@ pub fn generate(
             window: window.index,
             total,
             combining: false,
-        });
+        })?;
 
         let label = if total == 1 {
             "notes".to_string()
@@ -124,7 +130,7 @@ pub fn generate(
             window: total,
             total,
             combining: true,
-        });
+        })?;
         match provider.condense(&summaries, &merged.key_points) {
             Ok(condensed) => {
                 if combine_summaries && !condensed.summary.trim().is_empty() {
@@ -368,7 +374,7 @@ mod tests {
     fn a_meeting_with_neither_speech_nor_notes_is_refused() {
         let p = StubProvider::new(vec![]);
         assert!(matches!(
-            generate(&p, &Meeting::new("m", "T"), |_| {}),
+            generate(&p, &Meeting::new("m", "T"), |_| Ok(())),
             Err(SynthesisError::EmptyTranscript)
         ));
     }
@@ -386,7 +392,7 @@ mod tests {
             ..Default::default()
         }]);
 
-        let (g, r) = generate(&p, &m, |_| {}).unwrap();
+        let (g, r) = generate(&p, &m, |_| Ok(())).unwrap();
         assert_eq!(g.decisions.len(), 1, "a note should be citable");
         assert!(r.is_clean());
     }
@@ -404,7 +410,7 @@ mod tests {
             ..Default::default()
         }]);
 
-        let (g, r) = generate(&p, &m, |_| {}).unwrap();
+        let (g, r) = generate(&p, &m, |_| Ok(())).unwrap();
         assert_eq!(g.key_points.len(), 1);
         assert!(r.is_clean());
     }
@@ -415,7 +421,11 @@ mod tests {
         let p = StubProvider::new(vec![]);
 
         let mut progress = Vec::new();
-        generate(&p, &m, |x| progress.push((x.window, x.total))).unwrap();
+        generate(&p, &m, |x| {
+            progress.push((x.window, x.total));
+            Ok(())
+        })
+        .unwrap();
 
         assert!(p.calls() > 1, "a long meeting should window");
         assert_eq!(progress.len(), p.calls(), "progress reported per window");
@@ -440,7 +450,7 @@ mod tests {
             },
         ]);
 
-        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        let (g, _) = generate(&p, &m, |_| Ok(())).unwrap();
         let texts: Vec<&str> = g.decisions.iter().map(|d| d.text.as_str()).collect();
         assert!(texts.contains(&"decision from window one"));
         assert!(texts.contains(&"decision from window two"));
@@ -456,7 +466,7 @@ mod tests {
         };
         let p = StubProvider::new(vec![repeated(), repeated(), repeated()]);
 
-        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        let (g, _) = generate(&p, &m, |_| Ok(())).unwrap();
         assert_eq!(g.decisions.len(), 1, "the same decision should appear once");
     }
 
@@ -476,7 +486,7 @@ mod tests {
             },
         ]);
 
-        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        let (g, _) = generate(&p, &m, |_| Ok(())).unwrap();
         assert_eq!(g.decisions.len(), 1);
     }
 
@@ -488,7 +498,7 @@ mod tests {
             ..Default::default()
         }]);
 
-        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        let (g, _) = generate(&p, &m, |_| Ok(())).unwrap();
         assert_eq!(g.summary, "Exactly this.");
     }
 
@@ -501,7 +511,7 @@ mod tests {
             ..Default::default()
         }]);
 
-        let (g, r) = generate(&p, &m, |_| {}).unwrap();
+        let (g, r) = generate(&p, &m, |_| Ok(())).unwrap();
         assert!(g.decisions.is_empty());
         assert_eq!(r.fabricated, 1);
     }
@@ -517,7 +527,7 @@ mod tests {
             ],
         });
 
-        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        let (g, _) = generate(&p, &m, |_| Ok(())).unwrap();
 
         assert_eq!(p.condense_calls(), 1);
         assert_eq!(g.summary, "The whole meeting, in one.");
@@ -543,7 +553,7 @@ mod tests {
             key_points: many,
         });
 
-        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        let (g, _) = generate(&p, &m, |_| Ok(())).unwrap();
         assert_eq!(g.key_points.len(), prompt::KEY_POINTS_MAX);
     }
 
@@ -560,7 +570,7 @@ mod tests {
             ],
         });
 
-        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        let (g, _) = generate(&p, &m, |_| Ok(())).unwrap();
         let texts: Vec<&str> = g.key_points.iter().map(|c| c.text.as_str()).collect();
         assert_eq!(texts, vec!["real"]);
     }
@@ -571,7 +581,7 @@ mod tests {
         // No `condensing`: the pass is unsupported, as a failure would be.
         let p = StubProvider::new(two_windows_of_points(49));
 
-        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        let (g, _) = generate(&p, &m, |_| Ok(())).unwrap();
 
         assert_eq!(g.key_points.len(), prompt::KEY_POINTS_MAX);
         let texts: Vec<&str> = g.key_points.iter().map(|c| c.text.as_str()).collect();
@@ -593,7 +603,7 @@ mod tests {
             key_points: vec![chosen("nothing real", &[500])],
         });
 
-        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        let (g, _) = generate(&p, &m, |_| Ok(())).unwrap();
         assert_eq!(g.key_points.len(), prompt::KEY_POINTS_MAX);
         assert_eq!(
             g.summary, "First part. Second part.",
@@ -613,7 +623,11 @@ mod tests {
         }]);
 
         let mut combining = false;
-        let (g, _) = generate(&p, &m, |x| combining |= x.combining).unwrap();
+        let (g, _) = generate(&p, &m, |x| {
+            combining |= x.combining;
+            Ok(())
+        })
+        .unwrap();
         assert_eq!(p.condense_calls(), 0);
         assert!(!combining);
         assert_eq!(g.key_points.len(), 8);
@@ -625,16 +639,35 @@ mod tests {
         let p = StubProvider::new(two_windows_of_points(20));
 
         let mut progress = Vec::new();
-        generate(&p, &m, |x| progress.push(x.combining)).unwrap();
+        generate(&p, &m, |x| {
+            progress.push(x.combining);
+            Ok(())
+        })
+        .unwrap();
         assert_eq!(progress.last(), Some(&true));
         assert_eq!(progress.iter().filter(|c| **c).count(), 1);
+    }
+
+    #[test]
+    fn a_run_stopped_between_parts_makes_no_further_requests() {
+        let m = meeting_with_lines(800);
+        let p = StubProvider::new(vec![]);
+        let result = generate(&p, &m, |x| {
+            if x.window == 2 {
+                Err(SynthesisError::Stopped("no memory".into()))
+            } else {
+                Ok(())
+            }
+        });
+        assert!(matches!(result, Err(SynthesisError::Stopped(_))));
+        assert_eq!(p.calls(), 1, "only the part before the stop was asked for");
     }
 
     #[test]
     fn provenance_records_the_provider() {
         let m = meeting_with_lines(2);
         let p = StubProvider::new(vec![]);
-        let (g, _) = generate(&p, &m, |_| {}).unwrap();
+        let (g, _) = generate(&p, &m, |_| Ok(())).unwrap();
         assert_eq!(g.model, "stub");
     }
 }

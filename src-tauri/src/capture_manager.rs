@@ -23,8 +23,8 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter};
 
-use crate::activity::{Outcome, StepKind, ACTIVITY, EVENT_ACTIVITY};
-use crate::audio::session::{CaptureSession, SessionSummary};
+use crate::activity::{MemoryWait, Outcome, StepKind, WaitChoice, ACTIVITY, EVENT_ACTIVITY};
+use crate::audio::session::{CaptureSession, SessionSummary, StreamOutcome};
 use crate::audio::{CapturedAudio, StreamSource};
 use crate::diagnostics;
 use crate::meeting::Meeting;
@@ -79,6 +79,10 @@ pub struct CaptureStatus {
     pub mic: Option<String>,
     /// The transcription model this meeting uses, as people know it.
     pub speech_model: String,
+    /// The summary model has no room right now, so its notes may have to
+    /// wait once the meeting ends. Said during the meeting, when closing
+    /// something is still an option, rather than discovered after it.
+    pub memory_tight: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -115,11 +119,15 @@ struct Active {
     /// Chosen when the meeting starts and used for its re-pass too, so
     /// switching models mid-meeting cannot give one transcript two engines.
     speech: &'static crate::models::ModelSpec,
-    /// The summary model, kept loaded from the start of the meeting until its
-    /// notes are written. `None` when the user keeps it out of memory during
-    /// meetings, or Ollama was not ready.
+    /// Watches memory through the meeting and, when the user keeps the
+    /// summary model ready, holds it loaded until the notes are written.
+    /// `None` when Ollama was not ready.
     model_hold: Option<crate::synthesis::ollama::ModelHold>,
     mic: Option<String>,
+    /// The latest notes journalled, so a recording screen opened mid-meeting
+    /// starts from them. Each journal entry is the whole text, so a screen
+    /// that started empty would replace them all with its first keystroke.
+    notes: String,
 }
 
 /// The application's capture state. One meeting at a time, by design.
@@ -186,18 +194,17 @@ impl CaptureManager {
         })?;
         let journal = Arc::new(Mutex::new(journal));
 
-        // Load the language model now, in the background. Synthesis does not
-        // run until the meeting ends, but the first load after a cold boot
-        // takes about a minute, and paying it during the meeting means the
-        // user never waits for it afterwards.
-        let model_hold = if crate::settings::load().summary_memory
-            == crate::settings::SummaryMemory::DuringMeetings
-        {
-            default_provider()
-                .map(|provider| crate::synthesis::ollama::ModelHold::keep_loaded(provider.model()))
-        } else {
-            None
-        };
+        // Load the language model now, in the background, if the user keeps
+        // it ready and there is room. Synthesis does not run until the
+        // meeting ends, but the first load after a cold boot takes about a
+        // minute, and paying it during the meeting means the user never waits
+        // for it afterwards. Either way memory is watched, so a meeting whose
+        // notes will have to wait can say so while it is still running.
+        let preload = crate::settings::load().summary_memory()
+            == crate::settings::SummaryMemory::DuringMeetings;
+        let model_hold = default_provider().map(|provider| {
+            crate::synthesis::ollama::ModelHold::for_meeting(provider.model(), preload)
+        });
 
         // Load the transcription engine before capture starts. It takes about
         // a second, and doing it afterwards would miss the opening.
@@ -237,6 +244,7 @@ impl CaptureManager {
             pending_speech_ms: 0,
             mic: mic.clone(),
             speech_model: speech.display_name.to_string(),
+            memory_tight: false,
         };
 
         *guard = Some(Active {
@@ -252,6 +260,7 @@ impl CaptureManager {
             speech,
             model_hold,
             mic,
+            notes: String::new(),
         });
 
         Ok(status)
@@ -317,6 +326,10 @@ impl CaptureManager {
                 .unwrap_or(0),
             mic: active.mic.clone(),
             speech_model: active.speech.display_name.to_string(),
+            memory_tight: active
+                .model_hold
+                .as_ref()
+                .is_some_and(crate::synthesis::ollama::ModelHold::tight),
         })
     }
 
@@ -325,13 +338,21 @@ impl CaptureManager {
     /// Journalled as a whole snapshot on every call, so the debounce lives in
     /// the UI where it belongs rather than risking a lost final edit here.
     pub fn update_notes(&self, text: String) -> Result<(), ManagerError> {
-        let guard = self.active.lock().map_err(|_| ManagerError::NotActive)?;
-        let active = guard.as_ref().ok_or(ManagerError::NotActive)?;
+        let mut guard = self.active.lock().map_err(|_| ManagerError::NotActive)?;
+        let active = guard.as_mut().ok_or(ManagerError::NotActive)?;
 
         if let Ok(mut journal) = active.journal.lock() {
-            journal.append(&JournalEvent::Notes { text })?;
+            journal.append(&JournalEvent::Notes { text: text.clone() })?;
         }
+        active.notes = text;
         Ok(())
+    }
+
+    /// The running meeting's notes as last saved.
+    pub fn notes(&self) -> Result<String, ManagerError> {
+        let guard = self.active.lock().map_err(|_| ManagerError::NotActive)?;
+        let active = guard.as_ref().ok_or(ManagerError::NotActive)?;
+        Ok(active.notes.clone())
     }
 
     pub fn set_title(&self, title: String) -> Result<(), ManagerError> {
@@ -460,12 +481,13 @@ impl CaptureManager {
         let notes_root = self.notes_root()?;
         let note_path = store::write_note(&notes_root, &meeting)?;
 
-        // The re-pass runs in the background rather than blocking here. At
-        // roughly 25x realtime an hour-long meeting takes about two and a half
-        // minutes to re-transcribe, and holding the UI on "Saving..." for that
-        // long after a meeting ends would be worse than briefly showing a
-        // slightly rougher transcript. The note on disk is already complete and
-        // correct; the re-pass only improves its wording.
+        // The re-pass runs in the background rather than blocking here. Each
+        // stream runs at roughly 25x realtime, but there are two, transcribed
+        // one after the other, so an hour-long meeting takes four to five
+        // minutes — 4.5 measured on a Ryzen 7 7800X3D. Holding the UI on
+        // "Saving..." for that long after a meeting ends would be worse than
+        // briefly showing a slightly rougher transcript. The note on disk is
+        // already complete and correct; the re-pass only improves its wording.
         //
         // The session directory is deliberately NOT discarded here — the
         // re-pass still needs the WAVs and the journal.
@@ -486,6 +508,7 @@ impl CaptureManager {
             summary.clone(),
             active.speech,
             active.model_hold,
+            Underway::begin(&active.dir, &note_path),
         );
 
         Ok(FinishedMeeting {
@@ -546,6 +569,11 @@ impl Tracked {
         self.publish();
     }
 
+    fn waiting(&self, wait: Option<MemoryWait>) {
+        ACTIVITY.set_waiting(self.id, wait);
+        self.publish();
+    }
+
     fn fail(&self, message: String) {
         diagnostics::log(format!("summary failed: {message}"));
         self.finish(Outcome::Failed { message });
@@ -589,10 +617,236 @@ pub fn regenerate(
         });
     let id = ACTIVITY.begin(&note_path.display().to_string(), &title, false)?;
     let job = Tracked::new(app.clone(), id);
+    let _underway = Underway::begin(session_dir, note_path);
 
     let _lane = ACTIVITY.lane();
     synthesize(app, &job, session_dir, note_path);
     Ok(())
+}
+
+/// Finish the notes of a meeting whose work was cut off.
+///
+/// Picks up where it stopped. If the full-quality pass never finished and
+/// the audio is still there, it runs again first, exactly as it would have
+/// after the meeting; otherwise the audio is released as the retention
+/// setting says and only the notes are written.
+pub fn resume(
+    app: &AppHandle,
+    notes_root: &std::path::Path,
+    session_dir: &std::path::Path,
+) -> Result<(), String> {
+    let replay = crate::store::journal::replay(session_dir).map_err(|e| e.to_string())?;
+    let note_path = replay
+        .note_path
+        .clone()
+        .filter(|p| p.exists())
+        .or_else(|| store::find_note(notes_root, &replay.meeting.id))
+        .ok_or("this meeting's note is no longer in the notes folder")?;
+    let summary = SessionSummary {
+        session_id: replay.meeting.id.clone(),
+        directory: session_dir.to_path_buf(),
+        streams: replay.streams,
+    };
+    let repass = !replay.transcript_replaced
+        && summary
+            .streams
+            .iter()
+            .any(|s| s.is_usable() && s.path.exists());
+    diagnostics::log(if repass {
+        "resuming interrupted notes, full-quality pass first"
+    } else {
+        "resuming interrupted notes"
+    });
+
+    if !repass {
+        release_session_audio(session_dir);
+        return regenerate(app, session_dir, &note_path).map_err(|e| e.to_string());
+    }
+
+    let id = ACTIVITY
+        .begin(
+            &note_path.display().to_string(),
+            &replay.meeting.title,
+            true,
+        )
+        .map_err(|e| e.to_string())?;
+    spawn_repass(
+        app.clone(),
+        Some(Tracked::new(app.clone(), id)),
+        session_dir.to_path_buf(),
+        note_path.clone(),
+        summary,
+        // Which model the meeting used is not journalled. After a restart
+        // the chosen one is the best guess, and every model TRACE offers runs
+        // on the same engine.
+        crate::models::active_speech_model(),
+        None,
+        Underway::begin(session_dir, &note_path),
+    );
+    Ok(())
+}
+
+/// Leave an interrupted meeting's notes unwritten, as the user chose. Its
+/// audio goes as the retention setting says; the journal stays, so the notes
+/// can still be written from the note later.
+pub fn dismiss_interrupted(session_dir: &std::path::Path) {
+    if let Ok(mut journal) = Journal::open(session_dir) {
+        let _ = journal.append(&JournalEvent::NotesFinished);
+    }
+    release_session_audio(session_dir);
+}
+
+/// Settle the audio of a meeting recovered after TRACE stopped mid-recording.
+///
+/// Its WAVs were never finalised, so their headers are mended now, while
+/// nothing holds them, rather than leaving that to whoever opens them next.
+/// Then they go as the retention setting says, like any meeting's.
+pub fn finish_recovered(session_dir: &std::path::Path) {
+    for source in [StreamSource::Microphone, StreamSource::System] {
+        let path = session_dir.join(format!("{}.wav", source.file_stem()));
+        if let Ok(crate::audio::wav::Repair::Repaired { frames }) = crate::audio::wav::repair(&path)
+        {
+            diagnostics::log(format!(
+                "recovered {} audio: {frames} frames",
+                source.file_stem()
+            ));
+        }
+    }
+    release_session_audio(session_dir);
+}
+
+/// Release the audio of an interrupted meeting that no longer needs it: its
+/// full-quality pass finished before the notes were cut off.
+pub fn release_unneeded_audio(interrupted: &store::Interrupted) {
+    if interrupted.replay.transcript_replaced {
+        release_session_audio(&interrupted.session_dir);
+    }
+}
+
+/// Sessions whose notes are being worked on in this run of the app, by id.
+static UNDERWAY: Mutex<Vec<std::ffi::OsString>> = Mutex::new(Vec::new());
+
+/// Whether this session's notes are being worked on now, so an open marker
+/// in its journal means work in progress rather than work cut off.
+pub fn is_underway(session_dir: &std::path::Path) -> bool {
+    session_dir.file_name().is_some_and(|id| {
+        UNDERWAY
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .any(|u| u == id)
+    })
+}
+
+/// Marks a session's notes as in progress — in its journal, and in this run
+/// — until dropped.
+///
+/// Dropped on every way the work ends that the user is shown: written,
+/// failed, put off. Only TRACE itself stopping part-way, or the machine
+/// dying, leaves the journal's mark open, which is exactly the case it is
+/// there to catch.
+struct Underway {
+    dir: PathBuf,
+}
+
+impl Underway {
+    fn begin(session_dir: &std::path::Path, note_path: &std::path::Path) -> Self {
+        if let Ok(mut journal) = Journal::open(session_dir) {
+            let _ = journal.append(&JournalEvent::NotesStarted {
+                note_path: note_path.display().to_string(),
+            });
+        }
+        if let Some(id) = session_dir.file_name() {
+            UNDERWAY
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(id.to_owned());
+        }
+        Self {
+            dir: session_dir.to_path_buf(),
+        }
+    }
+}
+
+impl Drop for Underway {
+    fn drop(&mut self) {
+        if let Ok(mut journal) = Journal::open(&self.dir) {
+            let _ = journal.append(&JournalEvent::NotesFinished);
+        }
+        if let Some(id) = self.dir.file_name() {
+            let mut underway = UNDERWAY.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(i) = underway.iter().position(|u| u == id) {
+                underway.remove(i);
+            }
+        }
+    }
+}
+
+/// How often notes waiting for memory look again.
+const ROOM_RECHECK: Duration = Duration::from_secs(10);
+
+/// What the note says when its notes were put off for want of memory.
+const PUT_OFF: &str = "put off until there is memory for the summary model. Close some apps, then \
+                       write them from this note";
+
+/// Hold notes back until the summary model has room, or the user decides.
+///
+/// Called before every request of a summary — the first, which loads the
+/// model, and each part after, in case the machine has filled up since.
+/// What it saw is logged the first time and whenever the answer changes, so
+/// a slow or stopped summary explains itself from the diagnostics. Returns
+/// the reason, in words for the note, when the user puts the notes off.
+fn wait_for_room(
+    job: &Tracked,
+    model: &str,
+    when: &str,
+    said: &mut Option<bool>,
+) -> Result<(), String> {
+    let mut since: Option<u64> = None;
+    loop {
+        match ACTIVITY.choice(job.id) {
+            Some(WaitChoice::Anyway) => {
+                if since.is_some() {
+                    diagnostics::log("memory check overridden: writing notes anyway");
+                    job.waiting(None);
+                }
+                return Ok(());
+            }
+            Some(WaitChoice::Later) => {
+                diagnostics::log("notes put off while waiting for memory");
+                job.waiting(None);
+                return Err(PUT_OFF.into());
+            }
+            None => {}
+        }
+
+        let check = crate::memory::check(model);
+        if *said != Some(check.fits()) {
+            diagnostics::log(check.describe(when));
+            *said = Some(check.fits());
+        }
+        if check.fits() {
+            if since.is_some() {
+                job.waiting(None);
+            }
+            return Ok(());
+        }
+
+        let started = *since.get_or_insert_with(crate::activity::now_ms);
+        job.waiting(Some(MemoryWait {
+            needed_bytes: check.need.bytes,
+            ram_available_bytes: check.machine.ram_available,
+            gpu_free_bytes: check.machine.gpu.as_ref().map(crate::memory::Gpu::free),
+            since: started,
+        }));
+
+        // In short sleeps, so a choice is acted on at once rather than at
+        // the next look.
+        let until = std::time::Instant::now() + ROOM_RECHECK;
+        while std::time::Instant::now() < until && ACTIVITY.choice(job.id).is_none() {
+            std::thread::sleep(Duration::from_millis(250));
+        }
+    }
 }
 
 /// Generate structured notes from the finished transcript.
@@ -649,6 +903,7 @@ fn synthesize(
         store::context::apply_edits(&mut meeting, &text);
     }
 
+    let mut said = None;
     let result = crate::synthesis::generate(&provider, &meeting, |progress| {
         job.start(if progress.combining {
             StepKind::Combine
@@ -658,10 +913,24 @@ fn synthesize(
                 total: progress.total,
             }
         });
+        let when = if progress.combining {
+            "before the final pass".to_string()
+        } else if progress.window == 1 {
+            "before writing notes".to_string()
+        } else {
+            format!("before part {} of {}", progress.window, progress.total)
+        };
+        wait_for_room(job, provider.model(), &when, &mut said)
+            .map_err(crate::synthesis::SynthesisError::Stopped)
     });
 
     let (generated, report) = match result {
         Ok(pair) => pair,
+        // The user's own choice, logged as such; not a failure.
+        Err(crate::synthesis::SynthesisError::Stopped(message)) => {
+            job.finish(Outcome::Failed { message });
+            return;
+        }
         Err(e) => {
             fail(e.to_string());
             return;
@@ -768,6 +1037,7 @@ fn release_session_audio(session_dir: &std::path::Path) {
 /// both still hold the live transcript, so notes are written from that — the
 /// same notes "Generate summary" would produce from the same journal, without
 /// making the user find the button. The step is shown as failed, with why.
+#[allow(clippy::too_many_arguments)]
 fn spawn_repass(
     app: AppHandle,
     job: Option<Tracked>,
@@ -776,10 +1046,14 @@ fn spawn_repass(
     summary: SessionSummary,
     speech: &'static crate::models::ModelSpec,
     model_hold: Option<crate::synthesis::ollama::ModelHold>,
+    underway: Underway,
 ) {
     std::thread::Builder::new()
         .name("trace-repass".into())
         .spawn(move || {
+            // Dropped last, after the audio: the journal says the work is
+            // done only once all of it is.
+            let _underway = underway;
             // Held until this thread ends, whichever way it ends, so the
             // summary model stays loaded through the queue and the re-pass,
             // and goes as soon as there is nothing left to summarise.
@@ -836,6 +1110,7 @@ fn repass(
 ) -> Result<(), String> {
     // Loading a second engine only after the live one has been dropped
     // keeps peak memory to one model rather than two.
+    let started = std::time::Instant::now();
     let mut engine = Transcriber::load_model(speech)
         .map_err(|e| format!("the transcription model did not load ({e})"))?;
 
@@ -856,9 +1131,22 @@ fn repass(
         segments.append(&mut produced);
     }
 
+    // Gone before anything else is loaded: the summary model comes next, and
+    // the two need never be in memory together.
+    drop(engine);
+
     if segments.is_empty() {
         return Err("the full-quality pass found no speech in the recording".into());
     }
+
+    let usable = || summary.streams.iter().filter(|s| s.is_usable());
+    diagnostics::log(format!(
+        "full-quality pass done in {:.0}s: {} streams, {:.0}s of audio, {} segments",
+        started.elapsed().as_secs_f64(),
+        usable().count(),
+        usable().map(StreamOutcome::duration_secs).sum::<f64>(),
+        segments.len()
+    ));
 
     let segments = crate::transcribe::merge(segments);
 
@@ -971,6 +1259,7 @@ mod tests {
             m.update_notes("x".into()),
             Err(ManagerError::NotActive)
         ));
+        assert!(matches!(m.notes(), Err(ManagerError::NotActive)));
         // `stop` itself needs an AppHandle; this covers the same guard.
         assert!(matches!(m.take_active(), Err(ManagerError::NotActive)));
         assert!(matches!(

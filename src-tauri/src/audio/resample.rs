@@ -32,68 +32,114 @@ pub fn to_16k(input: &[f32], from_rate: u32) -> Result<Vec<f32>, AudioError> {
     if from_rate == TARGET_SAMPLE_RATE {
         return Ok(input.to_vec());
     }
-    if from_rate == 0 {
-        return Err(AudioError::Config("source sample rate is zero".into()));
-    }
+    let mut resampler = To16k::new(from_rate)?;
     if input.is_empty() {
         return Ok(Vec::new());
     }
-
-    let mut resampler = Fft::<f32>::new(
-        from_rate as usize,
-        TARGET_SAMPLE_RATE as usize,
-        CHUNK_SIZE,
-        SUB_CHUNKS,
-        1, // mono
-        FixedSync::Input,
-    )
-    .map_err(|e| AudioError::Config(format!("resampler construction failed: {e}")))?;
-
     let expected = input.len() * TARGET_SAMPLE_RATE as usize / from_rate as usize;
     let mut output = Vec::with_capacity(expected + CHUNK_SIZE);
-    let mut pos = 0;
+    resampler.push(input, &mut output)?;
+    resampler.finish(&mut output)?;
+    Ok(output)
+}
 
-    // Whole blocks first.
-    loop {
-        let needed = resampler.input_frames_next();
-        if pos + needed > input.len() {
-            break;
+/// Resampling to 16 kHz a piece at a time, for audio too long to hold.
+///
+/// An hour at 48 kHz is ~690 MB as `f32`; this holds one block. Fed the same
+/// samples in any number of pieces, it produces exactly what `to_16k` does
+/// on the whole — which is `to_16k`, so the two cannot drift.
+pub struct To16k {
+    /// `None` when the input is already at 16 kHz.
+    resampler: Option<Fft<f32>>,
+    from_rate: u32,
+    /// Input not yet making a whole block.
+    pending: Vec<f32>,
+}
+
+impl To16k {
+    pub fn new(from_rate: u32) -> Result<Self, AudioError> {
+        if from_rate == 0 {
+            return Err(AudioError::Config("source sample rate is zero".into()));
         }
-
-        let adapter = InterleavedSlice::new(&input[pos..pos + needed], 1, needed)
-            .map_err(|e| AudioError::Config(format!("input adapter: {e}")))?;
-        let block = resampler
-            .process(&adapter, 0, None)
-            .map_err(|e| AudioError::Config(format!("resample failed: {e}")))?;
-
-        append_mono(&mut output, &block);
-        pos += needed;
+        let resampler = if from_rate == TARGET_SAMPLE_RATE {
+            None
+        } else {
+            Some(
+                Fft::<f32>::new(
+                    from_rate as usize,
+                    TARGET_SAMPLE_RATE as usize,
+                    CHUNK_SIZE,
+                    SUB_CHUNKS,
+                    1, // mono
+                    FixedSync::Input,
+                )
+                .map_err(|e| AudioError::Config(format!("resampler construction failed: {e}")))?,
+            )
+        };
+        Ok(Self {
+            resampler,
+            from_rate,
+            pending: Vec::new(),
+        })
     }
 
-    // Zero-pad the remainder up to a full block rather than discarding it.
-    // Dropping the tail would silently truncate up to ~85 ms from the end of
-    // every recording — and the end of a meeting is where the decisions are.
-    if pos < input.len() {
-        let needed = resampler.input_frames_next();
-        let mut tail = vec![0.0f32; needed];
-        let remaining = input.len() - pos;
-        tail[..remaining].copy_from_slice(&input[pos..]);
+    /// Resample whatever whole blocks `input` completes, appending to `out`.
+    pub fn push(&mut self, input: &[f32], out: &mut Vec<f32>) -> Result<(), AudioError> {
+        let Some(resampler) = self.resampler.as_mut() else {
+            out.extend_from_slice(input);
+            return Ok(());
+        };
+        self.pending.extend_from_slice(input);
 
-        let adapter = InterleavedSlice::new(&tail, 1, needed)
+        let mut pos = 0;
+        loop {
+            let needed = resampler.input_frames_next();
+            if pos + needed > self.pending.len() {
+                break;
+            }
+            let adapter = InterleavedSlice::new(&self.pending[pos..pos + needed], 1, needed)
+                .map_err(|e| AudioError::Config(format!("input adapter: {e}")))?;
+            let block = resampler
+                .process(&adapter, 0, None)
+                .map_err(|e| AudioError::Config(format!("resample failed: {e}")))?;
+            append_mono(out, &block);
+            pos += needed;
+        }
+        self.pending.drain(..pos);
+        Ok(())
+    }
+
+    /// Resample the remainder, appending to `out`.
+    ///
+    /// Zero-padded up to a full block rather than discarded. Dropping the tail
+    /// would silently truncate up to ~85 ms from the end of every recording —
+    /// and the end of a meeting is where the decisions are.
+    pub fn finish(mut self, out: &mut Vec<f32>) -> Result<(), AudioError> {
+        let Some(resampler) = self.resampler.as_mut() else {
+            return Ok(());
+        };
+        if self.pending.is_empty() {
+            return Ok(());
+        }
+
+        let needed = resampler.input_frames_next();
+        let remaining = self.pending.len();
+        self.pending.resize(needed, 0.0);
+
+        let adapter = InterleavedSlice::new(&self.pending, 1, needed)
             .map_err(|e| AudioError::Config(format!("tail adapter: {e}")))?;
         let block = resampler
             .process(&adapter, 0, None)
             .map_err(|e| AudioError::Config(format!("resample tail failed: {e}")))?;
 
-        let before = output.len();
-        append_mono(&mut output, &block);
+        let before = out.len();
+        append_mono(out, &block);
 
         // Keep only the samples corresponding to real input, not the padding.
-        let real = remaining * TARGET_SAMPLE_RATE as usize / from_rate as usize;
-        output.truncate(before + real.min(output.len() - before));
+        let real = remaining * TARGET_SAMPLE_RATE as usize / self.from_rate as usize;
+        out.truncate(before + real.min(out.len() - before));
+        Ok(())
     }
-
-    Ok(output)
 }
 
 /// Copy channel 0 out of a resampler output block.
@@ -205,6 +251,34 @@ mod tests {
             (freq - 440.0).abs() < 20.0,
             "expected ~440 Hz, measured {freq:.1} Hz"
         );
+    }
+
+    #[test]
+    fn resampling_in_pieces_matches_resampling_the_whole() {
+        // The full-quality pass streams a recording through `To16k` rather
+        // than holding it; the transcript must not change for that.
+        let input = sine(440.0, 48_000, 2.3);
+        let whole = to_16k(&input, 48_000).unwrap();
+
+        for piece in [480, 4096, 12_345] {
+            let mut r = To16k::new(48_000).unwrap();
+            let mut out = Vec::new();
+            for slice in input.chunks(piece) {
+                r.push(slice, &mut out).unwrap();
+            }
+            r.finish(&mut out).unwrap();
+            assert_eq!(out, whole, "pieces of {piece}");
+        }
+    }
+
+    #[test]
+    fn a_stream_already_at_16k_passes_through() {
+        let mut r = To16k::new(16_000).unwrap();
+        let mut out = Vec::new();
+        r.push(&[0.1, 0.2], &mut out).unwrap();
+        r.push(&[0.3], &mut out).unwrap();
+        r.finish(&mut out).unwrap();
+        assert_eq!(out, vec![0.1, 0.2, 0.3]);
     }
 
     #[test]

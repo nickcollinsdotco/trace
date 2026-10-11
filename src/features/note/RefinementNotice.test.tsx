@@ -17,7 +17,15 @@ function step(kind: StepKind, from?: number, to?: number): JobStep {
 }
 
 function job(steps: JobStep[], outcome: Job["outcome"] = null): Job {
-  return { id: 1, notePath: "a.md", title: "A", queuedAt: NOW - 60_000, steps, outcome };
+  return {
+    id: 1,
+    notePath: "a.md",
+    title: "A",
+    queuedAt: NOW - 60_000,
+    steps,
+    waiting: null,
+    outcome,
+  };
 }
 
 const part = (index: number, total: number): StepKind => ({ kind: "part", index, total });

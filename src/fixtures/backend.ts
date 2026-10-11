@@ -17,6 +17,7 @@ import {
   EVENT,
   type FakeBackend,
   type FinishedMeeting,
+  type InterruptedNotes,
   type Job,
   type LlmStatus,
   type ModelStatus,
@@ -28,6 +29,7 @@ import {
   type SpeechModel,
   type SummaryModel,
   type SystemReport,
+  type WaitChoice,
 } from "../lib/ipc";
 import type { AudioSource } from "../lib/types";
 
@@ -44,6 +46,8 @@ export interface BackendState {
   /** Note path → Markdown body. */
   bodies: Record<string, string>;
   recoverable: RecoverableSession[];
+  /** Finished meetings whose notes were cut off when TRACE stopped. */
+  interrupted: InterruptedNotes[];
   model: ModelStatus;
   devices: DeviceInfo[];
   root: string;
@@ -111,6 +115,7 @@ export const DEFAULT_STATE: BackendState = {
   notes: [],
   bodies: {},
   recoverable: [],
+  interrupted: [],
   model: {
     installed: true,
     // The display name, as `model_status` returns it.
@@ -154,7 +159,11 @@ export const DEFAULT_STATE: BackendState = {
     audioRetention: { mode: "delete" },
     speechModel: "parakeet-tdt-0.6b-v3-int8",
     summaryModel: null,
-    summaryMemory: "during_meetings",
+    // What a 31 GiB machine — the one in `systemReport` — is given.
+    summaryMemory: "while_writing",
+    summaryMemoryAuto: true,
+    summaryMemoryRecommended: "while_writing",
+    memoryTotalBytes: 33_395_507_200,
     defaultMic: null,
     miniAuto: "off",
     miniShortcut: "Ctrl+Shift+Alt+M",
@@ -273,6 +282,8 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
   let startedAt: number | null = state.recording ? Date.now() : null;
   let segmentCount = 0;
+  // Kept, so the recording screen opened again finds what was typed.
+  let captureNotes = "";
   // Mutable, so the first-run scenario can be watched all the way through to
   // "Ready" instead of snapping back to "no model" when the download finishes.
   let model = state.model;
@@ -309,6 +320,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
   const bodies: Record<string, string> = { ...state.bodies };
   let jobs = rebase(state.activity);
+  let interrupted = [...state.interrupted];
 
   // Mirrors the real backend: the job list is state, and the event carries
   // all of it, so a screen mounting mid-scenario reads the same thing.
@@ -393,7 +405,11 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           settings = { ...settings, audioRetention: args?.retention as Settings["audioRetention"] };
           return settings;
         case "set_summary_memory":
-          settings = { ...settings, summaryMemory: args?.memory as Settings["summaryMemory"] };
+          settings = {
+            ...settings,
+            summaryMemory: args?.memory as Settings["summaryMemory"],
+            summaryMemoryAuto: false,
+          };
           return settings;
         case "set_default_mic":
           settings = { ...settings, defaultMic: (args?.name as string | null) ?? null };
@@ -475,6 +491,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         case "start_capture": {
           startedAt = Date.now();
           segmentCount = 0;
+          captureNotes = "";
           startScriptOnce();
           return status(state, startedAt, segmentCount, args?.title as string);
         }
@@ -495,6 +512,10 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
             ? null
             : waves(Date.now() - startedAt, Number(args?.points ?? 512));
         case "update_notes":
+          captureNotes = String(args?.text ?? "");
+          return null;
+        case "capture_notes":
+          return captureNotes;
         case "set_title":
           return null;
         case "stop_capture": {
@@ -561,6 +582,18 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
         case "recoverable_sessions":
           return state.recoverable;
+        case "interrupted_notes":
+          return interrupted;
+        case "resume_notes": {
+          const cut = interrupted.find((c) => c.sessionDir === args?.sessionDir);
+          interrupted = interrupted.filter((c) => c !== cut);
+          return cut ? simulateRegenerate(emit, () => jobs, cut.notePath, cut.title) : null;
+        }
+        case "dismiss_interrupted":
+          interrupted = interrupted.filter((c) => c.sessionDir !== args?.sessionDir);
+          return null;
+        case "memory_wait_choice":
+          return answerWait(emit, () => jobs, args?.notePath as string, args?.choice as WaitChoice);
         case "recover_session":
         case "discard_session":
         case "abort_capture":
@@ -710,6 +743,7 @@ function status(
     transcribing: state.model.installed,
     mic: "Microphone (Razer Seiren V3 Mini)",
     speechModel: "Parakeet TDT 0.6B v3 (int8)",
+    memoryTight: false,
     ...state.statusOverrides,
   };
 }
@@ -722,7 +756,53 @@ function rebase(jobs: Job[]): Job[] {
     ...j,
     queuedAt: now + j.queuedAt,
     steps: j.steps.map((s) => ({ ...s, startedAt: at(s.startedAt), finishedAt: at(s.finishedAt) })),
+    waiting: j.waiting && { ...j.waiting, since: now + j.waiting.since },
   }));
+}
+
+/**
+ * The user answering a wait for memory, as the backend acts on it: anyway
+ * carries on with the parts, later ends the job with the reason on the note.
+ */
+function answerWait(
+  emit: (event: string, payload: unknown) => void,
+  current: () => Job[],
+  notePath: string,
+  choice: WaitChoice,
+): boolean {
+  const job = current().find((j) => j.notePath === notePath && j.outcome === null);
+  if (!job) return false;
+  const relative = (j: Job): Job => ({
+    ...j,
+    queuedAt: j.queuedAt - Date.now(),
+    steps: j.steps.map((s) => ({
+      ...s,
+      startedAt: s.startedAt === null ? null : s.startedAt - Date.now(),
+      finishedAt: s.finishedAt === null ? null : s.finishedAt - Date.now(),
+    })),
+    waiting: null,
+  });
+  const answered: Job =
+    choice === "anyway"
+      ? job
+      : {
+          ...job,
+          steps: job.steps
+            .filter((s) => s.startedAt !== null)
+            .map((s) => (s.finishedAt === null ? { ...s, finishedAt: Date.now() } : s)),
+          outcome: {
+            state: "failed",
+            message:
+              "put off until there is memory for the summary model. Close some apps, then write them from this note",
+          },
+        };
+  window.setTimeout(() => {
+    emit(
+      EVENT.activity,
+      current().map((j) => relative(j.id === job.id ? answered : j)),
+    );
+  }, 300);
+  return true;
 }
 
 /**
@@ -758,6 +838,7 @@ function simulateRegenerate(
         failed: false,
         error: null,
       })),
+      waiting: null,
       outcome,
     };
     // Relative times for everyone else too, since the payload is rebased.
@@ -766,6 +847,7 @@ function simulateRegenerate(
       .map((j) => ({
         ...j,
         queuedAt: j.queuedAt - Date.now(),
+        waiting: j.waiting && { ...j.waiting, since: j.waiting.since - Date.now() },
         steps: j.steps.map((s) => ({
           ...s,
           startedAt: s.startedAt === null ? null : s.startedAt - Date.now(),

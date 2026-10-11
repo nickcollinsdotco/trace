@@ -575,6 +575,75 @@ describe("Gallery", () => {
     expect(screen.getByText("FAIL")).toBeInTheDocument();
   }, 15_000);
 
+  it("holds notes back for memory, says why, and puts them off when asked", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Waiting for memory");
+
+    expect(
+      await screen.findByText("Waiting for memory: close some apps, or write notes anyway."),
+    ).toBeInTheDocument();
+    // The numbers that make it a decision rather than a stall.
+    expect(screen.getByText(/needs 10\.6 GiB/)).toBeInTheDocument();
+    expect(screen.getByText(/5\.1 GiB on the graphics card/)).toBeInTheDocument();
+    const bar = await screen.findByRole("contentinfo");
+    expect(bar).toHaveTextContent("waiting for memory");
+
+    await user.click(screen.getByRole("button", { name: "Later" }));
+    expect(
+      await screen.findByRole("button", {
+        name: /notes could not be generated — put off until there is memory/,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Write notes anyway" })).toBeNull();
+  });
+
+  it("writes notes anyway when told to, and the wait clears", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Waiting for memory");
+
+    await user.click(await screen.findByRole("button", { name: "Write notes anyway" }));
+    await waitFor(() =>
+      expect(screen.queryByText(/Waiting for memory: close some apps/)).toBeNull(),
+    );
+    const bar = await screen.findByRole("contentinfo");
+    expect(bar).not.toHaveTextContent("waiting for memory");
+  });
+
+  it("warns mid-meeting when the summary model will not fit", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Memory short");
+    expect(
+      await screen.findByText(/Memory is short for the summary model\. Recording is unaffected/),
+    ).toBeInTheDocument();
+  });
+
+  it("offers to finish notes a freeze cut off, and lets them be left", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Notes interrupted");
+
+    expect(await screen.findByText(/Notes were interrupted/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Not now" }));
+    await waitFor(() => expect(screen.queryByText(/Notes were interrupted/)).toBeNull());
+  });
+
+  it("says the memory setting was chosen for this computer, and why", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Settings");
+
+    expect(
+      await screen.findByText(/Chosen for you: This computer has 31\.1 GiB/),
+    ).toBeInTheDocument();
+    const writing = screen.getByRole("radio", { name: /Only while writing notes/ });
+    expect(writing).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: /Ready during meetings/ }));
+    await waitFor(() => expect(screen.queryByText(/Chosen for you/)).toBeNull());
+  });
+
   it("opens on the generated half while notes are written, but never overrides a choice", async () => {
     const user = userEvent.setup();
     render(<Gallery />);

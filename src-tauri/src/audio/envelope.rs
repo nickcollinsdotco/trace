@@ -65,7 +65,7 @@ pub fn render(levels: &[f32]) -> Option<String> {
 
 /// RMS per column for one WAV, streamed.
 fn rms_buckets(path: &Path) -> Option<Vec<f32>> {
-    let mut reader = hound::WavReader::open(path).ok()?;
+    let mut reader = super::wav::open_reader(path).ok()?;
     let spec = reader.spec();
     let channels = usize::from(spec.channels.max(1));
     let total = reader.duration() as usize * channels;

@@ -235,7 +235,7 @@ fn worker(
         (StreamSource::System, &mut system),
     ] {
         if let Some((chunker, rate, offset)) = slot {
-            if let Some(chunk) = chunker.flush() {
+            for chunk in chunker.flush() {
                 let chunk_start_ms = *offset + chunk.start_ms(*rate);
                 emit(
                     engine,

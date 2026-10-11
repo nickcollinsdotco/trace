@@ -10,6 +10,7 @@ import { groupByDate } from "../../lib/dates";
 import { formatMeetingLength } from "../../lib/format";
 import {
   hasBackend,
+  type InterruptedNotes,
   ipc,
   type NoteSummary,
   type RecoverableSession,
@@ -63,6 +64,7 @@ export function LibraryScreen({
 }) {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [recoverable, setRecoverable] = useState<RecoverableSession[]>([]);
+  const [interrupted, setInterrupted] = useState<InterruptedNotes[]>([]);
   const [loading, setLoading] = useState(true);
   const [root, setRoot] = useState<string>("");
   const [query, setQuery] = useState(initialSearch);
@@ -135,13 +137,15 @@ export function LibraryScreen({
       setLoading(false);
       return;
     }
-    const [list, sessions, notesRoot] = await Promise.all([
+    const [list, sessions, cutOff, notesRoot] = await Promise.all([
       ipc.listNotes().catch(() => []),
       ipc.recoverableSessions().catch(() => []),
+      ipc.interruptedNotes().catch(() => []),
       ipc.notesRoot().catch(() => ""),
     ]);
     setNotes(list);
     setRecoverable(sessions);
+    setInterrupted(cutOff);
     setRoot(notesRoot);
     setLoading(false);
   }, []);
@@ -204,6 +208,14 @@ export function LibraryScreen({
             is the only thing on this screen that can still be lost. */}
       {recoverable.map((session) => (
         <RecoveryCard key={session.sessionDir} session={session} onDone={refresh} />
+      ))}
+      {interrupted.map((cut) => (
+        <InterruptedNotesCard
+          key={cut.sessionDir}
+          cut={cut}
+          onOpenNote={onOpenNote}
+          onDone={refresh}
+        />
       ))}
 
       <LlmNotice status={llm.status} onRecheck={llm.recheck} context="library" />
@@ -352,6 +364,79 @@ function RecoveryCard({ session, onDone }: { session: RecoverableSession; onDone
           className="trace-btn trace-btn-quiet trace-press hover:text-error disabled:opacity-50"
         >
           Discard
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A meeting saved, but whose notes were still being written when TRACE
+ * stopped — the machine froze, or lost power, mid-summary.
+ *
+ * That used to leave nothing anyone would see: the note simply never gained
+ * its summary. Asked rather than restarted by itself, because whatever
+ * stopped it may still be true, and loading a summary model the moment TRACE
+ * opens is the last thing a machine that just froze needs.
+ */
+function InterruptedNotesCard({
+  cut,
+  onOpenNote,
+  onDone,
+}: {
+  cut: InterruptedNotes;
+  onOpenNote: (path: string) => void;
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-warn/40 bg-warn-dim trace-panel p-4">
+      <div className="flex items-baseline gap-2">
+        <SystemLabel tone="muted">Notes interrupted</SystemLabel>
+        <span aria-hidden className="trace-rule" />
+      </div>
+
+      <div>
+        <p className="trace-title text-base text-ink">{cut.title}</p>
+        <p className="font-mono text-2xs text-ink-muted">{cut.date}</p>
+      </div>
+
+      <p className="text-xs text-ink-muted">
+        Notes were interrupted: TRACE stopped while they were being written. The meeting and its
+        transcript are saved. Write them now?
+        {cut.needsTranscript &&
+          " The full-quality transcript did not finish either, so it runs first."}
+      </p>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            // Opened at once: the note is where the work shows, and where
+            // a wait for memory can be answered.
+            const resumed = ipc.resumeNotes(cut.sessionDir).catch(() => {});
+            onOpenNote(cut.notePath);
+            await resumed;
+          }}
+          className="trace-btn trace-btn-primary trace-press disabled:opacity-50"
+        >
+          Write notes now
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            await ipc.dismissInterrupted(cut.sessionDir).catch(() => {});
+            setBusy(false);
+            onDone();
+          }}
+          className="trace-btn trace-btn-quiet trace-press disabled:opacity-50"
+        >
+          Not now
         </button>
       </div>
     </div>

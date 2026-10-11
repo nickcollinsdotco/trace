@@ -3,6 +3,13 @@
 **Written 2026-09-05.** Supersedes the sequencing in `03-ROADMAP.md` from M7 onward;
 everything before M7 is built.
 
+> **Status, checked against the code on 2026-10-10.** Phases A and B and M7
+> are done. Phases C and D became `13-DESIGN-UPGRADES.md`, which is where the
+> visual work is now planned. M8 is done except code signing, which is still
+> an open decision, and a true clean-machine install. Each section below says
+> what changed. The original text is kept as the record of why things were
+> ordered this way.
+
 ## Where we are
 
 The whole pipeline works end to end:
@@ -32,11 +39,11 @@ retrofitted into it.
 | Phase | What | Whose time |
 |---|---|---|
 | ~~**A**~~ | ~~Prototyping infrastructure~~ — **done 2026-09-05** | — |
-| **B** | Three candidate themes | ~1–2 sessions |
-| **C** | Live with them | Yours, ~2 weeks |
-| **D** | Commit, then the full visual pass | ~2 sessions |
-| **M7** | ~~Search~~ done; command palette and shortcuts still after the visual decision | ~1 session |
-| **M8** | First-run download, packaging, signing — **in progress** | ~2 sessions |
+| ~~**B**~~ | ~~Three candidate themes~~ — **done 2026-09-05** (`472ecbd`) | — |
+| **C** | Live with them — absorbed into `13-DESIGN-UPGRADES.md` | Yours, ~2 weeks |
+| **D** | Commit, then the full visual pass — absorbed into `13-DESIGN-UPGRADES.md` | ~2 sessions |
+| ~~**M7**~~ | ~~Search, command palette, shortcuts~~ — **done**: search 2026-09-06, palette 2026-10-01 | — |
+| **M8** | First-run download, packaging, signing — **done except signing and a clean-machine install** | ~2 sessions |
 
 ---
 
@@ -95,6 +102,10 @@ being cheap, which defeats the point.
 ---
 
 ## Phase B — Three candidates, not two
+
+> **Built 2026-09-05** (`472ecbd`), though not as planned below. `futurist`
+> and `quiet` were replaced by three other looks in that same commit. The
+> themes since then are covered in `13-DESIGN-UPGRADES.md`.
 
 You framed it as terminal vs futuristic. I want to build a third as a control,
 because the real question isn't which of two aesthetics you like in a
@@ -184,10 +195,11 @@ index that disagrees with the thing it indexes.
 `search_is_fast_enough_without_an_index` holds the measurement and is what
 will say when that stops being true.
 
-**Command palette and shortcuts: still after the visual decision.** A palette
-is among the most theme-expressive components in any app, and building it
-before the language is settled means building it twice. `themeForKey` already
-has the typing-target guard a global hotkey needs.
+**Command palette and shortcuts: done 2026-10-01** (`d73fd7d`), as Stage 4 of
+`13-DESIGN-UPGRADES.md`. Ctrl+K opens it, and it searches meetings through the
+same scan as the library. The reasoning that held it back until then is kept
+here: a palette is among the most theme-expressive components in any app, and
+building it before the language is settled means building it twice.
 
 ---
 
@@ -201,13 +213,13 @@ unblocks the thing that unblocks the themes.
 
 | Item | Status |
 |---|---|
-| Windows installers | **Done.** `pnpm tauri build` produces `TRACE_0.1.0_x64-setup.exe` (11.9 MB, NSIS) and `TRACE_0.1.0_x64_en-US.msi` (25.7 MB). Release binary verified running |
+| Windows installers | **Done.** `pnpm tauri build` produces `TRACE_<version>_x64-setup.exe` (NSIS) and `TRACE_<version>_x64_en-US.msi`. At v0.27.0 (built 2026-10-07) they are 17.0 MB and 20.6 MB. The first build on 2026-09-05 was 11.9 MB and 25.7 MB. That one shipped a 21 MB dev harness and left out the runtime DLLs (`5884273`, `065c7a1`), so its sizes mean nothing now |
 | Failure guidance | **Done.** `ModelError::guidance` — no network, damaged archive, interrupted install, full disk. Technical detail retained |
 | CSP tightened | **Done.** Dropped the Ollama allowance; the WebView makes no network calls at all |
-| Boot sequence | Waiting on Phase D — the download UI works, the visual treatment does not exist yet |
+| Boot sequence | **Done 2026-09-05, in a different form** (`7407819`): first run is a full-window machine report (`src/features/firstrun`) of measured rows, rather than the `[ OK ]` sequence imagined in Phase D |
 | **Code signing** | **Blocked on a decision only you can make.** See below |
-| Clean-machine install | Not yet done |
-| Fully-offline run | Not yet done |
+| Clean-machine install | **Not done on a clean machine; mostly covered another way.** No second Windows machine was available, and Windows 10 Home has no Sandbox or Hyper-V. Instead, `dumpbin /DEPENDENTS`, the MSI file table, and the loaded modules of the *installed* process found and fixed the missing runtime DLLs (`src-tauri/redist/README.md`). Still untested: anything a clean machine lacks that this one has, apart from those DLLs and WebView2 (see *Install layout* below) |
+| Fully-offline run | **Done 2026-09-05.** Wi-Fi off, a real meeting through capture, the full-quality re-pass and synthesis. That run turned up the doubled "Transcript" heading (`601ccee`). It was checked by hand once and no test repeats it |
 | Updating an install | **Done.** `pnpm update-app -Check` previews; `pnpm update-app` asks, then pulls, builds and launches the installer; `pnpm bump` versions each build. In-app updates wait on signing — see `10-BACKLOG.md` |
 
 ### Code signing needs a purchase, so it is your call
@@ -232,8 +244,44 @@ Nothing in the build blocks on this: Tauri signs via
 `bundle.windows.certificateThumbprint` whenever a certificate exists, so
 adding one later is configuration, not rework.
 
-**Verification still to do:** install on a clean machine, then disable
-networking entirely and complete a meeting end to end.
+**Verification still to do:** install on a clean machine. The offline half
+of this was done on 2026-09-05; see the table above.
+
+### Install layout, uninstall, and WebView2
+
+Checked 2026-10-10 against the NSIS script Tauri generated for v0.27.0
+(`src-tauri/target/release/nsis/x64/installer.nsi`) and the installed copy.
+This is the NSIS installer, which `pnpm update-app` uses. The MSI was not
+inspected and may differ.
+
+**The install directory and the data directory are the same folder.** NSIS
+installs per user (`INSTALLMODE "currentUser"`) to `%LOCALAPPDATA%\TRACE`.
+The code keeps its data there too: models (`models::models_root`),
+`settings.json` and `logs\`. So `trace.exe`, the runtime DLLs, `models\` and
+`settings.json` all sit side by side. Notes and sessions live elsewhere, in
+`Documents\TRACE` (`store/paths.rs`).
+
+**Uninstalling keeps the models, settings and logs, by accident rather than
+design.** The uninstaller deletes the files it installed by name, then calls
+`RMDir "$INSTDIR"`, which is not recursive. That fails while `models\` is
+there, so the folder and everything TRACE wrote in it survive. Its "delete
+app data" checkbox removes `%APPDATA%\computer.trace.app` and
+`%LOCALAPPDATA%\computer.trace.app`, the bundle identifier's folders, which
+hold only WebView2's `EBWebView` profile. It never touches
+`%LOCALAPPDATA%\TRACE`, so ticking it still leaves the ~0.5 GB model behind.
+Worth fixing before TRACE goes to anyone else. A real fix means either
+moving data out of the install directory or adding an uninstall hook, which
+is a code change, not a doc one.
+
+**WebView2 is fetched at install time if it is missing.** The installer uses
+Tauri's default `downloadBootstrapper` mode. If a machine has no WebView2
+runtime, it downloads Microsoft's bootstrapper, and with no network the
+install aborts. That breaks the "no network after setup" promise only at
+setup itself, and only on machines without WebView2. Recent Windows 10 and
+11 builds normally ship it. That is an assumption from Microsoft's
+distribution policy, not something checked here. `offlineInstaller` mode
+would embed the runtime instead, at roughly +130 MB (Tauri's estimate, not
+measured).
 
 ---
 
@@ -244,15 +292,19 @@ rather than remembered.
 
 | Item | Status |
 |---|---|
-| **Decision vs deferred conversation** | Prompt rule tightened 2026-09-05 with the exact failure as a counter-example. **Untested against a real conversation** — the fixture that produced it is not a regression test. Phase C is the check. |
+| **Decision vs deferred conversation** | Prompt rule tightened 2026-09-05 with the exact failure as a counter-example. **Untested against a real conversation** — the fixture that produced it is not a regression test. The only real meeting recorded as checked (the offline run, 2026-09-05) had no decisions in it, so the rule had nothing to get wrong. Whether later meetings exercised it is not recorded. |
 | ~~Regenerate on pre-2026-09-05 notes~~ | **Fixed 2026-09-05.** `can_regenerate` is asked up front and the control is disabled with a reason. |
-| **VAD threshold drift** | 0.012 RMS, tuned only on my recordings. May drift over a long meeting or a quiet speaker. Deliberately not fixed: unobserved, and guessing at a fix would be worse than waiting for a real case. |
+| ~~VAD threshold drift~~ | **Observed and fixed 2026-09-06** (`7ecac6c`). The fixed 0.012 RMS muted about half of a quieter speaker's speech. The threshold now comes from each recording's own noise floor and speech level, and 0.012 survives only as the upper clamp (`transcribe/chunker.rs`). Detail in `10-BACKLOG.md`. |
 | **Uncertainty affordances** | Squiggly underlines for low-confidence words. Needs `transcribe-rs` to expose logits it already computes — an upstream PR. Detail in `10-BACKLOG.md`. |
 | **Speaker memory** | heed's voice-embedding approach, for splitting the remote side into named people. Phase 3 territory, after M7. |
 
 ---
 
 ## Recommended next session
+
+> **Superseded.** Written before Phase B was built, and `futurist` and
+> `quiet` no longer exist. For what is open now, see `10-BACKLOG.md` and the
+> *Open* section of `13-DESIGN-UPGRADES.md`.
 
 **Phase B.** Open `#gallery`, look at `futurist` and `quiet` — both are
 deliberately crude sketches — and say what is wrong with them. That reaction

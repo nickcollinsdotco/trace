@@ -64,6 +64,16 @@ pub enum JournalEvent {
     SessionEnded {
         ended_at: String,
     },
+    /// Work on the note began: the full-quality pass, the summary, or both.
+    /// Written before either starts, so a machine that dies part-way leaves
+    /// this without its `NotesFinished` — the one trace that notes were
+    /// coming and never arrived. Before it existed, an interrupted summary
+    /// left a "summarising" line in the log and nothing else, anywhere.
+    NotesStarted {
+        note_path: String,
+    },
+    /// The work ended in any way the user was shown: written, failed, put off.
+    NotesFinished,
 }
 
 /// Writes events to a session's journal.
@@ -116,6 +126,15 @@ pub struct Replay {
     pub corrupt_lines: usize,
     /// Whether the session was ended cleanly.
     pub was_finished: bool,
+    /// Work on the note started and never reported an end: TRACE closed, or
+    /// the machine died, while it ran.
+    pub notes_interrupted: bool,
+    /// The note that work was for, as it was named then.
+    pub note_path: Option<PathBuf>,
+    /// Whether the full-quality pass replaced the live transcript.
+    pub transcript_replaced: bool,
+    /// What each stream recorded, enough to run the full-quality pass again.
+    pub streams: Vec<StreamOutcome>,
 }
 
 /// Rebuild a meeting from its journal.
@@ -130,6 +149,7 @@ pub fn replay(session_dir: impl AsRef<Path>) -> Result<Replay, StoreError> {
     let mut meeting: Option<Meeting> = None;
     let mut corrupt_lines = 0usize;
     let mut was_finished = false;
+    let mut work = Work::default();
 
     for line in reader.lines() {
         let line = match line {
@@ -151,6 +171,7 @@ pub fn replay(session_dir: impl AsRef<Path>) -> Result<Replay, StoreError> {
             }
         };
 
+        work.note(&event);
         apply(&mut meeting, event, &mut was_finished);
     }
 
@@ -165,7 +186,35 @@ pub fn replay(session_dir: impl AsRef<Path>) -> Result<Replay, StoreError> {
         meeting,
         corrupt_lines,
         was_finished,
+        notes_interrupted: work.underway,
+        note_path: work.note_path,
+        transcript_replaced: work.transcript_replaced,
+        streams: work.streams,
     })
+}
+
+/// What a journal says about the work done after its meeting.
+#[derive(Default)]
+struct Work {
+    underway: bool,
+    note_path: Option<PathBuf>,
+    transcript_replaced: bool,
+    streams: Vec<StreamOutcome>,
+}
+
+impl Work {
+    fn note(&mut self, event: &JournalEvent) {
+        match event {
+            JournalEvent::NotesStarted { note_path } => {
+                self.underway = true;
+                self.note_path = Some(PathBuf::from(note_path));
+            }
+            JournalEvent::NotesFinished => self.underway = false,
+            JournalEvent::TranscriptReplaced { .. } => self.transcript_replaced = true,
+            JournalEvent::StreamFinished(outcome) => self.streams.push((**outcome).clone()),
+            _ => {}
+        }
+    }
 }
 
 fn apply(meeting: &mut Option<Meeting>, event: JournalEvent, was_finished: &mut bool) {
@@ -207,6 +256,7 @@ fn apply(meeting: &mut Option<Meeting>, event: JournalEvent, was_finished: &mut 
                 m.status = MeetingStatus::Complete;
             }
         }
+        JournalEvent::NotesStarted { .. } | JournalEvent::NotesFinished => {}
     }
 }
 
@@ -423,6 +473,58 @@ mod tests {
 
         assert!(matches!(replay(&dir), Err(StoreError::NoSessionStart)));
 
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn notes_that_started_and_never_finished_are_interrupted() {
+        let dir = temp_dir("interrupted");
+        let mut j = Journal::open(&dir).unwrap();
+        j.append(&started()).unwrap();
+        j.append(&JournalEvent::SessionEnded {
+            ended_at: "2026-09-05T11:00:00Z".into(),
+        })
+        .unwrap();
+        j.append(&JournalEvent::NotesStarted {
+            note_path: "C:/notes/a.md".into(),
+        })
+        .unwrap();
+
+        let r = replay(&dir).unwrap();
+        assert!(r.was_finished);
+        assert!(r.notes_interrupted);
+        assert_eq!(r.note_path, Some(PathBuf::from("C:/notes/a.md")));
+        assert!(!r.transcript_replaced);
+
+        j.append(&JournalEvent::TranscriptReplaced { segments: vec![] })
+            .unwrap();
+        j.append(&JournalEvent::NotesFinished).unwrap();
+        let r = replay(&dir).unwrap();
+        assert!(!r.notes_interrupted);
+        assert!(r.transcript_replaced);
+
+        // A regeneration later that dies is interrupted again.
+        j.append(&JournalEvent::NotesStarted {
+            note_path: "C:/notes/b.md".into(),
+        })
+        .unwrap();
+        let r = replay(&dir).unwrap();
+        assert!(r.notes_interrupted);
+        assert_eq!(r.note_path, Some(PathBuf::from("C:/notes/b.md")));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_journal_from_before_the_marker_is_not_interrupted() {
+        let dir = temp_dir("premarker");
+        let mut j = Journal::open(&dir).unwrap();
+        j.append(&started()).unwrap();
+        j.append(&JournalEvent::SessionEnded {
+            ended_at: "2026-09-05T11:00:00Z".into(),
+        })
+        .unwrap();
+        assert!(!replay(&dir).unwrap().notes_interrupted);
         std::fs::remove_dir_all(&dir).ok();
     }
 

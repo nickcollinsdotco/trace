@@ -510,10 +510,6 @@ Open decisions, in order:
    itself", which stays true, but it should mention that clicking the version
    checks once that works.
 
-Small loose end: on About with What's new closed, the status bar's
-"what's new" link does not open it (`Collapsible` only reads `defaultOpen`
-on mount). Key `WhatsNew` on each request to open it, or lift `open`.
-
 ## Library and meeting management
 
 Raised 2026-09-06 after real use. **Discard, rename and delete are built**;

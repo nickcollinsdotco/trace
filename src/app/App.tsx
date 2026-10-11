@@ -53,7 +53,8 @@ type Route =
   | { name: "models" }
   | { name: "appearance" }
   | { name: "settings" }
-  | { name: "about"; focus?: "whats-new" };
+  /** `asked` reopens What's new on each request, even if it was closed here. */
+  | { name: "about"; focus?: "whats-new"; asked?: number };
 
 export function App() {
   const [route, setRoute] = useState<Route>({ name: "library" });
@@ -105,7 +106,7 @@ export function App() {
     recording: palette.recording,
     appearance,
     fun,
-    openChangelog: () => setRoute({ name: "about", focus: "whats-new" }),
+    openChangelog: () => setRoute({ name: "about", focus: "whats-new", asked: Date.now() }),
   });
 
   return (
@@ -116,7 +117,7 @@ export function App() {
           onNavigate={navigate}
           openNote={route.name === "note" ? route.path : null}
           onOpenNote={(path) => setRoute({ name: "note", path })}
-          onWhatsNew={() => setRoute({ name: "about", focus: "whats-new" })}
+          onWhatsNew={() => setRoute({ name: "about", focus: "whats-new", asked: Date.now() })}
         >
           {route.name === "library" && (
             <LibraryScreen
@@ -152,7 +153,9 @@ export function App() {
           {route.name === "models" && <ModelsScreen />}
           {route.name === "appearance" && <AppearanceScreen />}
           {route.name === "settings" && <SettingsScreen />}
-          {route.name === "about" && <AboutScreen key={route.focus} focus={route.focus} />}
+          {route.name === "about" && (
+            <AboutScreen key={`${route.focus}-${route.asked}`} focus={route.focus} />
+          )}
 
           {palette.open && (
             <Palette

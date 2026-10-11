@@ -194,23 +194,26 @@ export function SearchBar({
                 +{hidden} more
               </button>
             )}
-            {/* Every pill, laid out where nothing sees it, to be measured. */}
+            {/* Every pill, laid out where nothing sees it, to be measured.
+                Inside a clipped box of no size: invisible is still laid
+                out, and a row of every tag ran past the page and gave it a
+                sideways scrollbar at any width once there were enough. */}
             <div
-              ref={measure}
               aria-hidden
-              inert
-              className="pointer-events-none invisible absolute top-0 left-0 flex w-max gap-1.5"
+              className="pointer-events-none absolute top-0 left-0 size-0 overflow-hidden"
             >
-              <span className={pillClass(false)}>
-                All<span className={COUNT}>{notes.length}</span>
-              </span>
-              {counts.map(({ tag, count }) => (
-                <span key={tag} className={pillClass(false)}>
-                  {tag}
-                  <span className={COUNT}>{count}</span>
+              <div ref={measure} inert className="invisible flex w-max gap-1.5">
+                <span className={pillClass(false)}>
+                  All<span className={COUNT}>{notes.length}</span>
                 </span>
-              ))}
-              <span className={MORE}>+{counts.length} more</span>
+                {counts.map(({ tag, count }) => (
+                  <span key={tag} className={pillClass(false)}>
+                    {tag}
+                    <span className={COUNT}>{count}</span>
+                  </span>
+                ))}
+                <span className={MORE}>+{counts.length} more</span>
+              </div>
             </div>
           </fieldset>
 

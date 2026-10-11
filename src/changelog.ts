@@ -26,6 +26,19 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.29.2",
+    date: "2026-10-11",
+    title: "No sideways scrollbar",
+    notes: [
+      "Meetings no longer has a sideways scrollbar along the bottom. The tag bar measures every tag on a hidden row to see how many fit, and once there were enough tags that row ran past the page at any window narrower than about 1350px.",
+      "In the narrowest window, Appearance's size choices wrap and Settings' microphone list fits, rather than either pushing the page sideways.",
+    ],
+    screens: {
+      library: "No scrollbar along the bottom, at any width.",
+      appearance: "At the narrowest window, the size choices wrap.",
+    },
+  },
+  {
     version: "0.29.1",
     date: "2026-10-11",
     title: "No sleeping mid-meeting, and audio you no longer keep",

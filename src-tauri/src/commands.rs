@@ -466,6 +466,89 @@ pub fn discard_session(session_dir: String) -> CmdResult<()> {
     store::discard_session(&PathBuf::from(session_dir)).map_err(err)
 }
 
+/// A meeting whose notes were being written when TRACE last stopped.
+#[derive(Debug, serde::Serialize)]
+pub struct InterruptedNotes {
+    pub session_dir: String,
+    pub note_path: String,
+    pub title: String,
+    pub date: String,
+    /// The full-quality pass will run first, because it never finished and
+    /// the audio is still there.
+    pub needs_transcript: bool,
+}
+
+/// Meetings whose notes never finished, for the library to offer.
+///
+/// Audio a finished full-quality pass left behind is released here, as the
+/// retention setting says: those notes need only the journal now.
+#[tauri::command]
+pub fn interrupted_notes(manager: State<'_, CaptureManager>) -> CmdResult<Vec<InterruptedNotes>> {
+    let root = manager.notes_root().map_err(err)?;
+    Ok(
+        store::scan_interrupted(&root, crate::capture_manager::is_underway)
+            .into_iter()
+            .map(|found| {
+                crate::capture_manager::release_unneeded_audio(&found);
+                InterruptedNotes {
+                    needs_transcript: !found.replay.transcript_replaced
+                        && found
+                            .replay
+                            .streams
+                            .iter()
+                            .any(|s| s.is_usable() && s.path.exists()),
+                    session_dir: found.session_dir.display().to_string(),
+                    note_path: found.note_path.display().to_string(),
+                    title: found.replay.meeting.title,
+                    date: found.replay.meeting.date,
+                }
+            })
+            .collect(),
+    )
+}
+
+/// Write the notes an interruption cut off.
+#[tauri::command]
+pub async fn resume_notes(
+    app: AppHandle,
+    manager: State<'_, CaptureManager>,
+    session_dir: String,
+) -> CmdResult<()> {
+    let root = manager.notes_root().map_err(err)?;
+    // Off the async runtime: writing notes is minutes of blocking work.
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::capture_manager::resume(&app, &root, &PathBuf::from(session_dir))
+    })
+    .await
+    .map_err(err)?
+}
+
+/// Leave an interrupted meeting's notes unwritten.
+#[tauri::command]
+pub fn dismiss_interrupted(session_dir: String) {
+    crate::capture_manager::dismiss_interrupted(&PathBuf::from(session_dir));
+}
+
+/// Answer a wait for memory: write the notes anyway, or later.
+///
+/// False when the note's job had already moved on, which the UI treats as
+/// nothing to do.
+#[tauri::command]
+pub fn memory_wait_choice(
+    app: AppHandle,
+    note_path: String,
+    choice: crate::activity::WaitChoice,
+) -> bool {
+    let chosen = crate::activity::ACTIVITY.choose(&note_path, choice);
+    if chosen {
+        let _ = app.emit(
+            crate::activity::EVENT_ACTIVITY,
+            crate::activity::ACTIVITY.snapshot(),
+        );
+    }
+    chosen
+}
+
 #[tauri::command]
 pub fn reveal_notes_folder(manager: State<'_, CaptureManager>) -> CmdResult<String> {
     let root = manager.notes_root().map_err(err)?;
@@ -734,7 +817,7 @@ pub fn set_audio_retention(retention: AudioRetention) -> CmdResult<SettingsView>
 
 #[tauri::command]
 pub fn set_summary_memory(memory: SummaryMemory) -> CmdResult<SettingsView> {
-    let s = crate::settings::update(|s| s.summary_memory = memory)?;
+    let s = crate::settings::update(|s| s.set_summary_memory(memory))?;
     Ok(SettingsView::from(&s))
 }
 

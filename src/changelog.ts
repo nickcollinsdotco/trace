@@ -26,6 +26,29 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.28.0",
+    date: "2026-10-10",
+    title: "A good citizen",
+    notes: [
+      "TRACE checks there is room before it loads the summary model — system memory, and video memory on the graphics card — leaving headroom for everything else you have open. Loading it onto a machine already full is what froze the whole computer after a long meeting.",
+      "Not enough room? The note says so — Waiting for memory: close some apps, or write notes anyway — with the numbers, and carries on by itself once there is space. Write notes anyway or Later are yours to choose.",
+      "It looks again before every part of a long meeting, and every minute during one. If memory runs short mid-call, the recording screen says notes may have to wait, while closing something still helps.",
+      "Notes cut off by a freeze or a power cut are no longer lost silently. The meetings list says which ones were interrupted and offers to write them, finishing the full-quality transcript first if that was cut off too.",
+      "Whether the summary model stays loaded through meetings now follows how much memory this computer has: under 48 GB, only while writing notes. Settings says which it chose and why, and your own choice still wins.",
+      "The full-quality transcript after a meeting reads the recording a piece at a time. It used to hold over 2 GB per hour of each stream in memory, just as the summary model loaded; now a few megabytes, however long the meeting.",
+      "The diagnostics log records what each memory check saw and decided, and how long the full-quality pass took on how much audio.",
+    ],
+    screens: {
+      "note-waiting-memory":
+        "New: notes held back for memory, with the numbers. Try Write notes anyway and Later.",
+      "note-written-anyway": "New: the override — the wait clears and notes are written.",
+      "note-put-off": "New: Later chosen. The line says why there are no notes; ↻ writes them.",
+      "capture-memory-tight": "New: the mid-meeting warning that notes may wait.",
+      "library-notes-interrupted": "New: notes a freeze cut off, offered to finish. Try Not now.",
+      settings: "Model memory says it was chosen for this computer's 31 GiB, and why.",
+    },
+  },
+  {
     version: "0.27.0",
     date: "2026-10-07",
     title: "The machine talks",

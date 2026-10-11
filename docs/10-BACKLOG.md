@@ -176,22 +176,20 @@ it. Its stylesheet is mostly restraint:
 command, not an FTS5 index; that index is still worth building when the
 library is large enough for the plain search to feel slow.
 
-Raised 2026-09-05 as "a future feature addition", and it already has a home:
-it is **M7** in `docs/11-PLAN.md`, alongside search and keyboard shortcuts.
+The history below is from before it was built, and is kept for the reasoning.
 
-Deliberately not built during the visual phase. A command palette is among
-the most theme-expressive components in any app — termcn's own shot of one is
-in the reference set — so building it before the visual language is settled
-means building it twice. That is the stated reason M7 sits after the theme
-decision rather than before it.
+Raised 2026-09-05 as "a future feature addition", and it already had a home:
+**M7** in `docs/11-PLAN.md`, alongside search and keyboard shortcuts.
 
-What already exists that it will want:
+It was held back during the visual phase. A command palette is among the
+most theme-expressive components in any app — termcn's own shot of one is in
+the reference set — so building it before the visual language was settled
+would have meant building it twice.
 
-- `themeForKey` in `src/design/theme.ts` — the typing-target guard a global
-  hotkey needs, already isolated and tested
-- the SQLite FTS5 index (M7) for anything that searches notes
-- the fill and framing switches, so a palette inherits the chosen look rather
-  than needing its own styling pass
+What it was expected to need, as listed then: `themeForKey`'s typing-target
+guard, the fill and framing switches, and an SQLite FTS5 index. That index
+was never built (see `store/search.rs` and the Search entry below); the
+palette uses the plain scan.
 
 ## ~~Chunk boundaries split sentences~~ — fixed 2026-09-06
 
@@ -254,9 +252,22 @@ split at an ordinary breath.
 
 **Overlapping chunks**, so a split has context on both sides. Splits will
 sometimes land badly whatever the threshold, and overlap is the structural
-answer rather than a better-tuned guess.
+answer rather than a better-tuned guess. Not built as of 2026-10-10.
+
+**A real-audio fixture.** The plan above was to make the failing recording a
+fixture. It never was. The two kept sessions (`sess-1788645404091` and
+`sess-1788646471691`) are gone from `.sessions`, and no WAV was committed.
+The chunker's regression tests use synthetic audio only (`quiet_speech` in
+`transcribe/chunker.rs`). The next time a recording reproduces a
+transcription fault, keep it as a fixture.
 
 ## transcribe.cpp — spiked 2026-09-06, **not adopted**
+
+This entry was written in stages on one day, and its verdict changed twice.
+**The current position is "Verdict, after building it properly" below.** The
+sections after it — "Spike result" and "The order to do things in" — were
+written *before* that verdict, and are kept as the record of how the wrong
+conclusion was reached.
 
 Handy v0.9.0 replaced `transcribe-rs` with
 [`transcribe.cpp`](https://github.com/handy-computer/transcribe.cpp) as its
@@ -387,17 +398,27 @@ these figures. Worth measuring properly before promising anything.
 
 ### The order to do things in
 
+Items 1 and 2 still stand and neither was built as of 2026-10-10. Item 3 is
+reversed by the verdict above.
+
 1. **A glossary first.** Handy ships "Custom Words" and it is
    engine-independent. It fixes the failure actually observed — proper nouns —
    and costs a fraction of a migration.
 2. **Try `ort-directml` before any of this.** It is a feature flag on the
    current stack and buys GPU acceleration with none of the C++ build cost.
-   `docs/11-PLAN.md` already claims DirectML is in use; it is not.
-3. ~~Revisit when the bindings reach 0.3.~~ **Superseded by the spike above.**
-   The quality difference on a real failing recording is large enough that
-   waiting for a version number is the wrong call. `Transcriber` in
-   `transcribe/mod.rs` is a thin seam, so the code swap is contained; the
-   build and packaging change is the real work.
+   ASR runs on CPU today. In `transcribe-rs` 0.3.11 the DirectML provider
+   sits behind `ort-directml`, which TRACE does not enable, and auto-selection
+   leaves it out. The plan once claimed otherwise and has been corrected.
+   `DirectML.dll` ships anyway: the installed v0.27.0 `trace.exe` lists
+   `directml.dll`, `d3d12.dll` and `dxgi.dll` among its load-time imports
+   (`dumpbin /DEPENDENTS`, 2026-10-10), so it cannot be dropped without
+   changing how `ort` is linked. Before enabling it, weigh the video memory
+   ASR would take against what the summary model needs on the same card.
+3. ~~Revisit when the bindings reach 0.3.~~ ~~**Superseded by the spike
+   above.** The quality difference on a real failing recording is large
+   enough that waiting for a version number is the wrong call.~~ Written
+   before the fair comparison. It turned out that the quality difference was
+   the VAD bug, not the engine; see the verdict above.
 
 ### Caveats worth holding on to
 
@@ -414,6 +435,13 @@ these figures. Worth measuring properly before promising anything.
 From Handy's settings: **remove filler words** as a toggle, and **VAD on/off**
 so raw audio can be recorded when someone is debugging. Both are small and
 neither depends on transcribe.cpp.
+
+As of 2026-10-10 neither is built, and the VAD toggle is not needed for
+debugging. TRACE's VAD runs only at transcription: nothing in `src/audio`
+uses the chunker, so the session WAVs are the whole stream. Settings →
+Audio already keeps them, and `chunk_check` replays the VAD over them. A
+filler-word toggle remains an idea. Synthesis already guards against a
+runaway filler (`synthesis/prompt.rs`), but the transcript keeps them.
 
 ## In-app updates — later, after code signing
 
@@ -538,4 +566,151 @@ panel and Granola-style rows; the scroll breadcrumb.
 3. **Syntax colour in the search line.** `tag:` and `len:` words would read
    better coloured as they are typed. It needs an overlay behind the input,
    which is fiddly to keep aligned; worth it only if the plain line confuses.
+
+## Resource safety — audit of 2026-10-10
+
+Raised after a one-hour meeting ended and the whole machine froze while the
+summary model loaded: Figma, two browsers, coding agents and NVIDIA
+Broadcast already held most of the memory and the card. **Built in 0.28.0:**
+a memory check (RAM and video memory) before every summary-model load and
+before each part, a visible wait with "write anyway" and "later", a
+mid-meeting warning, the summary-memory default chosen from total RAM, a
+journal marker so notes cut off by a freeze are offered on the next launch,
+and a streaming full-quality pass — measured at 2.2 GiB peak per stream-hour
+before, 8–10 MiB after, flat at three hours (`examples/repass_memory.rs`).
+
+What the audit found besides, worst first. Evidence is `file:line` as of
+0.28.0, or a measurement.
+
+### Can lose data
+
+1. **Typed notes are wiped after leaving the recording screen.**
+   `CaptureScreen.tsx` keeps them in local `useState("")`, and the journal
+   stores notes as whole snapshots (`capture_manager.rs`, `update_notes`).
+   Come back to the screen and the box is empty; the next keystroke journals
+   a short snapshot over everything typed before. The debounce in
+   `useCapture.ts` is not flushed on unmount either. Reported in the notes of
+   the 2026-10-10 meeting itself: typing vanished on switching views, opening
+   the mini window or the scope. *Fix:* the backend holds the notes
+   (`capture_status` or a `capture_notes` command); the screen restores them
+   on mount and flushes on unmount. Small to medium.
+2. **WAVs are unreadable after a power cut or a hard kill.** `audio/wav.rs`
+   rewrites the header only in `finalize`; hound's `Drop` would do it, but
+   release builds are `panic = "abort"` and a power cut runs nothing. The
+   header then claims zero samples, so the full-quality pass, `wav_check` and
+   any re-run read nothing. *Fix:* `WavWriter::flush()` every few seconds —
+   hound documents it as a checkpoint — and repair the header from the file
+   length when one says zero. Small.
+3. **A Documents folder synced by OneDrive uploads the audio.**
+   `store/paths.rs` puts the notes root, `.sessions` included, under
+   `dirs::document_dir()`, which Known Folder Move redirects into OneDrive.
+   That is ~690 MB an hour of raw meeting audio leaving the machine, plus
+   sync locks on the WAVs and journal mid-meeting. *Fix:* sessions under
+   `%LOCALAPPDATA%\TRACE\sessions`, notes wherever the user likes; warn when
+   the notes folder is in OneDrive or Dropbox. Medium, because existing
+   sessions move.
+4. **A full disk silently ends a stream.** `mic.rs` (`write_chunk(...)?`) and
+   `loopback_win.rs` (`sink.write(&mono)?`) end their capture thread on the
+   first write error; the pump ignores journal failures
+   (`let _ = journal.append`). Nothing reaches the UI until the meeting is
+   stopped. Free space is read only for the first-run report (`system.rs`).
+   *Fix:* check at start (warn below a few hours of audio), every minute
+   after, and say on the recording screen when a stream has died. Medium.
+5. **Windows can sleep mid-recording.** Nothing calls
+   `SetThreadExecutionState`. A call app usually keeps the machine awake; an
+   in-person meeting with only TRACE running does not, least of all on
+   battery. What wake does to the timeline is unmeasured. *Fix:*
+   `ES_SYSTEM_REQUIRED | ES_CONTINUOUS` while recording and while notes are
+   written; then test a sleep and wake. Small.
+6. **Quitting or updating mid-meeting gives no warning.** No
+   `CloseRequested` handling (`windows.rs` watches focus only), and
+   `scripts/update.ps1` force-closes after ten seconds without knowing
+   whether a meeting is recording. Notes cut off this way are now offered on
+   the next launch, but the meeting itself ends where it was. *Fix:* confirm
+   on close while recording or writing; a busy marker the update script
+   reads. Small.
+7. **Regenerating overwrites body edits made outside TRACE.**
+   `store::rewrite_note` keeps the title, tags, context and names from the
+   file and nothing else, by design — but nothing tells someone who edited
+   the Markdown in another app. *Fix:* hash the body when written; if it
+   changed, confirm, or keep a `.bak`. Small to medium.
+8. **The journal is flushed, not synced.** `journal.rs` `append` flushes to
+   the OS; a power cut can lose the last seconds. *Fix:* `sync_data` every
+   few seconds. Small.
+
+### Can stall the machine or the notes
+
+9. **Two speech engines and the summary model at once.** Back-to-back
+   meetings: the lane serialises the full-quality pass and summaries, not
+   the live transcriber, so meeting two's live engine runs beside meeting
+   one's re-pass engine, and under "ready during meetings" the summary model
+   too. Each engine is three ONNX sessions on ORT's default thread pool
+   (`transcribe-rs` `onnx/session.rs`: `create_session` passes no count), at
+   normal priority. *Fix:* thread counts need `transcribe-rs` to pass
+   `create_session_with_threads` through `ParakeetModel::load` (an upstream
+   PR); then a capped, below-normal pool for the re-pass. Medium.
+10. **No way to stop a slow summary or re-pass, and a slow Ollama fails at
+    once.** `REQUEST_TIMEOUT` is ten minutes per request, nine parts an hour;
+    nothing cancels. Ollama still starting after a reboot fails the 2 s
+    readiness probe and the notes fail outright. *Fix:* a Stop on the job,
+    checked between parts and chunks; retry readiness for a minute first.
+    Medium.
+11. **Lost devices are not followed.** `loopback_win.rs` opens the default
+    output at the start and keeps it: switch to a headset mid-call and the
+    system stream records silence; an invalidated device ends the stream. A
+    mic unplugged only counts errors. *Fix:* per-stream health on the
+    recording screen, reopen on invalidation or a default change, and warn
+    after minutes of digital silence. Large.
+
+### Surprising, or noise
+
+12. **"1 stream errors" on every meeting.** `mic.rs` sends the error text to
+    `eprintln!`, which goes nowhere installed. Exactly one per meeting, on
+    NVIDIA Broadcast and the 96 kHz Razer alike, matches the benign startup
+    underrun its own comment describes. *Fix:* keep the first error's text in
+    `StreamStats` and log it; ignore the first half-second; tell the user
+    only if errors continue. Small.
+13. **"a window with label `mini` already exists".** `windows::open_mini`
+    checks, then builds; the shortcut handler (an async task) and the
+    meeting-start trigger under "always" can both pass the check. *Fix:*
+    serialise it, or treat the label existing as success. Small.
+14. **"Ctrl+Alt+R is taken".** The old default; last logged 2026-10-02,
+    before it moved to Ctrl+Shift+Alt+M. It also fires when a dev build and
+    the installed app run together and the second finds its own shortcut.
+    Small, if worth anything.
+15. **Lowering audio retention deletes nothing until later.**
+    `set_audio_retention` only stores the choice; audio is released only for
+    the meeting just ended, so switching to Delete keeps every kept recording
+    indefinitely. *Fix:* apply it on change, saying how much goes. Small.
+16. **A wrong process on port 11434, or Ollama mid-update,** reads as "not
+    running". Small.
+
+### Quality of life
+
+17. A system notification when notes are ready and TRACE is minimised.
+18. First run says whether the chosen summary model fits this machine;
+    `memory::check` can answer it now.
+19. Honest time estimates: the re-pass is ~4.5 min an hour on the reference
+    machine, and the parts are known once a meeting is split.
+20. Defer, or warn, before heavy work on battery.
+21. The status bar naming what TRACE holds in memory while it works.
+
+### Thinking: measured, keep it on
+
+`examples/thinking_compare.rs` on the 2026-10-10 hour-long journal, qwen3:14b,
+Ollama 0.40.2:
+
+| | Time | Key points | Decisions | Actions | Open questions |
+|---|---|---|---|---|---|
+| Thinking on | 172 s | 6 | 12 | 5 | 12 |
+| Thinking off | 167 s | 8 | 9 | 6 | 24 |
+
+Off is barely faster, because one part ran away to the 3,072-token cap and
+was retried (45 s); without that, ~120 s. It is clearly worse: it copies the
+typed notes in as items — "NOTES:" and "TRACE FEEDBACK:" as open questions
+— doubles the open questions with near-duplicates, and files decisions as
+action items. On writes fewer, more synthesised items. **Keep it on.** The
+cost to watch is the budget: thinking counts against `NUM_PREDICT`, and one
+part on 2026-10-10 used 2,357 of 3,072 tokens; a part that runs past it gets
+the length error and one retry.
 

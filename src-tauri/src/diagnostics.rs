@@ -45,6 +45,15 @@ fn log_path() -> Option<PathBuf> {
     log_dir().map(|d| d.join("trace.log"))
 }
 
+/// Set by the measuring examples, which run the app's code on the user's
+/// machine: their events go to the terminal, not into the user's log.
+static KEEP_OUT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Keep this process's events out of the log file. For examples.
+pub fn terminal_only() {
+    KEEP_OUT.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Record one event. Best-effort: logging must never be why something fails.
 ///
 /// Also echoed to stderr, so `pnpm tauri dev` shows it as it happens.
@@ -55,7 +64,7 @@ pub fn log(event: impl AsRef<str>) {
     // Tests exercise failure paths that log, and on a developer's machine the
     // log path is their real one. A test run must not leave invented events
     // in the file a bug report is built from.
-    if cfg!(test) {
+    if cfg!(test) || KEEP_OUT.load(std::sync::atomic::Ordering::Relaxed) {
         return;
     }
     let Some(path) = log_path() else {
@@ -160,7 +169,7 @@ pub fn report(app_version: String, spec: &ModelSpec, notes_root: String) -> Repo
         loaded_models: OllamaProvider::loaded(),
         context_tokens: ollama::NUM_CTX,
         audio_retention: crate::settings::load().audio_retention(),
-        summary_memory: crate::settings::load().summary_memory,
+        summary_memory: crate::settings::load().summary_memory(),
         notes_root,
         log_dir: log_dir()
             .map(|d| d.display().to_string())

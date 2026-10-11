@@ -15,7 +15,14 @@
 
 import type { ConfirmOptions } from "../components/ui/Confirm";
 import { isoDay } from "../features/library/signal";
-import { EVENT, type Job, type JobOutcome, type NoteSummary, type StepKind } from "../lib/ipc";
+import {
+  EVENT,
+  type Job,
+  type JobOutcome,
+  type MemoryWait,
+  type NoteSummary,
+  type StepKind,
+} from "../lib/ipc";
 import type { BackendState, ScriptedEvent } from "./backend";
 import {
   NOTE_ENHANCED,
@@ -278,6 +285,7 @@ function jobAt(
   job: { id: number; notePath: string; title: string; queuedAt?: number },
   steps: StepAt[],
   outcome: JobOutcome | null = null,
+  waiting: MemoryWait | null = null,
 ): Job {
   const rel = (t: number | undefined) => (t === undefined ? null : t - at);
   return {
@@ -292,6 +300,7 @@ function jobAt(
       failed: s.failed ?? s.error !== undefined,
       error: s.error ?? null,
     })),
+    waiting: waiting && { ...waiting, since: waiting.since - at },
     outcome,
   };
 }
@@ -313,6 +322,59 @@ const QUEUED: Job[] = [
     { step: { kind: "notes" } },
   ]),
 ];
+
+const GIB = 1024 ** 3;
+
+/**
+ * What the machine that froze looked like: a 14B wanting ~10.6 GiB, with a
+ * call, Figma and Broadcast holding most of the card and the memory.
+ */
+const SHORT_OF_MEMORY: MemoryWait = {
+  neededBytes: 10.6 * GIB,
+  ramAvailableBytes: 4.2 * GIB,
+  gpuFreeBytes: 5.1 * GIB,
+  since: -40_000,
+};
+
+/** The full-quality pass done, and the notes held back for memory. */
+const WAITING_STEPS: StepAt[] = [
+  { step: { kind: "transcript" }, from: -310_000, to: -42_000 },
+  { step: PART(1, 1), from: -42_000 },
+];
+
+/**
+ * Notes waiting for memory, then the user pressing "Write notes anyway":
+ * the wait clears and the notes are written as normal.
+ */
+function writtenAnywayScript(): ScriptedEvent[] {
+  const A = 2_600; // the choice lands
+  const D = 6_200;
+  const steps = (at: number): StepAt[] => [
+    { step: { kind: "transcript" }, from: -310_000, to: -42_000 },
+    { step: PART(1, 1), from: -42_000, ...(at >= D && { to: D }) },
+  ];
+  return [
+    {
+      atMs: 0,
+      event: EVENT.activity,
+      payload: [jobAt(0, PRICING_JOB, steps(0), null, SHORT_OF_MEMORY)],
+    },
+    { atMs: A, event: EVENT.activity, payload: [jobAt(A, PRICING_JOB, steps(A))] },
+    { atMs: D, event: EVENT.notesGenerated, payload: { notePath: PATHS.pricing } },
+    {
+      atMs: D,
+      event: EVENT.activity,
+      payload: [
+        jobAt(D, PRICING_JOB, steps(D), {
+          state: "generated",
+          dropped: 0,
+          fabricated: 0,
+          uncited: 0,
+        }),
+      ],
+    },
+  ];
+}
 
 /**
  * A meeting ending and its notes being written, start to finish: queued,
@@ -528,6 +590,25 @@ export const SCENARIOS: Scenario[] = [
   },
 
   {
+    id: "library-notes-interrupted",
+    name: "Notes interrupted",
+    group: "Library",
+    note: "The machine froze while notes were being written. The meeting is saved; the card says the notes never finished and offers to write them, rather than the note silently never gaining its summary.",
+    screen: "library",
+    state: {
+      ...POPULATED,
+      interrupted: [
+        {
+          sessionDir: "C:\\Users\\you\\Documents\\TRACE\\.sessions\\sess-1791589525028",
+          notePath: PATHS.pricing,
+          title: "Pricing page rework",
+          date: isoDaysAgo(0),
+          needsTranscript: false,
+        },
+      ],
+    },
+  },
+  {
     id: "library-ollama-missing",
     name: "No Ollama yet",
     group: "Library",
@@ -717,6 +798,20 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: "capture-memory-tight",
+    name: "Memory short",
+    group: "Capture",
+    note: "No room for the summary model while the call runs. Said during the meeting, when closing something still helps; recording is unaffected.",
+    screen: "capture",
+    state: {
+      ...POPULATED,
+      recording: true,
+      startElapsedMs: 31 * 60_000,
+      script: liveScript(),
+      statusOverrides: { memoryTight: true },
+    },
+  },
+  {
     id: "capture-error",
     name: "Live transcription failed",
     group: "Capture",
@@ -899,6 +994,61 @@ export const SCENARIOS: Scenario[] = [
             state: "failed",
             message:
               "Ollama is not running, so notes could not be written. Open Ollama and try again",
+          },
+        ),
+      ],
+    },
+  },
+  {
+    id: "note-waiting-memory",
+    name: "Waiting for memory",
+    group: "Reading",
+    note: "Loading the summary model now could tip the machine over, so the notes wait. The numbers say why; Write notes anyway and Later both work here.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: {
+      ...POPULATED,
+      bodies: { ...BODIES, [PATHS.pricing]: NOTE_FRESH },
+      afterGenerate: { [PATHS.pricing]: NOTE_ENHANCED },
+      activity: [jobAt(0, PRICING_JOB, WAITING_STEPS, null, SHORT_OF_MEMORY)],
+    },
+  },
+  {
+    id: "note-written-anyway",
+    name: "Written anyway",
+    group: "Reading",
+    note: "The override: waiting for memory, then Write notes anyway pressed. The wait clears and the notes are written as normal.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: {
+      ...POPULATED,
+      bodies: { ...BODIES, [PATHS.pricing]: NOTE_FRESH },
+      afterGenerate: { [PATHS.pricing]: NOTE_ENHANCED },
+      script: writtenAnywayScript(),
+    },
+  },
+  {
+    id: "note-put-off",
+    name: "Notes put off",
+    group: "Reading",
+    note: "Later was chosen while waiting for memory. The transcript is saved, the line says why there are no notes, and ↻ writes them.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: {
+      ...POPULATED,
+      bodies: { ...BODIES, [PATHS.pricing]: NOTE_FRESH },
+      activity: [
+        jobAt(
+          0,
+          PRICING_JOB,
+          [
+            { step: { kind: "transcript" }, from: -400_000, to: -130_000 },
+            { step: PART(1, 1), from: -130_000, to: -2_000, failed: true },
+          ],
+          {
+            state: "failed",
+            message:
+              "put off until there is memory for the summary model. Close some apps, then write them from this note",
           },
         ),
       ],

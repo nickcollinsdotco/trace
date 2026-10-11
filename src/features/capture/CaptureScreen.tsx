@@ -172,6 +172,14 @@ export function CaptureScreen({
           saved note will be too.
         </Banner>
       )}
+      {/* Said now, while closing something is still an option, rather
+          than found out when the notes do not arrive. */}
+      {capture.status?.memoryTight && (
+        <Banner tone="warn">
+          Memory is short for the summary model. Recording is unaffected; notes will wait after the
+          meeting until there is room, unless you close something.
+        </Banner>
+      )}
       {capture.error && <Banner tone="error">{capture.error}</Banner>}
 
       {/* The strip, the notes and the transcript in the page column, as

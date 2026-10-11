@@ -53,13 +53,23 @@ const NUM_PREDICT: u32 = 3_072;
 
 pub struct OllamaProvider {
     model: String,
+    /// Ollama's `think` option. `None` leaves it to the model, which is what
+    /// the app sends; set only by `examples/thinking_compare.rs` until that
+    /// comparison has decided it.
+    think: Option<bool>,
 }
 
 impl OllamaProvider {
     pub fn new(model: impl Into<String>) -> Self {
         Self {
             model: model.into(),
+            think: None,
         }
+    }
+
+    pub fn thinking(mut self, think: bool) -> Self {
+        self.think = Some(think);
+        self
     }
 
     pub fn model(&self) -> &str {
@@ -119,6 +129,20 @@ impl OllamaProvider {
             return Vec::new();
         };
         parse_loaded(&body)
+    }
+
+    /// What Ollama knows about a model's shape, for estimating its footprint.
+    fn model_info(model: &str) -> Option<serde_json::Value> {
+        let body: serde_json::Value = ureq::post(&format!("{HOST}/api/show"))
+            .config()
+            .timeout_global(Some(Duration::from_secs(5)))
+            .build()
+            .send_json(serde_json::json!({ "model": model }))
+            .ok()?
+            .into_body()
+            .read_json()
+            .ok()?;
+        Some(body["model_info"].clone())
     }
 
     /// Whether Ollama is running at all.
@@ -232,9 +256,109 @@ fn parse_loaded(body: &serde_json::Value) -> Vec<LoadedModel> {
                         expires_at: m["expires_at"].as_str().map(str::to_string),
                     })
                 })
+                .inspect(remember_footprint)
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// How much memory a model takes once loaded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub struct Footprint {
+    pub bytes: u64,
+    /// Seen loaded at TRACE's context size, rather than worked out.
+    pub measured: bool,
+}
+
+/// Sizes Ollama has reported for models loaded at `NUM_CTX`, this run.
+static MEASURED: std::sync::Mutex<Vec<(String, u64)>> = std::sync::Mutex::new(Vec::new());
+
+/// Kept from every `/api/ps`, because nothing else says what a model
+/// really occupies — and it is exactly what the next load will need.
+fn remember_footprint(model: &LoadedModel) {
+    // A model loaded by something else at another context size is not what
+    // TRACE's own load would take.
+    if model.size_bytes == 0
+        || model
+            .context_length
+            .is_some_and(|c| c != u64::from(NUM_CTX))
+    {
+        return;
+    }
+    let mut measured = MEASURED.lock().unwrap_or_else(|e| e.into_inner());
+    measured.retain(|(name, _)| name != &model.name);
+    measured.push((model.name.clone(), model.size_bytes));
+}
+
+/// What loading `model` will take: measured if TRACE has seen it loaded,
+/// otherwise estimated from its weights and the context TRACE asks for.
+///
+/// Errs high when it has to guess. Overestimating makes TRACE wait for room
+/// it did not strictly need; underestimating is how a machine freezes.
+pub fn footprint(model: &str) -> Footprint {
+    let seen = MEASURED
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .iter()
+        .find(|(name, _)| name == model)
+        .map(|(_, bytes)| *bytes);
+    if let Some(bytes) = seen {
+        return Footprint {
+            bytes,
+            measured: true,
+        };
+    }
+    let weights = OllamaProvider::installed()
+        .ok()
+        .and_then(|models| models.into_iter().find(|m| m.name == model))
+        .map(|m| m.size_bytes)
+        .unwrap_or(0);
+    let info = OllamaProvider::model_info(model).unwrap_or_default();
+    Footprint {
+        bytes: estimate_footprint(weights, &info),
+        measured: false,
+    }
+}
+
+/// Runtime buffers beside the weights and cache.
+///
+/// Measured on Ollama 0.40.2: qwen3:14b loads at 10.47 GB against 9.28 GB of
+/// weights and a 1.34 GB worked-out cache, so weights plus cache already
+/// cover it; this is margin, keeping the estimate ~4% above the truth.
+const LOAD_OVERHEAD: u64 = 256 << 20;
+
+/// Weights, plus the KV cache Ollama reserves for the whole context at load,
+/// plus overhead.
+///
+/// The cache is worked out from the model's shape when Ollama describes it:
+/// two tensors (keys and values) per layer, per KV head, per position, at 16
+/// bits. Without a shape, a quarter of the weights stands in for it, which is
+/// above what any model TRACE offers needs at 8k.
+pub fn estimate_footprint(weights: u64, model_info: &serde_json::Value) -> u64 {
+    kv_cache_bytes(model_info).unwrap_or(weights / 4) + weights + LOAD_OVERHEAD
+}
+
+fn kv_cache_bytes(info: &serde_json::Value) -> Option<u64> {
+    let arch = info["general.architecture"].as_str()?;
+    let field = |name: &str| &info[format!("{arch}.{name}")];
+    // Some architectures list a KV head count per layer; the largest is the
+    // safe one to reserve for every layer.
+    let number = |value: &serde_json::Value| {
+        value.as_u64().or_else(|| {
+            value
+                .as_array()
+                .and_then(|a| a.iter().filter_map(serde_json::Value::as_u64).max())
+        })
+    };
+
+    let layers = number(field("block_count"))?;
+    let heads = number(field("attention.head_count"))?;
+    let kv_heads = number(field("attention.head_count_kv")).unwrap_or(heads);
+    let head_dim = number(field("embedding_length"))? / heads.max(1);
+    let key = number(field("attention.key_length")).unwrap_or(head_dim);
+    let value = number(field("attention.value_length")).unwrap_or(head_dim);
+
+    Some(u64::from(NUM_CTX) * layers * kv_heads * (key + value) * 2)
 }
 
 /// The user's choice when it is still installed, else `pick_model`.
@@ -571,6 +695,10 @@ impl OllamaProvider {
             },
             "keep_alive": keep_alive()
         });
+        let mut request = request;
+        if let Some(think) = self.think {
+            request["think"] = think.into();
+        }
 
         let response = ureq::post(&format!("{HOST}/api/generate"))
             .config()
@@ -777,7 +905,7 @@ fn parse_json<T: serde::de::DeserializeOwned>(text: &str) -> Result<T, Synthesis
 /// long enough to span the gap between windows of one meeting. Otherwise
 /// Ollama's own default.
 fn keep_alive() -> &'static str {
-    match crate::settings::load().summary_memory {
+    match crate::settings::load().summary_memory() {
         crate::settings::SummaryMemory::WhileWriting => "1m",
         crate::settings::SummaryMemory::DuringMeetings => "5m",
     }
@@ -797,6 +925,12 @@ const LEASE: &str = "10m";
 /// model lapse between renewals.
 const RENEW_EVERY: Duration = Duration::from_secs(4 * 60);
 
+/// How often memory is looked at again during a meeting.
+///
+/// A call's memory changes over minutes — screen sharing starts, a browser
+/// tab grows — so a check made once at the start says little by the end.
+const RECHECK_EVERY: Duration = Duration::from_secs(60);
+
 /// Models TRACE is using, once per holder.
 ///
 /// Counted so that the holder finishing last is the one that unloads: a
@@ -809,6 +943,18 @@ fn claim(model: &str) {
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .push(model.to_string());
+}
+
+/// Whether anything besides one meeting's hold is using `model` — a summary
+/// being written mid-meeting, which unloading would stall.
+fn claimed_elsewhere(model: &str) -> bool {
+    HOLDERS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .iter()
+        .filter(|m| *m == model)
+        .count()
+        > 1
 }
 
 /// Give up one claim, returning whether it was the last on that model.
@@ -832,32 +978,80 @@ fn unclaim(model: &str) -> bool {
 pub struct ModelHold {
     model: String,
     /// Present while a renewal thread runs. Dropping it stops the thread,
-    /// which then releases the claim itself — see `keep_loaded`.
+    /// which then releases the claim itself — see `for_meeting`.
     renewer: Option<std::sync::mpsc::Sender<()>>,
+    /// Whether this hold claimed the model. A meeting that only watches
+    /// memory does not, and must not unload what it never loaded.
+    claimed: bool,
+    /// The last check found no room for the model.
+    tight: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl ModelHold {
-    /// Load `model` now and keep it loaded until dropped.
+    /// Watch memory for the length of a meeting and, when `preload`, keep
+    /// `model` loaded through it while there is room.
     ///
-    /// Called when a meeting starts. The first request after a cold boot pays
-    /// the full model load — measured at roughly a minute for the initial read
-    /// from disk — and paying that during the meeting, rather than after it,
-    /// means the user never waits for it.
+    /// Preloading is what the user chose when they keep the model ready
+    /// during meetings. The first request after a cold boot pays the full
+    /// model load — measured at roughly a minute for the initial read from
+    /// disk — and paying that during the meeting, rather than after it, means
+    /// the user never waits for it.
+    ///
+    /// But a meeting is exactly when a call is competing for the same memory,
+    /// so nothing is loaded without a `memory::check` first, and the check is
+    /// repeated every minute: a model that did not fit at the start is loaded
+    /// once it does, and one partly in system memory is unloaded if that runs
+    /// out. Without `preload` the checks still run, so the meeting can warn
+    /// that its notes may have to wait.
     ///
     /// The lease is renewed rather than set long once, so a TRACE that dies
     /// mid-meeting strands the model for minutes rather than hours.
-    pub fn keep_loaded(model: &str) -> Self {
-        claim(model);
+    pub fn for_meeting(model: &str, preload: bool) -> Self {
+        use std::sync::atomic::Ordering::Relaxed;
+
+        if preload {
+            claim(model);
+        }
+        let tight = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let (tx, rx) = std::sync::mpsc::channel::<()>();
         let name = model.to_string();
+        let watch = std::sync::Arc::clone(&tight);
         let spawned = std::thread::Builder::new()
             .name("trace-llm-hold".into())
             .spawn(move || {
+                let mut held = false;
+                let mut renewed: Option<std::time::Instant> = None;
+                let mut said: Option<crate::memory::Verdict> = None;
                 loop {
-                    renew(&name);
+                    let check = crate::memory::check(&name);
+                    // Logged when the answer changes, not every minute.
+                    if said.map(crate::memory::Verdict::fits) != Some(check.fits()) {
+                        crate::diagnostics::log(check.describe("during the meeting"));
+                        said = Some(check.verdict);
+                    }
+                    watch.store(!check.fits(), Relaxed);
+
+                    if preload {
+                        if check.fits() {
+                            let due = renewed.map_or(true, |t| t.elapsed() >= RENEW_EVERY);
+                            if !held || due {
+                                renew(&name);
+                                held = true;
+                                renewed = Some(std::time::Instant::now());
+                            }
+                        } else if (held || check.resident.is_some()) && !claimed_elsewhere(&name) {
+                            crate::diagnostics::log(format!(
+                                "summary model {name} unloaded mid-meeting: memory ran short"
+                            ));
+                            release(&name);
+                            held = false;
+                            renewed = None;
+                        }
+                    }
+
                     // Never sent to; the sender dropping is the signal.
                     if let Err(std::sync::mpsc::RecvTimeoutError::Disconnected) =
-                        rx.recv_timeout(RENEW_EVERY)
+                        rx.recv_timeout(RECHECK_EVERY)
                     {
                         break;
                     }
@@ -865,15 +1059,26 @@ impl ModelHold {
                 // Released here rather than on drop, so it cannot overtake a
                 // renewal still in flight. Ollama ignores an unload for a model
                 // it is still loading, and the load would then win.
-                if unclaim(&name) {
+                if preload && unclaim(&name) {
                     release(&name);
                 }
             })
             .is_ok();
+        if !spawned && preload {
+            unclaim(model);
+        }
         Self {
             model: model.to_string(),
             renewer: spawned.then_some(tx),
+            claimed: preload && spawned,
+            tight,
         }
+    }
+
+    /// Whether the last look found no room for the model, so notes may have
+    /// to wait once the meeting ends.
+    pub fn tight(&self) -> bool {
+        self.tight.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Mark `model` as in use without loading it, for the length of a
@@ -883,13 +1088,15 @@ impl ModelHold {
         Self {
             model: model.to_string(),
             renewer: None,
+            claimed: true,
+            tight: Default::default(),
         }
     }
 }
 
 impl Drop for ModelHold {
     fn drop(&mut self) {
-        if self.renewer.take().is_some() {
+        if self.renewer.take().is_some() || !self.claimed {
             return;
         }
         if unclaim(&self.model) {
@@ -927,6 +1134,11 @@ fn renew(model: &str) {
 /// handles it before scheduling, so it never loads a model to unload it, and a
 /// model mid-request is unloaded when that request finishes.
 fn release(model: &str) {
+    // Asked first, so the log never claims memory was freed that was never
+    // taken — a meeting whose model never fitted still ends with a release.
+    if !OllamaProvider::loaded().iter().any(|m| m.name == model) {
+        return;
+    }
     let released = ureq::post(&format!("{HOST}/api/generate"))
         .config()
         .timeout_global(Some(Duration::from_secs(10)))
@@ -1082,6 +1294,69 @@ mod tests {
         );
         assert_eq!(loaded[1].expires_at, None);
         assert!(parse_loaded(&serde_json::json!({})).is_empty());
+    }
+
+    #[test]
+    fn the_footprint_counts_the_cache_for_the_whole_context() {
+        // qwen3:14b as Ollama describes it.
+        let info = serde_json::json!({
+            "general.architecture": "qwen3",
+            "qwen3.block_count": 40,
+            "qwen3.attention.head_count": 40,
+            "qwen3.attention.head_count_kv": 8,
+            "qwen3.attention.key_length": 128,
+            "qwen3.attention.value_length": 128,
+            "qwen3.embedding_length": 5120
+        });
+        assert_eq!(kv_cache_bytes(&info), Some(1_342_177_280));
+        assert_eq!(
+            estimate_footprint(9_276_198_565, &info),
+            9_276_198_565 + 1_342_177_280 + LOAD_OVERHEAD
+        );
+    }
+
+    #[test]
+    fn a_footprint_without_a_shape_still_allows_for_a_cache() {
+        let unknown = serde_json::json!({});
+        assert_eq!(
+            estimate_footprint(8_000_000_000, &unknown),
+            10_000_000_000 + LOAD_OVERHEAD
+        );
+        // Head size derived when the key and value lengths are not given, and
+        // per-layer head counts read as their largest.
+        let info = serde_json::json!({
+            "general.architecture": "x",
+            "x.block_count": 2,
+            "x.attention.head_count": 4,
+            "x.attention.head_count_kv": [1, 2],
+            "x.embedding_length": 64
+        });
+        assert_eq!(kv_cache_bytes(&info), Some(8192 * 2 * 2 * 32 * 2));
+    }
+
+    #[test]
+    fn a_model_seen_loaded_at_this_context_is_measured_not_guessed() {
+        let seen = |name: &str, ctx: Option<u64>| LoadedModel {
+            name: name.into(),
+            size_bytes: 11_000_000_000,
+            vram_bytes: 11_000_000_000,
+            context_length: ctx,
+            expires_at: None,
+        };
+        remember_footprint(&seen("test-footprint-a", Some(u64::from(NUM_CTX))));
+        remember_footprint(&seen("test-footprint-b", Some(32_768)));
+        let measured = |name: &str| {
+            MEASURED
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(n, b)| n == name && *b == 11_000_000_000)
+        };
+        assert!(measured("test-footprint-a"));
+        assert!(
+            !measured("test-footprint-b"),
+            "another context is another size"
+        );
     }
 
     #[test]

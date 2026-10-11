@@ -77,6 +77,84 @@ pub fn scan_recoverable(notes_root: &std::path::Path) -> Vec<Recoverable> {
     found
 }
 
+/// A finished meeting whose notes were being written when TRACE stopped.
+#[derive(Debug)]
+pub struct Interrupted {
+    pub session_dir: PathBuf,
+    /// Where the note is now, which a rename since may have changed.
+    pub note_path: PathBuf,
+    pub replay: journal::Replay,
+}
+
+/// Find meetings whose notes never finished.
+///
+/// `scan_recoverable` finds meetings cut off while recording; this finds the
+/// ones cut off afterwards — the summary running when the machine froze —
+/// which used to leave no trace anyone would see. Sessions `busy` says are
+/// being worked on now are skipped: their marker is open because the work is.
+///
+/// A note that has been deleted since is not offered: there is nothing left
+/// to write notes into.
+pub fn scan_interrupted(
+    notes_root: &std::path::Path,
+    busy: impl Fn(&std::path::Path) -> bool,
+) -> Vec<Interrupted> {
+    let Ok(entries) = std::fs::read_dir(paths::sessions_root(notes_root)) else {
+        return Vec::new();
+    };
+
+    let mut found: Vec<Interrupted> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|dir| dir.is_dir() && !busy(dir))
+        .filter_map(|dir| {
+            let replay = journal::replay(&dir).ok()?;
+            if !replay.was_finished || !replay.notes_interrupted {
+                return None;
+            }
+            let note_path = replay
+                .note_path
+                .clone()
+                .filter(|p| p.exists())
+                .or_else(|| find_note(notes_root, &replay.meeting.id))?;
+            Some(Interrupted {
+                session_dir: dir,
+                note_path,
+                replay,
+            })
+        })
+        .collect();
+    found.sort_by(|a, b| b.session_dir.cmp(&a.session_dir));
+    found
+}
+
+/// The note written from session `id`, wherever it is now.
+///
+/// Read from each note's frontmatter, which is what links a note to its
+/// session; a walk rather than an index for the same reason as the library.
+pub fn find_note(notes_root: &std::path::Path, id: &str) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(notes_root).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if path.file_name().is_some_and(|n| n == ".sessions") {
+                continue;
+            }
+            if let Some(found) = find_note(&path, id) {
+                return Some(found);
+            }
+        } else if path.extension().is_some_and(|e| e == "md")
+            && std::fs::read_to_string(&path)
+                .ok()
+                .and_then(|text| markdown::frontmatter_value(&text, "id"))
+                .is_some_and(|found| found == id)
+        {
+            return Some(path);
+        }
+    }
+    None
+}
+
 /// Rewrite an existing note in place.
 ///
 /// Used by the accurate re-pass and by synthesis, which must replace the note
@@ -394,6 +472,42 @@ mod tests {
 
         assert!(rename_note(&root, &note, "   ").is_err());
         assert!(note.exists(), "a rejected rename still moved the file");
+    }
+
+    #[test]
+    fn interrupted_notes_are_found_even_after_a_rename() {
+        use journal::{Journal, JournalEvent};
+
+        let root = scratch("interrupted");
+        let written = write_note(&root, &a_meeting("sess-500", "Standup")).unwrap();
+        let session = paths::session_dir(&root, "sess-500");
+        let mut j = Journal::open(&session).unwrap();
+        j.append(&JournalEvent::SessionStarted {
+            id: "sess-500".into(),
+            title: "Standup".into(),
+            date: "2026-09-06".into(),
+            started_at: "2026-09-06T10:00:00Z".into(),
+        })
+        .unwrap();
+        j.append(&JournalEvent::SessionEnded {
+            ended_at: "2026-09-06T10:30:00Z".into(),
+        })
+        .unwrap();
+        j.append(&JournalEvent::NotesStarted {
+            note_path: written.display().to_string(),
+        })
+        .unwrap();
+
+        let renamed = rename_note(&root, &written, "Pricing review").unwrap();
+        let found = scan_interrupted(&root, |_| false);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].note_path, renamed, "followed the rename by id");
+
+        // Being worked on now: its marker is open because the work is.
+        assert!(scan_interrupted(&root, |_| true).is_empty());
+
+        j.append(&JournalEvent::NotesFinished).unwrap();
+        assert!(scan_interrupted(&root, |_| false).is_empty());
     }
 
     #[test]

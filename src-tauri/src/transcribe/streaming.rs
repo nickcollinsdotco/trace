@@ -6,7 +6,10 @@
 //!
 //! The decision rules are identical to the offline chunker — silence closes a
 //! chunk, length closes one regardless — and for a given `ChunkConfig` the two
-//! produce identical boundaries, which is held by test.
+//! produce identical chunks, which is held by test. That includes the padding
+//! after a chunk's last speech: a chunk is handed over only once that much
+//! audio beyond it has arrived, so a chunk cut by the length ceiling is not
+//! short of its tail the way it would be if emitted the moment it closed.
 //!
 //! In practice the live path runs `ChunkConfig::live`, whose ceiling is much
 //! shorter, so the final pass genuinely does re-cut the transcript. That is
@@ -44,6 +47,10 @@ pub struct StreamingChunker {
     silence_run: usize,
     saw_speech: bool,
     total_seen: usize,
+
+    /// A closed chunk waiting for its trailing pad: speech start, speech
+    /// end, and where the next chunk begins.
+    deferred: Option<(usize, usize, usize)>,
 
     /*
      * Live audio has no noise floor to measure up front, so the threshold is
@@ -86,6 +93,7 @@ impl StreamingChunker {
             silence_run: 0,
             saw_speech: false,
             total_seen: 0,
+            deferred: None,
             warmup: Vec::new(),
             calibrated,
         }
@@ -160,17 +168,36 @@ impl StreamingChunker {
                 } else {
                     self.speech_end
                 };
-                if let Some(chunk) = self.take_chunk(self.speech_start, end) {
-                    out.push(chunk);
-                }
+                // A chunk is at least `min_samples` long, far more than the
+                // pad, so the one before has always had its tail by now.
+                self.release_deferred(&mut out);
+                self.deferred = Some((self.speech_start, end, frame_end));
                 self.chunk_start = frame_end;
                 self.silence_run = 0;
                 self.saw_speech = false;
-                self.trim_to(frame_end);
             }
         }
 
+        self.release_ready(&mut out);
         out
+    }
+
+    /// Hand over the deferred chunk once its trailing pad has arrived.
+    fn release_ready(&mut self, out: &mut Vec<Chunk>) {
+        if let Some((_, end, _)) = self.deferred {
+            if self.total_seen >= end + self.config.pad_samples {
+                self.release_deferred(out);
+            }
+        }
+    }
+
+    /// Hand over the deferred chunk with whatever audio there is, and drop
+    /// what no later chunk can need.
+    fn release_deferred(&mut self, out: &mut Vec<Chunk>) {
+        if let Some((start, end, cut)) = self.deferred.take() {
+            out.extend(self.take_chunk(start, end));
+            self.trim_to(cut);
+        }
     }
 
     /// Advance by `frames` of silence that were never materialised.
@@ -201,13 +228,14 @@ impl StreamingChunker {
     ///
     /// Without this the final utterance of a meeting — often the part that
     /// matters most — would be stranded in the buffer.
-    pub fn flush(&mut self) -> Option<Chunk> {
-        if !self.saw_speech {
-            return None;
+    pub fn flush(&mut self) -> Vec<Chunk> {
+        let mut out = Vec::new();
+        self.release_deferred(&mut out);
+        if self.saw_speech {
+            out.extend(self.take_chunk(self.speech_start, self.speech_end));
+            self.saw_speech = false;
         }
-        let chunk = self.take_chunk(self.speech_start, self.speech_end);
-        self.saw_speech = false;
-        chunk
+        out
     }
 
     /// Build a chunk from absolute bounds, padded and clamped to the buffer.
@@ -298,6 +326,37 @@ mod tests {
     }
 
     #[test]
+    fn chunks_cut_by_the_length_ceiling_match_the_offline_chunker_too() {
+        // The full-quality pass streams the recording through this chunker
+        // instead of cutting it whole, so every boundary must match, padding
+        // included — not only the ones a pause makes.
+        let mut audio = speech(45.0); // cut at the hard ceiling, mid-speech
+        audio.extend(silence(1.5));
+        audio.extend(speech(22.0)); // past the soft ceiling…
+        audio.extend(silence(0.06)); // …so a breath is enough to cut on
+        audio.extend(speech(3.0));
+        audio.extend(silence(2.0));
+        audio.extend(speech(1.0)); // and a tail with no silence after it
+
+        let config = ChunkConfig {
+            energy_threshold: Some(0.01),
+            ..ChunkConfig::default()
+        };
+        let offline = chunk_by_silence(&audio, &config);
+        assert!(offline.len() >= 5, "the case exercises every kind of cut");
+
+        for piece in [480, 4096, 12_345] {
+            let mut chunker = StreamingChunker::new(config);
+            let mut streamed = Vec::new();
+            for slice in audio.chunks(piece) {
+                streamed.extend(chunker.push(slice));
+            }
+            streamed.extend(chunker.flush());
+            assert_eq!(streamed, offline, "pieces of {piece}");
+        }
+    }
+
+    #[test]
     fn agrees_with_the_offline_chunker() {
         // The property that matters: the live transcript and the accurate
         // re-pass must not disagree about utterance boundaries, or segments
@@ -365,7 +424,7 @@ mod tests {
         for slice in speech(2.0).chunks(4096) {
             assert!(chunker.push(slice).is_empty(), "no trailing silence yet");
         }
-        assert!(chunker.flush().is_some(), "final speech must not be lost");
+        assert!(!chunker.flush().is_empty(), "final speech must not be lost");
     }
 
     #[test]
@@ -374,7 +433,7 @@ mod tests {
         for slice in silence(3.0).chunks(4096) {
             chunker.push(slice);
         }
-        assert!(chunker.flush().is_none());
+        assert!(chunker.flush().is_empty());
     }
 
     #[test]
@@ -468,6 +527,6 @@ mod tests {
     fn an_empty_push_is_harmless() {
         let mut chunker = StreamingChunker::new(ChunkConfig::default());
         assert!(chunker.push(&[]).is_empty());
-        assert!(chunker.flush().is_none());
+        assert!(chunker.flush().is_empty());
     }
 }

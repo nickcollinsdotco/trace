@@ -9,6 +9,7 @@ const running: Job = {
   title: "Weekly sync",
   queuedAt: 0,
   steps: [{ kind: "notes", startedAt: 1, finishedAt: null, failed: false, error: null }],
+  waiting: null,
   outcome: null,
 };
 const done: Job = {

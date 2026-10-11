@@ -16,6 +16,14 @@ export function isQueued(job: Job): boolean {
   return job.outcome === null && job.steps.every((s) => s.startedAt === null);
 }
 
+/**
+ * Held back because the summary model has no room. Still coming, which is
+ * what separates it from a failure.
+ */
+export function isWaitingForMemory(job: Job): boolean {
+  return job.outcome === null && job.waiting !== null;
+}
+
 export function currentStep(job: Job): JobStep | null {
   return job.steps.find((s) => s.startedAt !== null && s.finishedAt === null) ?? null;
 }
@@ -57,6 +65,7 @@ export function stepLabel(step: JobStep, parts = 0): string {
  */
 export function headline(job: Job): string {
   if (isQueued(job)) return "waiting for another meeting's notes";
+  if (isWaitingForMemory(job)) return "waiting for memory";
   const step = currentStep(job);
   // Said while it matters, not only afterwards: these notes will be rougher.
   const writing = liveFallback(job) ? "writing notes from the live transcript" : "writing notes";

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Page } from "../../components/ui/Page";
 import { Prompt, Section } from "../../components/ui/terminal";
+import { formatBytes } from "../../lib/format";
 import {
   type DeviceInfo,
   hasBackend,
@@ -17,14 +18,31 @@ const MEMORY_OPTIONS: Array<{ value: SummaryMemory; label: string; note: string 
   {
     value: "during_meetings",
     label: "Ready during meetings",
-    note: "Loaded when a meeting starts, so notes arrive sooner after it ends.",
+    note: "Loaded when a meeting starts, if there is room, so notes arrive sooner after it ends.",
   },
   {
     value: "while_writing",
     label: "Only while writing notes",
-    note: "Frees video memory during calls. Notes take about a minute longer after a restart.",
+    note: "Leaves the memory to the call. Notes take about a minute longer after a restart.",
   },
 ];
+
+/**
+ * Why the memory setting is what it is, when nobody chose it.
+ *
+ * The default follows the machine: a ~11 GiB model held through a video call
+ * is what tipped a busy 32 GB machine over. Saying which way it went, and
+ * why, makes it a decision the user can see and overrule rather than a
+ * behaviour they discover.
+ */
+function memoryReason(settings: Settings): string {
+  const memory = formatBytes(settings.memoryTotalBytes);
+  const which = settings.summaryMemoryRecommended === "during_meetings" ? "enough" : "not enough";
+  const reason = `This computer has ${memory} of memory — ${which} to keep the summary model loaded through a call as well as everything else.`;
+  return settings.summaryMemoryAuto
+    ? `Chosen for you: ${reason} Either way, TRACE checks for room before it loads the model.`
+    : `${reason} Either way, TRACE checks for room before it loads the model.`;
+}
 
 /*
  * In the order docs/13 Q16 settled, quietest first. Off is the default: a
@@ -197,11 +215,17 @@ export function SettingsScreen() {
                       className="mt-1 size-3.5 shrink-0 accent-phosphor"
                     />
                     <span className="flex flex-col gap-0.5">
-                      <span className="text-sm text-ink">{o.label}</span>
+                      <span className="text-sm text-ink">
+                        {o.label}
+                        {o.value === settings.summaryMemoryRecommended && (
+                          <span className="text-2xs text-ink-faint"> · suits this computer</span>
+                        )}
+                      </span>
                       <span className="text-2xs text-ink-faint">{o.note}</span>
                     </span>
                   </label>
                 ))}
+                <p className="text-2xs text-ink-faint">{memoryReason(settings)}</p>
               </div>
             </Field>
           </Section>

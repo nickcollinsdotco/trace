@@ -65,6 +65,11 @@ export interface Settings {
   /** Chosen Ollama model; null means the first preferred one installed. */
   summaryModel: string | null;
   summaryMemory: SummaryMemory;
+  /** Nobody has chosen, so `summaryMemory` is what suits this machine. */
+  summaryMemoryAuto: boolean;
+  summaryMemoryRecommended: SummaryMemory;
+  /** The physical memory the recommendation was made from. */
+  memoryTotalBytes: number;
   defaultMic: string | null;
   miniAuto: MiniAuto;
   /** The mini window from anywhere, as typed: "Ctrl+Shift+Alt+M". Empty for none. */
@@ -137,6 +142,8 @@ export interface CaptureStatus {
   mic: string | null;
   /** The transcription model this meeting uses. */
   speechModel: string;
+  /** No room for the summary model right now, so notes may wait after the meeting. */
+  memoryTight: boolean;
 }
 
 /** One stream's latest waveform, oldest sample first, at about 12kHz. */
@@ -216,6 +223,16 @@ export interface RecoverableSession {
   corruptLines: number;
 }
 
+/** A finished meeting whose notes were being written when TRACE last stopped. */
+export interface InterruptedNotes {
+  sessionDir: string;
+  notePath: string;
+  title: string;
+  date: string;
+  /** The full-quality pass never finished and the audio is still there, so it runs first. */
+  needsTranscript: boolean;
+}
+
 export interface FinishedMeeting {
   meeting: { id: string; title: string; date: string };
   notePath: string;
@@ -285,6 +302,22 @@ export type JobOutcome =
   | { state: "failed"; message: string };
 
 /**
+ * Notes held back because the summary model has no room to load. Still
+ * coming: the backend looks again every few seconds.
+ */
+export interface MemoryWait {
+  neededBytes: number;
+  ramAvailableBytes: number;
+  /** Null when the GPU's memory cannot be read. */
+  gpuFreeBytes: number | null;
+  /** Unix milliseconds. */
+  since: number;
+}
+
+/** An answer to a wait for memory. */
+export type WaitChoice = "anyway" | "later";
+
+/**
  * Heavy work on a note after its meeting ended: the full-quality
  * re-transcription, then the summary. The backend owns these, so every screen
  * sees the same thing and a note cannot have two at once.
@@ -295,6 +328,8 @@ export interface Job {
   title: string;
   queuedAt: number;
   steps: JobStep[];
+  /** Present while the job is waiting for memory. */
+  waiting: MemoryWait | null;
   /** null while queued or running. */
   outcome: JobOutcome | null;
 }
@@ -416,6 +451,12 @@ export const ipc = {
   recoverableSessions: () => call<RecoverableSession[]>("recoverable_sessions"),
   recoverSession: (sessionDir: string) => call<string>("recover_session", { sessionDir }),
   discardSession: (sessionDir: string) => call<void>("discard_session", { sessionDir }),
+  interruptedNotes: () => call<InterruptedNotes[]>("interrupted_notes"),
+  resumeNotes: (sessionDir: string) => call<void>("resume_notes", { sessionDir }),
+  dismissInterrupted: (sessionDir: string) => call<void>("dismiss_interrupted", { sessionDir }),
+  /** False when the note's job had already moved on. */
+  memoryWaitChoice: (notePath: string, choice: WaitChoice) =>
+    call<boolean>("memory_wait_choice", { notePath, choice }),
 
   revealNotesFolder: () => call<string>("reveal_notes_folder"),
   /** Shows the note's file selected in Explorer. */
@@ -518,9 +559,9 @@ export function isDesktop(): boolean {
  * saved note.
  *
  * The note is written immediately when a meeting stops, using the live
- * transcript. Re-transcribing at full quality takes about two and a half
- * minutes for an hour-long meeting, so it happens in the background and this
- * announces the result.
+ * transcript. Re-transcribing at full quality takes four to five minutes for
+ * an hour-long meeting — two streams, one after the other — so it happens in
+ * the background and this announces the result.
  */
 export function onTranscriptUpdated(
   handler: (info: { notePath: string; segments: number }) => void,

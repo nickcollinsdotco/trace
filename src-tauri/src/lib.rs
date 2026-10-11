@@ -65,6 +65,8 @@ pub fn run() {
         // easy and confusing. Set here rather than in `tauri.conf.json`,
         // which has no per-profile title.
         .setup(|app| {
+            // Before the page asks what can be recovered, which reads them.
+            app.state::<CaptureManager>().move_old_sessions();
             if cfg!(debug_assertions) {
                 for window in app.webview_windows().values() {
                     window.set_title("TRACE (dev)")?;

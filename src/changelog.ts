@@ -26,6 +26,20 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.29.0",
+    date: "2026-10-11",
+    title: "Recordings stay on this computer, even when Documents is synced",
+    notes: [
+      "Meeting audio and journals now live in TRACE's own folder in local app data, not inside Documents\\TRACE. Windows' OneDrive backup syncs Documents by default, which meant every recording, about 690 MB an hour, was being uploaded.",
+      "Recordings already there move across the first time this version opens. One still in use, by another copy of TRACE recording, moves on a later launch.",
+      "About lists the Recordings folder, and says when the notes folder is synced by OneDrive or Dropbox: notes and their transcripts are uploaded then, though recordings never are.",
+    ],
+    screens: {
+      "about-notes-synced": "New. The warning above the folders, and Recordings among them.",
+      about: "Recordings is listed between Notes and Models.",
+    },
+  },
+  {
     version: "0.28.1",
     date: "2026-10-11",
     title: "Recordings that survive a crash",

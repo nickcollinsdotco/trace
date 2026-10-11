@@ -48,6 +48,16 @@ fn notes_root() -> PathBuf {
     }
 }
 
+/// Where the app keeps sessions for this notes root, as `CaptureManager`
+/// decides it.
+fn sessions_root(notes_root: &std::path::Path) -> PathBuf {
+    if std::env::var_os("TRACE_NOTES_ROOT").is_some() {
+        paths::sessions_beside(notes_root)
+    } else {
+        paths::default_sessions_root().expect("no local data directory")
+    }
+}
+
 fn record(notes_root: &std::path::Path, secs: u64, mic_device: Option<String>) {
     let session_id = format!(
         "sess-{}",
@@ -56,7 +66,7 @@ fn record(notes_root: &std::path::Path, secs: u64, mic_device: Option<String>) {
             .map(|d| d.as_secs())
             .unwrap_or(0)
     );
-    let dir = paths::session_dir(notes_root, &session_id);
+    let dir = paths::session_dir(&sessions_root(notes_root), &session_id);
 
     let mut journal = Journal::open(&dir).expect("open journal");
     let now = chrono::Local::now();
@@ -134,9 +144,9 @@ fn record(notes_root: &std::path::Path, secs: u64, mic_device: Option<String>) {
 
 fn scan(notes_root: &std::path::Path, finalize: bool) {
     println!("TRACE / RECOVERY");
-    println!("  {}\n", paths::sessions_root(notes_root).display());
+    println!("  {}\n", sessions_root(notes_root).display());
 
-    let found = store::scan_recoverable(notes_root);
+    let found = store::scan_recoverable(&sessions_root(notes_root));
     if found.is_empty() {
         println!("  nothing to recover.");
         return;

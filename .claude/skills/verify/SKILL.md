@@ -39,7 +39,7 @@ artefact too:
   beside `target/release/trace.exe` proves nothing about where the installer
   puts it.
 - **Transcription** — run it over real audio from
-  `~/Documents/TRACE/.sessions/`, with `cargo run --release --example
+  `%LOCALAPPDATA%\TRACE\sessions\`, with `cargo run --release --example
   chunk_check`. Turn the keep-audio setting on first, or the evidence is
   deleted before you can look at it.
 

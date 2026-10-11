@@ -434,8 +434,8 @@ pub struct RecoverableSession {
 pub fn recoverable_sessions(
     manager: State<'_, CaptureManager>,
 ) -> CmdResult<Vec<RecoverableSession>> {
-    let root = manager.notes_root().map_err(err)?;
-    Ok(store::scan_recoverable(&root)
+    let sessions = manager.sessions_root().map_err(err)?;
+    Ok(store::scan_recoverable(&sessions)
         .into_iter()
         .map(|r| RecoverableSession {
             session_dir: r.session_dir.display().to_string(),
@@ -499,8 +499,9 @@ pub struct InterruptedNotes {
 #[tauri::command]
 pub fn interrupted_notes(manager: State<'_, CaptureManager>) -> CmdResult<Vec<InterruptedNotes>> {
     let root = manager.notes_root().map_err(err)?;
+    let sessions = manager.sessions_root().map_err(err)?;
     Ok(
-        store::scan_interrupted(&root, crate::capture_manager::is_underway)
+        store::scan_interrupted(&sessions, &root, crate::capture_manager::is_underway)
             .into_iter()
             .map(|found| {
                 crate::capture_manager::release_unneeded_audio(&found);
@@ -743,9 +744,9 @@ pub async fn regenerate_notes(
     manager: State<'_, CaptureManager>,
     note_path: String,
 ) -> CmdResult<()> {
-    let root = manager.notes_root().map_err(err)?;
+    let sessions = manager.sessions_root().map_err(err)?;
     let path = PathBuf::from(&note_path);
-    let session_dir = replayable_session(&root, &path)?;
+    let session_dir = replayable_session(&sessions, &path)?;
 
     // Off the async runtime: synthesis on a long meeting is seconds to
     // minutes of blocking work.
@@ -774,10 +775,10 @@ pub fn activity() -> Vec<crate::activity::Job> {
 /// was retained past synthesis, where it can never work again.
 #[tauri::command]
 pub fn can_regenerate(manager: State<'_, CaptureManager>, note_path: String) -> bool {
-    let Ok(root) = manager.notes_root() else {
+    let Ok(sessions) = manager.sessions_root() else {
         return false;
     };
-    replayable_session(&root, &PathBuf::from(note_path)).is_ok()
+    replayable_session(&sessions, &PathBuf::from(note_path)).is_ok()
 }
 
 /// Resolve a note to the session journal that produced it.
@@ -785,12 +786,15 @@ pub fn can_regenerate(manager: State<'_, CaptureManager>, note_path: String) -> 
 /// Fails clearly when the journal is gone: notes written before the journal
 /// survived finalisation, or discarded by hand, cannot be regenerated and the
 /// user should be told rather than shown a silent no-op.
-fn replayable_session(root: &std::path::Path, note: &std::path::Path) -> Result<PathBuf, String> {
+fn replayable_session(
+    sessions: &std::path::Path,
+    note: &std::path::Path,
+) -> Result<PathBuf, String> {
     let text = std::fs::read_to_string(note).map_err(err)?;
     let session_id =
         frontmatter_field(&text, "id").ok_or_else(|| "this note has no session id".to_string())?;
 
-    let session_dir = store::session_for_note(root, &session_id);
+    let session_dir = store::session_for_note(sessions, &session_id);
     if !session_dir.join("session.jsonl").exists() {
         return Err(
             "the original transcript record for this meeting is no longer available".into(),
@@ -881,8 +885,8 @@ pub fn abort_capture(app: AppHandle, manager: State<'_, CaptureManager>) -> CmdR
 /// Delete a saved note and the session behind it.
 #[tauri::command]
 pub fn delete_note(manager: State<'_, CaptureManager>, note_path: String) -> CmdResult<()> {
-    let root = manager.notes_root().map_err(err)?;
-    store::delete_note(&root, &PathBuf::from(note_path)).map_err(err)
+    let sessions = manager.sessions_root().map_err(err)?;
+    store::delete_note(&sessions, &PathBuf::from(note_path)).map_err(err)
 }
 
 /// Show a note's file in Explorer, selected.
@@ -1021,11 +1025,18 @@ pub fn start_ollama() -> CmdResult<()> {
 pub struct AppInfo {
     pub version: String,
     pub dev_build: bool,
+    /// The service syncing the notes folder, which uploads every note and
+    /// transcript in it. About says so, since its lead promises none leave.
+    pub notes_synced_by: Option<&'static str>,
 }
 
 #[tauri::command]
-pub fn app_info(app: AppHandle) -> AppInfo {
+pub fn app_info(app: AppHandle, manager: State<'_, CaptureManager>) -> AppInfo {
     AppInfo {
+        notes_synced_by: manager
+            .notes_root()
+            .ok()
+            .and_then(|root| store::paths::synced_by(&root)),
         // The product version from `tauri.conf.json`, which is what the
         // installer is named after, rather than the crate's.
         version: app.package_info().version.to_string(),
@@ -1116,6 +1127,7 @@ pub fn open_folder(
 
     let dir = match kind.as_str() {
         "notes" => manager.notes_root().map_err(err)?,
+        "sessions" => manager.sessions_root().map_err(err)?,
         "models" => models::models_root().map_err(err)?,
         "logs" => crate::diagnostics::log_dir().ok_or("no local data folder")?,
         other => return Err(format!("unknown folder {other}")),

@@ -599,7 +599,7 @@ export const SCENARIOS: Scenario[] = [
       ...POPULATED,
       interrupted: [
         {
-          sessionDir: "C:\\Users\\you\\Documents\\TRACE\\.sessions\\sess-1791589525028",
+          sessionDir: "C:\\Users\\you\\AppData\\Local\\TRACE\\sessions\\sess-1791589525028",
           notePath: PATHS.pricing,
           title: "Pricing page rework",
           date: isoDaysAgo(0),
@@ -1309,6 +1309,17 @@ export const SCENARIOS: Scenario[] = [
     screen: "about",
     aboutFocus: "whats-new",
     state: POPULATED,
+  },
+  {
+    id: "about-notes-synced",
+    name: "About, notes in OneDrive",
+    group: "Pages",
+    note: "The notes folder is under OneDrive, as Windows' folder backup puts Documents. Recordings are not: they live in local app data.",
+    screen: "about",
+    state: {
+      ...POPULATED,
+      appInfo: { version: "0.1.0", devBuild: true, notesSyncedBy: "OneDrive" },
+    },
   },
   {
     id: "about-model-held",

@@ -7,6 +7,11 @@ import { WhatsNew } from "./WhatsNew";
 
 const FOLDERS: Array<{ kind: Folder; label: string; note: string }> = [
   { kind: "notes", label: "Notes", note: "Your meetings, as Markdown" },
+  {
+    kind: "sessions",
+    label: "Recordings",
+    note: "Meeting audio and journals, kept out of synced folders",
+  },
   { kind: "models", label: "Models", note: "Downloaded speech models" },
   { kind: "logs", label: "Logs", note: "The event log in the report below" },
 ];
@@ -91,6 +96,15 @@ export function AboutScreen({
 
       <Section title="Folders">
         <div className="flex flex-col gap-2">
+          {/* The page's lead promises nothing leaves this computer, and a
+              synced notes folder breaks that for the notes. Audio is safe:
+              sessions live in local app data whatever the notes folder is. */}
+          {info?.notesSyncedBy && (
+            <p className="text-sm text-warn">
+              Your notes folder is synced by {info.notesSyncedBy}, so notes and their transcripts
+              are uploaded to it. Recordings are kept apart, on this computer only.
+            </p>
+          )}
           {FOLDERS.map((f) => (
             <div key={f.kind} className="flex items-center gap-4">
               <span className="flex min-w-0 flex-1 flex-col">

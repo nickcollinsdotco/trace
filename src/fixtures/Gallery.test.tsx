@@ -460,6 +460,18 @@ describe("Gallery", () => {
     expect(screen.getByText(/copied/)).toBeInTheDocument();
   });
 
+  it("says when the notes folder is synced, and only then", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "About, notes in OneDrive");
+    expect(await screen.findByText(/Your notes folder is synced by OneDrive/)).toBeInTheDocument();
+    expect(screen.getByText("Recordings")).toBeInTheDocument();
+
+    await openScenario(user, "About, notes being written");
+    await screen.findByText("pnpm update-app");
+    expect(screen.queryByText(/Your notes folder is synced/)).not.toBeInTheDocument();
+  });
+
   it("disables regeneration when the journal is gone", async () => {
     const user = userEvent.setup();
     render(<Gallery />);

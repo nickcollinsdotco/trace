@@ -6,9 +6,9 @@
 //! ```text
 //! ~/Documents/TRACE/
 //!   2026/09/2026-09-05-client-alpha.md     <- canonical
-//!   .sessions/<session-id>/
-//!     session.jsonl                        <- crash journal
-//!     mic.wav, system.wav                  <- transient audio
+//! %LOCALAPPDATA%/TRACE/sessions/<session-id>/
+//!   session.jsonl                          <- crash journal
+//!   mic.wav, system.wav                    <- transient audio
 //! ```
 
 use std::path::PathBuf;
@@ -30,6 +30,8 @@ pub enum StoreError {
     NoSessionStart,
     #[error("could not determine the notes directory")]
     NoNotesDir,
+    #[error("could not determine the local data directory for sessions")]
+    NoSessionsDir,
     #[error("malformed note at {path}: {reason}")]
     MalformedNote { path: PathBuf, reason: String },
 }
@@ -49,9 +51,8 @@ pub struct Recoverable {
 ///
 /// Errors on individual sessions are skipped rather than propagated: one
 /// unreadable journal must not hide every other recoverable meeting.
-pub fn scan_recoverable(notes_root: &std::path::Path) -> Vec<Recoverable> {
-    let sessions = paths::sessions_root(notes_root);
-    let Ok(entries) = std::fs::read_dir(&sessions) else {
+pub fn scan_recoverable(sessions_root: &std::path::Path) -> Vec<Recoverable> {
+    let Ok(entries) = std::fs::read_dir(sessions_root) else {
         return Vec::new();
     };
 
@@ -96,10 +97,11 @@ pub struct Interrupted {
 /// A note that has been deleted since is not offered: there is nothing left
 /// to write notes into.
 pub fn scan_interrupted(
+    sessions_root: &std::path::Path,
     notes_root: &std::path::Path,
     busy: impl Fn(&std::path::Path) -> bool,
 ) -> Vec<Interrupted> {
-    let Ok(entries) = std::fs::read_dir(paths::sessions_root(notes_root)) else {
+    let Ok(entries) = std::fs::read_dir(sessions_root) else {
         return Vec::new();
     };
 
@@ -287,8 +289,8 @@ pub fn sessions_to_strip(mut with_audio: Vec<String>, keep: usize) -> Vec<String
 ///
 /// The note's frontmatter carries the session id it came from, which is what
 /// links a Markdown file back to its structured record.
-pub fn session_for_note(notes_root: &std::path::Path, session_id: &str) -> PathBuf {
-    paths::session_dir(notes_root, session_id)
+pub fn session_for_note(sessions_root: &std::path::Path, session_id: &str) -> PathBuf {
+    paths::session_dir(sessions_root, session_id)
 }
 
 /// Delete a saved note, and the session behind it.
@@ -298,12 +300,12 @@ pub fn session_for_note(notes_root: &std::path::Path, session_id: &str) -> PathB
 /// anyone who asked for it. The session is best-effort: an already-cleaned
 /// session is not a failure, and the note is what the user pointed at.
 pub fn delete_note(
-    notes_root: &std::path::Path,
+    sessions_root: &std::path::Path,
     note_path: &std::path::Path,
 ) -> Result<(), StoreError> {
     if let Ok(text) = std::fs::read_to_string(note_path) {
         if let Some(id) = crate::store::markdown::frontmatter_value(&text, "id") {
-            let _ = discard_session(&session_for_note(notes_root, &id));
+            let _ = discard_session(&session_for_note(sessions_root, &id));
         }
     }
 
@@ -497,7 +499,8 @@ mod tests {
 
         let root = scratch("interrupted");
         let written = write_note(&root, &a_meeting("sess-500", "Standup")).unwrap();
-        let session = paths::session_dir(&root, "sess-500");
+        let sessions = paths::sessions_beside(&root);
+        let session = paths::session_dir(&sessions, "sess-500");
         let mut j = Journal::open(&session).unwrap();
         j.append(&JournalEvent::SessionStarted {
             id: "sess-500".into(),
@@ -516,15 +519,15 @@ mod tests {
         .unwrap();
 
         let renamed = rename_note(&root, &written, "Pricing review").unwrap();
-        let found = scan_interrupted(&root, |_| false);
+        let found = scan_interrupted(&sessions, &root, |_| false);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].note_path, renamed, "followed the rename by id");
 
         // Being worked on now: its marker is open because the work is.
-        assert!(scan_interrupted(&root, |_| true).is_empty());
+        assert!(scan_interrupted(&sessions, &root, |_| true).is_empty());
 
         j.append(&JournalEvent::NotesFinished).unwrap();
-        assert!(scan_interrupted(&root, |_| false).is_empty());
+        assert!(scan_interrupted(&sessions, &root, |_| false).is_empty());
     }
 
     #[test]
@@ -532,7 +535,8 @@ mod tests {
         use journal::{Journal, JournalEvent};
 
         let root = scratch("recovered");
-        let session = paths::session_dir(&root, "sess-700");
+        let sessions = paths::sessions_beside(&root);
+        let session = paths::session_dir(&sessions, "sess-700");
         let mut j = Journal::open(&session).unwrap();
         j.append(&JournalEvent::SessionStarted {
             id: "sess-700".into(),
@@ -547,11 +551,11 @@ mod tests {
             .unwrap()
             .modified()
             .unwrap();
-        assert_eq!(scan_recoverable(&root).len(), 1);
+        assert_eq!(scan_recoverable(&sessions).len(), 1);
 
         close_recovered(&session).unwrap();
 
-        assert!(scan_recoverable(&root).is_empty(), "offered again");
+        assert!(scan_recoverable(&sessions).is_empty(), "offered again");
         let replay = journal::replay(&session).unwrap();
         assert!(replay.was_finished);
         let ended =
@@ -570,7 +574,7 @@ mod tests {
     #[test]
     fn closing_a_session_with_no_journal_fails_rather_than_inventing_one() {
         let root = scratch("recovered-gone");
-        let session = paths::session_dir(&root, "sess-701");
+        let session = paths::session_dir(&paths::sessions_beside(&root), "sess-701");
         std::fs::create_dir_all(&session).unwrap();
         assert!(close_recovered(&session).is_err());
         assert!(!session.join("session.jsonl").exists());
@@ -583,11 +587,12 @@ mod tests {
         let root = scratch("delete");
         let note = write_note(&root, &a_meeting("sess-123", "Client call")).unwrap();
 
-        let session = paths::session_dir(&root, "sess-123");
+        let sessions = paths::sessions_beside(&root);
+        let session = paths::session_dir(&sessions, "sess-123");
         std::fs::create_dir_all(&session).unwrap();
         std::fs::write(session.join("session.jsonl"), "{}").unwrap();
 
-        delete_note(&root, &note).unwrap();
+        delete_note(&sessions, &note).unwrap();
 
         assert!(!note.exists());
         assert!(!session.exists(), "the transcript outlived the note");
@@ -598,7 +603,7 @@ mod tests {
         let root = scratch("delete-no-session");
         let note = write_note(&root, &a_meeting("sess-gone", "Ad hoc")).unwrap();
 
-        delete_note(&root, &note).unwrap();
+        delete_note(&paths::sessions_beside(&root), &note).unwrap();
         assert!(!note.exists());
     }
 }

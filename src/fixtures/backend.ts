@@ -171,7 +171,7 @@ export const DEFAULT_STATE: BackendState = {
   },
   failures: {},
   llm: { state: "ready", model: "qwen3:14b" },
-  appInfo: { version: "0.1.0", devBuild: true },
+  appInfo: { version: "0.1.0", devBuild: true, notesSyncedBy: null },
   speechModels: [
     {
       id: "parakeet-tdt-0.6b-v3-int8",

@@ -202,7 +202,10 @@ export function Specimen() {
           </span>
         </Row>
         <Row note="select · fitted with w-auto">
-          <select aria-label="Select" className="trace-field w-auto self-start py-1.5 text-sm">
+          <select
+            aria-label="Select"
+            className="trace-field w-auto max-w-full self-start py-1.5 text-sm"
+          >
             <option>Delete once notes are written</option>
             <option>Keep the latest 5</option>
           </select>

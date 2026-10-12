@@ -414,7 +414,7 @@ function EffectRow({
           }`}
         >
           {sizes && (
-            <fieldset className="m-0 flex items-center gap-1 border-0 p-0">
+            <fieldset className="m-0 flex min-w-0 flex-wrap items-center gap-1 border-0 p-0">
               <legend className="sr-only">{`${EFFECT_LABELS[effect]} size`}</legend>
               <span aria-hidden className="pr-1 font-mono text-2xs text-ink-faint">
                 size
@@ -431,7 +431,7 @@ function EffectRow({
             </fieldset>
           )}
           {placeable && (
-            <fieldset className="m-0 flex items-center gap-1 border-0 p-0">
+            <fieldset className="m-0 flex min-w-0 flex-wrap items-center gap-1 border-0 p-0">
               <legend className="sr-only">{`${EFFECT_LABELS[effect]} placement`}</legend>
               <span aria-hidden className="pr-1 font-mono text-2xs text-ink-faint">
                 place

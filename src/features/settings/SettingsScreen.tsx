@@ -132,7 +132,7 @@ export function SettingsScreen() {
                 aria-label="Default microphone"
                 value={settings.defaultMic ?? ""}
                 onChange={(e) => save(ipc.setDefaultMic(e.target.value || null))}
-                className="trace-field w-auto self-start py-1.5 text-sm"
+                className="trace-field w-auto max-w-full self-start py-1.5 text-sm"
               >
                 <option value="">System default</option>
                 {devices.map((d) => (

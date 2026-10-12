@@ -30,7 +30,8 @@
     "verify": "pnpm lint && pnpm check && pnpm test",
     "update-app": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update.ps1",
     "open-installers": "node scripts/open-installers.mjs",
-    "bump": "node scripts/bump.mjs"
+    "bump": "node scripts/bump.mjs",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5",

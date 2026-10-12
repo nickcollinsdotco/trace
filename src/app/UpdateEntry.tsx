@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Gauge } from "../components/ui/terminal";
-import { ipc, onUpdateProgress } from "../lib/ipc";
+import { ipc, onUpdateFailed, onUpdateProgress } from "../lib/ipc";
 
 /** Where an update has got to, as the status bar shows it. */
 export type UpdateView =
@@ -11,6 +11,21 @@ export type UpdateView =
   | { kind: "downloading"; version: string; percent: number }
   | { kind: "installing"; version: string }
   | { kind: "failed"; message: string; version?: string };
+
+/** What would be lost if TRACE closed to install now. */
+export type UpdateBlock = "recording" | "writing";
+
+/** Said in place of the download button while it waits, and why on hover. */
+const WAITING: Record<UpdateBlock, { label: string; why: string }> = {
+  recording: {
+    label: "after this meeting",
+    why: "Installing closes TRACE, which would end the recording. It can install once the meeting has stopped.",
+  },
+  writing: {
+    label: "once the notes are written",
+    why: "Installing closes TRACE, which would stop the notes part-way. It can install once they are written.",
+  },
+};
 
 /** How long "up to date" stays before the bar goes back to the version alone. */
 const CURRENT_MS = 4_000;
@@ -26,9 +41,16 @@ const CURRENT_MS = 4_000;
  */
 export function UpdateEntry({
   version,
+  blocked = null,
   initial = { kind: "idle" },
 }: {
   version: string;
+  /**
+   * Why installing now would lose something — a meeting recording, notes
+   * being written — or null. Installing closes TRACE, so the download waits;
+   * the backend refuses too, this only says so before the click.
+   */
+  blocked?: UpdateBlock | null;
   /** For the gallery, to open on a state that otherwise takes a click. */
   initial?: UpdateView | undefined;
 }) {
@@ -49,6 +71,19 @@ export function UpdateEntry({
       void unlisten.then((f) => f());
     };
   }, [view.kind]);
+
+  // The command has answered by now, so an installer that would not start
+  // can only say so this way.
+  useEffect(() => {
+    if (view.kind !== "installing") return;
+    const next = view.version;
+    const unlisten = onUpdateFailed(({ message }) =>
+      setView({ kind: "failed", message, version: next }),
+    );
+    return () => {
+      void unlisten.then((f) => f());
+    };
+  }, [view]);
 
   const check = () => {
     setView({ kind: "checking" });
@@ -77,16 +112,21 @@ export function UpdateEntry({
     <>
       {view.kind === "checking" && <span>checking…</span>}
       {view.kind === "current" && <span role="status">up to date</span>}
-      {view.kind === "available" && (
-        <button
-          type="button"
-          onClick={() => install(view.version)}
-          title={`Download TRACE ${view.version} and install it. TRACE restarts to finish.`}
-          className="rounded-xs px-1 text-phosphor trace-press hover:underline"
-        >
-          update available · v{view.version}
-        </button>
-      )}
+      {view.kind === "available" &&
+        (blocked ? (
+          <span role="status" title={WAITING[blocked].why}>
+            update v{view.version} {WAITING[blocked].label}
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => install(view.version)}
+            title={`Download TRACE ${view.version} and install it. TRACE restarts to finish.`}
+            className="rounded-xs px-1 text-phosphor trace-press hover:underline"
+          >
+            update available · v{view.version}
+          </button>
+        ))}
       {view.kind === "downloading" && (
         <span className="flex items-center gap-2" role="status">
           <span>v{view.version}</span>

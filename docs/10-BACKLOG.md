@@ -443,30 +443,14 @@ Audio already keeps them, and `chunk_check` replays the VAD over them. A
 filler-word toggle remains an idea. Synthesis already guards against a
 runaway filler (`synthesis/prompt.rs`), but the transcript keeps them.
 
-## In-app updates — UI built, mechanism next
+## In-app updates — built in 0.30.0
 
-**Idea.** An "Update available" notice in the status bar, as Handy has, that
-downloads and installs a new version from inside the app.
-
-**Today.** `pnpm update-app -Check` shows what an update would bring, and
-`pnpm update-app` pulls, builds and launches the installer locally
-(`scripts/update.ps1`); `pnpm bump` gives each build its own version.
-That is enough while TRACE has one user who builds it from source.
-
-**What the real thing needs**, in order:
-
-1. **The code-signing decision** (`docs/11-PLAN.md`, M8). Everything below
-   depends on it. Windows SmartScreen warns on every unsigned download, and an
-   updater that triggers that warning on each release is worse than no updater.
-2. **Signed release builds published to GitHub Releases** — a CI workflow that
-   builds on Windows, signs, and uploads the installer with a `latest.json`
-   manifest.
-3. **Tauri's updater plugin** (`tauri-plugin-updater`), configured with the
-   manifest URL and an update-signing key pair. This key is separate from the
-   Windows certificate: it proves an update came from us, and losing it means
-   no installed copy can ever update again. It must live somewhere safer than
-   a laptop.
-4. ~~**The UI**~~ — built in 0.29.0, see below.
+**What it does.** Clicking the version in the status bar checks GitHub
+Releases (`src/app/UpdateEntry.tsx`, `src-tauri/src/update.rs`). A newer
+version becomes "update available · vX"; clicking that downloads it with a
+bar in its place, verifies it against the updater key, and TRACE closes, runs
+the installer passively and reopens. Gallery: `update-available`,
+`update-downloading`, `update-waiting`, `update-failed`.
 
 **Why a click, not a background check.** A background check would be the one
 thing that made TRACE contact the network on its own. That would have to be a
@@ -474,41 +458,39 @@ visible, opt-out setting, not a default added in passing — the product promise
 is that nothing needs a network after setup. A click on the version is the
 user asking, which keeps the promise without a setting.
 
-### Built (0.29.0)
+**How a release is made.** `pnpm release` on this machine
+(`scripts/release.mjs`): refuses anything but a clean, pushed `origin/main`,
+builds the NSIS installer with updater signatures, writes `latest.json`, and
+publishes both as GitHub Release `vX.Y.Z` with the changelog entry as notes.
+`pnpm release --dry-run` builds and signs without publishing. The endpoint is
+`releases/latest/download/latest.json`, so the newest non-prerelease wins.
 
-The version in the status bar is the button (`src/app/UpdateEntry.tsx`):
-checking → up to date / update available · vX / couldn't check, then a
-download bar in its place, then "restarting to install". Gallery scenarios
-`update-available`, `update-downloading`, `update-failed`. The fake backend
-answers the commands; **Rust does not**, so the installed app says "couldn't
-check" on every click.
+**Decided 2026-10-11: unsigned.** No Authenticode certificate. The updater's
+own key proves origin, and a file the app downloads itself carries no Mark of
+the Web, so SmartScreen should warn only on a first install from the
+browser. *To verify on the first real update.*
 
-### Pick up next
+**The key.** `~/.tauri/trace-updater.key` (no password), generated
+2026-10-12; the public half is in `tauri.conf.json`. Losing it means no
+installed copy can update itself again — it needs a copy somewhere other than
+this laptop. Until the first release is published it can still be replaced
+(regenerate, and swap the public key in the config).
 
-The frontend contract is fixed in `src/lib/ipc.ts`; build Rust to it:
+**Nothing lost by updating.** Installing closes TRACE, so it is refused while
+a meeting records or notes are written: the status bar says "update vX after
+this meeting" instead of offering the download, and the backend refuses
+again, both at the click and just before the installer runs.
 
-- `check_for_update` → `{ latest: string | null }` (null when current).
-- `install_update` → resolves when downloaded, then the app closes itself and
-  runs the installer. Emits `trace://update-progress` `{ percent }` while
-  downloading.
+### Still open
 
-Open decisions, in order:
-
-1. **Where an update comes from.** No GitHub Releases exist yet. Either the
-   path above (CI release builds + `tauri-plugin-updater`, after the signing
-   decision), or a stopgap for the one user who builds from source: the
-   installed app knows the repo it was built from (`env!("CARGO_MANIFEST_DIR")`
-   baked in), checks by `git fetch` and reading `origin/main`'s
-   `tauri.conf.json`, and "downloads" by running `scripts/update.ps1 -Yes`
-   — in which case the bar is build steps (pull, install, build, install),
-   not bytes, and the label should say so.
-2. **Refuse while recording.** Installing closes TRACE. `UpdateEntry` should
-   not offer the download while a meeting is recording or notes are being
-   written — the status bar already has `jobs`, and `useRecordingElapsed`
-   in `Shell` knows about recording.
-3. **About's wording.** About still says "TRACE never checks for updates by
-   itself", which stays true, but it should mention that clicking the version
-   checks once that works.
+- **The first real update**, end to end, from an installed 0.30.0 to a
+  published 0.30.1: SmartScreen, the passive installer, the relaunch.
+- **`pnpm update-app` and releases.** Both paths now exist. Building from
+  source stays for the developer; whether `update-app` should become
+  "install the latest release" is worth deciding after the first few
+  releases.
+- **CI release builds**, if releasing from this machine becomes a chore.
+  The key would then live in a repository secret.
 
 ## Library and meeting management
 
@@ -668,13 +650,11 @@ What the audit found besides, worst first. Evidence is `file:line` as of
    battery. What wake does to the timeline is unmeasured. *Fix:*
    `ES_SYSTEM_REQUIRED | ES_CONTINUOUS` while recording and while notes are
    written; then test a sleep and wake. Small.
-6. **Quitting or updating mid-meeting gives no warning.** No
-   `CloseRequested` handling (`windows.rs` watches focus only), and
-   `scripts/update.ps1` force-closes after ten seconds without knowing
-   whether a meeting is recording. Notes cut off this way are now offered on
-   the next launch, but the meeting itself ends where it was. *Fix:* confirm
-   on close while recording or writing; a busy marker the update script
-   reads. Small.
+6. ~~**Quitting or updating mid-meeting gives no warning.**~~ **Done in
+   0.30.0.** Closing the last window asks while recording or writing notes
+   (`windows.rs`). `busy.rs` keeps `%LOCALAPPDATA%\TRACE\busy`, holding the
+   process id, for as long as either lasts; `update.ps1` reads it and leaves
+   a busy TRACE running, even with `-Yes`, and the in-app updater refuses.
 7. **Regenerating overwrites body edits made outside TRACE.**
    `store::rewrite_note` keeps the title, tags, context and names from the
    file and nothing else, by design — but nothing tells someone who edited

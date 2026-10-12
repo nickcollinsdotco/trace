@@ -18,7 +18,7 @@ import {
 } from "../lib/ipc";
 import { shortModel } from "../lib/names";
 import type { Page } from "./Sidebar";
-import { UpdateEntry, type UpdateView } from "./UpdateEntry";
+import { type UpdateBlock, UpdateEntry, type UpdateView } from "./UpdateEntry";
 
 /**
  * The bottom bar: which models are in play, what they are doing, and which
@@ -41,6 +41,7 @@ export function StatusBar({
   onManageModels,
   onOpenNote,
   onWhatsNew,
+  recording = false,
   initialUpdate,
 }: {
   /** Where the user is, for the narrator. */
@@ -50,6 +51,8 @@ export function StatusBar({
   onOpenNote?: ((path: string) => void) | undefined;
   /** After an update: where its changes are read. */
   onWhatsNew?: (() => void) | undefined;
+  /** A meeting is recording, which an update must not close. */
+  recording?: boolean;
   initialUpdate?: UpdateView | undefined;
 }) {
   const [speech, setSpeech] = useState<SpeechModel[] | null>(null);
@@ -76,6 +79,11 @@ export function StatusBar({
   if (!hasBackend()) return null;
 
   const active = speech?.find((m) => m.active);
+  const updateBlock: UpdateBlock | null = recording
+    ? "recording"
+    : jobs.some(isRunning)
+      ? "writing"
+      : null;
 
   return (
     // The sides as wide as they need and no wider; the narrator has the rest.
@@ -119,7 +127,9 @@ export function StatusBar({
           </button>
         )}
         {info?.devBuild && <span className="text-warn">dev</span>}
-        {info && <UpdateEntry version={info.version} initial={initialUpdate} />}
+        {info && (
+          <UpdateEntry version={info.version} blocked={updateBlock} initial={initialUpdate} />
+        )}
       </span>
     </footer>
   );

@@ -62,8 +62,9 @@ export function AboutScreen({
             next for how to get a newer one. Two audiences: most people have
             an installer, the developer builds from the folder. */}
         <p className="text-sm text-ink-muted">
-          TRACE never checks for updates by itself — it does not go online on its own. New versions
-          are published on GitHub; install one over this and your notes stay where they are.
+          TRACE never checks for updates by itself — it does not go online on its own. Click the
+          version at the bottom right to check GitHub for a newer one, and install it from there;
+          your notes stay where they are.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <button

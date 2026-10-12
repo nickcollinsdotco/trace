@@ -1351,6 +1351,21 @@ export const SCENARIOS: Scenario[] = [
     state: { ...POPULATED, latestVersion: "0.31.0" },
   },
   {
+    id: "update-waiting",
+    name: "Update waiting for a meeting",
+    group: "Pages",
+    note: "A newer version found mid-meeting. Installing closes TRACE, so the download is not offered until the meeting stops; the reason is on hover.",
+    screen: "capture",
+    update: { kind: "available", version: "0.31.0" },
+    state: {
+      ...POPULATED,
+      latestVersion: "0.31.0",
+      recording: true,
+      startElapsedMs: 14 * 60_000,
+      script: liveScript(),
+    },
+  },
+  {
     id: "update-failed",
     name: "Update check failed",
     group: "Pages",

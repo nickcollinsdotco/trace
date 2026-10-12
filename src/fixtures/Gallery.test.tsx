@@ -1584,13 +1584,22 @@ describe("Gallery", () => {
     render(<Gallery />);
     await openScenario(user, "Update available");
 
-    await user.click(await screen.findByRole("button", { name: "update available · v0.29.0" }));
+    await user.click(await screen.findByRole("button", { name: "update available · v0.31.0" }));
     expect(screen.getByRole("img", { name: /Downloading/ })).toBeInTheDocument();
     // No second download, or a check over the top of this one.
     expect(screen.getByRole("button", { name: "v0.1.0" })).toBeDisabled();
     expect(
-      await screen.findByText("restarting to install v0.29.0…", {}, { timeout: 5_000 }),
+      await screen.findByText("restarting to install v0.31.0…", {}, { timeout: 5_000 }),
     ).toBeInTheDocument();
+  });
+
+  it("does not offer an update's download while a meeting records", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Update waiting for a meeting");
+
+    expect(await screen.findByText("update v0.31.0 after this meeting")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /update available/ })).toBeNull();
   });
 
   it("keeps What's new closed on About until it is opened, and open when sent to it", async () => {

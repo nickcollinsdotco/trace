@@ -611,7 +611,7 @@ pub fn on_return(app: &AppHandle) {
     }
 }
 
-/// Watch the main window for being minimised, left or returned to.
+/// Watch the main window for being minimised, left, returned to or closed.
 pub fn watch_main(app: &AppHandle) {
     let Some(main) = app.get_webview_window("main") else {
         return;
@@ -635,8 +635,70 @@ pub fn watch_main(app: &AppHandle) {
         tauri::WindowEvent::Resized(_) if watched.is_minimized().unwrap_or(false) => {
             on_trigger(&handle, Trigger::Minimised);
         }
+        tauri::WindowEvent::CloseRequested { api, .. } => {
+            if let Some(question) = close_question(&handle) {
+                api.prevent_close();
+                confirm_close(&handle, &watched, question);
+            }
+        }
         _ => {}
     });
+}
+
+/// Set once the user has said to quit anyway, so the close that follows is
+/// not asked about a second time.
+static QUIT_CONFIRMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// What closing the main window would lose, as a question, if anything.
+///
+/// Only when it is the last window: with the mini window open, TRACE keeps
+/// running and the meeting with it, which is the point of the mini window.
+fn close_question(app: &AppHandle) -> Option<(&'static str, &'static str)> {
+    if QUIT_CONFIRMED.load(std::sync::atomic::Ordering::Relaxed) {
+        return None;
+    }
+    if app.webview_windows().keys().any(|label| label != "main") {
+        return None;
+    }
+    if app
+        .state::<crate::capture_manager::CaptureManager>()
+        .status()
+        .is_some()
+    {
+        Some((
+            "A meeting is recording. Quitting ends it here; what was captured is offered for recovery next time TRACE opens.",
+            "Keep recording",
+        ))
+    } else if crate::busy::is_busy() {
+        Some((
+            "TRACE is still writing notes. Quitting stops them part-way; they are offered again next time TRACE opens.",
+            "Keep writing",
+        ))
+    } else {
+        None
+    }
+}
+
+/// Ask, without blocking the event loop the window's own events arrive on.
+fn confirm_close(app: &AppHandle, main: &WebviewWindow, (message, stay): (&str, &str)) {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+    let main = main.clone();
+    app.dialog()
+        .message(message)
+        .title("Quit TRACE?")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Quit".into(),
+            stay.into(),
+        ))
+        .parent(&main)
+        .show(move |quit| {
+            if quit {
+                crate::diagnostics::log("quit while busy, confirmed");
+                QUIT_CONFIRMED.store(true, std::sync::atomic::Ordering::Relaxed);
+                let _ = main.close();
+            }
+        });
 }
 
 /// The most the mini window may grow, so it stays a bar beside a call rather

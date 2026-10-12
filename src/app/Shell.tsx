@@ -178,6 +178,7 @@ export function Shell({
             onManageModels={() => onNavigate("models")}
             onOpenNote={onOpenNote}
             onWhatsNew={onWhatsNew}
+            recording={recording !== null}
             initialUpdate={initialUpdate}
           />
         </div>

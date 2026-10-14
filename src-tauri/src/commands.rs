@@ -564,6 +564,22 @@ pub fn memory_wait_choice(
     chosen
 }
 
+/// Stop the notes being written for this note — queued, re-transcribing, or
+/// part-way through a summary. The job winds down at once and says so.
+///
+/// False when nothing was running, which the UI treats as nothing to do.
+#[tauri::command]
+pub fn stop_notes(app: AppHandle, note_path: String) -> bool {
+    let stopped = crate::activity::ACTIVITY.request_stop(&note_path);
+    if stopped {
+        let _ = app.emit(
+            crate::activity::EVENT_ACTIVITY,
+            crate::activity::ACTIVITY.snapshot(),
+        );
+    }
+    stopped
+}
+
 #[tauri::command]
 pub fn reveal_notes_folder(manager: State<'_, CaptureManager>) -> CmdResult<String> {
     let root = manager.notes_root().map_err(err)?;

@@ -64,6 +64,7 @@ export function stepLabel(step: JobStep, parts = 0): string {
  * left on screen through the combining pass read as stuck.
  */
 export function headline(job: Job): string {
+  if (job.stopping) return "stopping";
   if (isQueued(job)) return "waiting for another meeting's notes";
   if (isWaitingForMemory(job)) return "waiting for memory";
   const step = currentStep(job);

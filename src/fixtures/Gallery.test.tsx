@@ -570,6 +570,22 @@ describe("Gallery", () => {
     expect(bar).not.toHaveTextContent("writing notes");
   }, 15_000);
 
+  it("stops notes part-way, says so at once, and leaves them to ↻", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Regenerating");
+
+    const stop = await screen.findByRole("button", { name: "stop" });
+    await user.click(stop);
+    expect(await screen.findByRole("button", { name: "stopping…" })).toBeDisabled();
+    // The line itself, not the gallery's own list, which has a scenario
+    // of the same name.
+    expect(await screen.findByText(/↻ writes them when you like/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "stop" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "stopping…" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "↻" })).toBeEnabled());
+  });
+
   it("asks before regenerating a note edited outside TRACE, and says where the copy went", async () => {
     const user = userEvent.setup();
     render(<Gallery />);

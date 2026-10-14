@@ -118,6 +118,7 @@ pub fn run() {
             commands::resume_notes,
             commands::dismiss_interrupted,
             commands::memory_wait_choice,
+            commands::stop_notes,
             commands::reveal_notes_folder,
             commands::regenerate_notes,
             commands::can_regenerate,

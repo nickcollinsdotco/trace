@@ -16,7 +16,16 @@ function step(kind: StepKind, from: number | null = null, to: number | null = nu
 }
 
 function job(steps: JobStep[], outcome: Job["outcome"] = null): Job {
-  return { id: 1, notePath: "a.md", title: "A", queuedAt: 0, steps, waiting: null, outcome };
+  return {
+    id: 1,
+    notePath: "a.md",
+    title: "A",
+    queuedAt: 0,
+    steps,
+    waiting: null,
+    stopping: false,
+    outcome,
+  };
 }
 
 const part = (index: number, total: number): StepKind => ({ kind: "part", index, total });
@@ -27,6 +36,15 @@ describe("jobs", () => {
     expect(isQueued(queued)).toBe(true);
     expect(currentStep(queued)).toBeNull();
     expect(headline(queued)).toBe("waiting for another meeting's notes");
+  });
+
+  it("says stopping over whatever step it was on, even waiting for memory", () => {
+    const stopping: Job = {
+      ...job([step(part(2, 3), 1)]),
+      stopping: true,
+      waiting: { neededBytes: 1, ramAvailableBytes: 1, gpuFreeBytes: null, since: 1 },
+    };
+    expect(headline(stopping)).toBe("stopping");
   });
 
   it("says a job held back for memory is waiting, not writing", () => {

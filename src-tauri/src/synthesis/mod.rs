@@ -16,6 +16,7 @@ pub mod citable;
 pub mod ollama;
 pub mod prompt;
 pub mod schema;
+mod stream;
 pub mod validate;
 
 pub use citable::CitableSet;
@@ -31,7 +32,8 @@ pub enum SynthesisError {
     Malformed(String),
     #[error("there is nothing to summarise")]
     EmptyTranscript,
-    /// Stopped between parts by the caller, with its reason.
+    /// Stopped by the caller — between parts, or part-way through one —
+    /// with its reason.
     #[error("{0}")]
     Stopped(String),
 }
@@ -145,6 +147,9 @@ pub fn generate(
                     };
                 }
             }
+            // Asked to stop is not the pass failing: falling back to the
+            // parts here would write the notes the user just stopped.
+            Err(SynthesisError::Stopped(reason)) => return Err(SynthesisError::Stopped(reason)),
             Err(e) => {
                 crate::diagnostics::log(format!(
                     "final pass failed ({e}); keeping the parts' summaries and the strongest \

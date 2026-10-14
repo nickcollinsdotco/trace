@@ -736,6 +736,15 @@ impl Tracked {
         self.finish(Outcome::Failed { message });
     }
 
+    fn stopping(&self) -> bool {
+        ACTIVITY.stopping(self.id)
+    }
+
+    fn stop(&self) {
+        diagnostics::log("notes stopped by the user");
+        self.finish(Outcome::Stopped);
+    }
+
     fn publish(&self) {
         let _ = self.app.emit(EVENT_ACTIVITY, ACTIVITY.snapshot());
     }
@@ -777,7 +786,11 @@ pub fn regenerate(
     let _underway = Underway::begin(session_dir, note_path);
 
     let _lane = ACTIVITY.lane();
-    synthesize(app, &job, session_dir, note_path);
+    if job.stopping() {
+        job.stop();
+    } else {
+        synthesize(app, &job, session_dir, note_path);
+    }
     Ok(())
 }
 
@@ -963,6 +976,10 @@ fn wait_for_room(
 ) -> Result<(), String> {
     let mut since: Option<u64> = None;
     loop {
+        if job.stopping() {
+            job.waiting(None);
+            return Err("stopped".into());
+        }
         match ACTIVITY.choice(job.id) {
             Some(WaitChoice::Anyway) => {
                 if since.is_some() {
@@ -1002,7 +1019,52 @@ fn wait_for_room(
         // In short sleeps, so a choice is acted on at once rather than at
         // the next look.
         let until = std::time::Instant::now() + ROOM_RECHECK;
-        while std::time::Instant::now() < until && ACTIVITY.choice(job.id).is_none() {
+        while std::time::Instant::now() < until
+            && ACTIVITY.choice(job.id).is_none()
+            && !job.stopping()
+        {
+            std::thread::sleep(Duration::from_millis(250));
+        }
+    }
+}
+
+/// How long notes wait for an Ollama that is installed but not answering.
+///
+/// After a reboot Ollama starts at sign-in, a little after TRACE can; notes
+/// resumed then used to fail at once on the two-second probe, telling the
+/// user to open something that was already opening.
+const OLLAMA_WAIT: Duration = Duration::from_secs(60);
+const OLLAMA_RECHECK: Duration = Duration::from_secs(3);
+
+/// The model to summarise with, once Ollama answers.
+///
+/// `Err(Some)` says why notes cannot be written, in the note's words;
+/// `Err(None)` means Stop was pressed while waiting.
+fn wait_for_ollama(job: &Tracked) -> Result<String, Option<String>> {
+    use crate::synthesis::ollama::Readiness;
+    let until = std::time::Instant::now() + OLLAMA_WAIT;
+    let mut said = false;
+    loop {
+        if job.stopping() {
+            return Err(None);
+        }
+        match Readiness::check() {
+            Readiness::Ready { model } => {
+                if said {
+                    diagnostics::log("Ollama answered; writing notes");
+                }
+                return Ok(model);
+            }
+            Readiness::NotRunning if std::time::Instant::now() < until => {
+                if !said {
+                    diagnostics::log("Ollama not answering yet; waiting up to a minute");
+                    said = true;
+                }
+            }
+            unready => return Err(Some(unready.guidance().unwrap_or_default())),
+        }
+        let next = std::time::Instant::now() + OLLAMA_RECHECK;
+        while std::time::Instant::now() < next && !job.stopping() {
             std::thread::sleep(Duration::from_millis(250));
         }
     }
@@ -1030,16 +1092,20 @@ fn synthesize(
     // cold model to load is visibly this step rather than a stall.
     job.start(StepKind::Notes);
 
-    let readiness = crate::synthesis::ollama::Readiness::check();
-    let provider = match readiness {
-        crate::synthesis::ollama::Readiness::Ready { model } => {
-            crate::synthesis::ollama::OllamaProvider::new(model)
+    let model = match wait_for_ollama(job) {
+        Ok(model) => model,
+        Err(Some(reason)) => {
+            fail(reason);
+            return;
         }
-        unready => {
-            fail(unready.guidance().unwrap_or_default());
+        Err(None) => {
+            job.stop();
             return;
         }
     };
+    let id = job.id;
+    let provider = crate::synthesis::ollama::OllamaProvider::new(model)
+        .stop_when(std::sync::Arc::new(move || ACTIVITY.stopping(id)));
     // Keeps the model from being unloaded under this summary by a meeting
     // ending elsewhere, and unloads it after if nothing else needs it.
     let _model_hold = crate::synthesis::ollama::ModelHold::in_use(provider.model());
@@ -1064,6 +1130,9 @@ fn synthesize(
 
     let mut said = None;
     let result = crate::synthesis::generate(&provider, &meeting, |progress| {
+        if job.stopping() {
+            return Err(crate::synthesis::SynthesisError::Stopped("stopped".into()));
+        }
         job.start(if progress.combining {
             StepKind::Combine
         } else {
@@ -1086,6 +1155,10 @@ fn synthesize(
     let (generated, report) = match result {
         Ok(pair) => pair,
         // The user's own choice, logged as such; not a failure.
+        Err(crate::synthesis::SynthesisError::Stopped(_)) if job.stopping() => {
+            job.stop();
+            return;
+        }
         Err(crate::synthesis::SynthesisError::Stopped(message)) => {
             job.finish(Outcome::Failed { message });
             return;
@@ -1228,21 +1301,29 @@ fn spawn_repass(
             // One heavy job at a time: a meeting that ends while another's
             // notes are being written waits here, shown as queued.
             let _lane = ACTIVITY.lane();
-            if let Some(job) = &job {
-                job.start(StepKind::Transcript);
-            }
 
             // Before anything can delete the audio. Journalled, so every
             // rewrite from here — the re-pass, the summary, a regeneration
-            // next year — carries it without reading a WAV again.
+            // next year — carries it without reading a WAV again. Even when
+            // stopped: the audio is about to go either way.
             record_signal(&session_dir);
 
-            if let Err(reason) = repass(&app, &session_dir, &note_path, &summary, speech) {
-                diagnostics::log(format!(
-                    "re-pass failed, summarising the live transcript: {reason}"
-                ));
+            let stopped = || job.as_ref().is_some_and(Tracked::stopping);
+            if !stopped() {
                 if let Some(job) = &job {
-                    job.fail_step(&reason);
+                    job.start(StepKind::Transcript);
+                }
+                match repass(&app, &session_dir, &note_path, &summary, speech, &stopped) {
+                    Err(_) if stopped() => {}
+                    Err(reason) => {
+                        diagnostics::log(format!(
+                            "re-pass failed, summarising the live transcript: {reason}"
+                        ));
+                        if let Some(job) = &job {
+                            job.fail_step(&reason);
+                        }
+                    }
+                    Ok(()) => {}
                 }
             }
 
@@ -1251,6 +1332,7 @@ fn spawn_repass(
             // for it, and the live transcript when it did not. Rougher notes
             // beat none, and are what regenerating would give anyway.
             match &job {
+                Some(job) if job.stopping() => job.stop(),
                 Some(job) => synthesize(&app, job, &session_dir, &note_path),
                 None => diagnostics::log("summary skipped: the note already had a job"),
             }
@@ -1273,6 +1355,7 @@ fn repass(
     note_path: &std::path::Path,
     summary: &SessionSummary,
     speech: &'static crate::models::ModelSpec,
+    stop: &dyn Fn() -> bool,
 ) -> Result<(), String> {
     // Loading a second engine only after the live one has been dropped
     // keeps peak memory to one model rather than two.
@@ -1292,7 +1375,7 @@ fn repass(
         // why it is kept. Deleting it, as this once did, lost the one record
         // regenerating notes could start from.
         let mut produced = engine
-            .transcribe_stream(&outcome.path, outcome.source, outcome.start_offset_ms)
+            .transcribe_stream(&outcome.path, outcome.source, outcome.start_offset_ms, stop)
             .map_err(|e| format!("the full-quality pass failed on {:?} ({e})", outcome.source))?;
         segments.append(&mut produced);
     }

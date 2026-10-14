@@ -8,20 +8,26 @@
 //! Ollama applies the JSON Schema passed in `format` as a decoding grammar, so
 //! structurally invalid output is not merely unlikely but ungeneratable.
 
+use std::io::{BufRead, Read};
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
-use std::sync::atomic::{AtomicU8, Ordering};
-
 use super::schema::{condense_schema, CondenseOutput, FormatLevel, SynthesisOutput};
-use super::{prompt, LlmProvider, SynthesisError};
+use super::{prompt, stream, LlmProvider, SynthesisError};
 
 /// Local-only. Not configurable, by design.
 const HOST: &str = "http://127.0.0.1:11434";
+/// The same, for the one request made without `ureq`. See `stream`.
+const ADDR: &str = "127.0.0.1:11434";
 
 /// Generous, because it is a local model on unknown hardware.
 ///
 /// An hour-long transcript through a 12B on a modest GPU can take minutes, and
 /// timing out on a meeting the user just recorded would be worse than waiting.
+/// For the streamed summary request it bounds silence, not the whole answer:
+/// a part still producing after ten minutes carries on, and Stop is there for
+/// one the user would rather not wait for.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(600);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -57,14 +63,34 @@ pub struct OllamaProvider {
     /// the app sends; set only by `examples/thinking_compare.rs` until that
     /// comparison has decided it.
     think: Option<bool>,
+    /// Asked while a request runs; true abandons it. See `generate`.
+    stop: Option<StopWhen>,
 }
+
+/// A question the provider asks while it waits on Ollama: should it give up?
+pub type StopWhen = Arc<dyn Fn() -> bool + Send + Sync>;
+
+/// How often a running request looks at `stop`. Fast enough that Stop feels
+/// immediate; the read itself happens on another thread, so this costs nothing.
+const STOP_POLL: Duration = Duration::from_millis(200);
 
 impl OllamaProvider {
     pub fn new(model: impl Into<String>) -> Self {
         Self {
             model: model.into(),
             think: None,
+            stop: None,
         }
+    }
+
+    /// Abandon requests as soon as `stop` says so, rather than when they end.
+    pub fn stop_when(mut self, stop: StopWhen) -> Self {
+        self.stop = Some(stop);
+        self
+    }
+
+    fn stopping(&self) -> bool {
+        self.stop.as_ref().is_some_and(|stop| stop())
     }
 
     pub fn thinking(mut self, think: bool) -> Self {
@@ -699,45 +725,83 @@ impl OllamaProvider {
         if let Some(think) = self.think {
             request["think"] = think.into();
         }
+        // Streamed, so the request can be given up part-way: Ollama stops
+        // generating when its client goes away, and with the whole answer in
+        // one blocking read there was no way to go away until it was done —
+        // up to ten minutes a part, with nothing to press.
+        request["stream"] = true.into();
 
-        let response = ureq::post(&format!("{HOST}/api/generate"))
-            .config()
-            .timeout_global(Some(REQUEST_TIMEOUT))
-            // Error statuses are read rather than raised, because Ollama puts
-            // the reason in the body. Raised, a rejection arrived as a bare
-            // "http status: 400", which says nothing about what to fix.
-            .http_status_as_error(false)
-            .build()
-            .send_json(&request)
-            .map_err(|e| {
-                // The most likely failure by far is that Ollama is not
-                // running, so say that rather than surfacing a socket error.
-                Failed(if !Self::service_running() {
-                    SynthesisError::Unavailable(
-                        "Ollama is not running. Start it and try again.".into(),
-                    )
-                } else {
-                    SynthesisError::Request(e.to_string())
-                })
-            })?;
+        let unavailable = |e: String| {
+            // The most likely failure by far is that Ollama is not running,
+            // so say that rather than surfacing a socket error.
+            Failed(if !Self::service_running() {
+                SynthesisError::Unavailable("Ollama is not running. Start it and try again.".into())
+            } else {
+                SynthesisError::Request(e)
+            })
+        };
+        let (connection, hang_up) =
+            stream::connect(ADDR, REQUEST_TIMEOUT).map_err(|e| unavailable(e.to_string()))?;
+        let body =
+            serde_json::to_vec(&request).map_err(|e| SynthesisError::Request(e.to_string()))?;
 
-        let status = response.status().as_u16();
-        let text = response
-            .into_body()
-            .read_to_string()
+        // Read on a thread of its own, so this one can keep asking whether
+        // to stop while the model is still loading and nothing has arrived.
+        let (tx, rx) = crossbeam_channel::unbounded();
+        std::thread::Builder::new()
+            .name("trace-ollama".into())
+            .spawn(move || stream_generate(connection, &body, &tx))
             .map_err(|e| SynthesisError::Request(e.to_string()))?;
 
-        if status != 200 {
-            let reason = ollama_error(&text, status);
-            return Err(if status == 400 {
-                Rejected(reason)
-            } else {
-                Failed(SynthesisError::Request(reason))
-            });
-        }
+        let mut answer = String::new();
+        let mut thinking = String::new();
+        let body = loop {
+            if self.stopping() {
+                // Ollama gives up a load or a generation when its client
+                // hangs up, which also unblocks the reading thread.
+                hang_up.now();
+                return Err(SynthesisError::Stopped("stopped".into()).into());
+            }
+            match rx.recv_timeout(STOP_POLL) {
+                Ok(Streamed::Chunk(chunk)) => {
+                    if let Some(reason) = chunk["error"].as_str() {
+                        return Err(SynthesisError::Request(reason.to_string()).into());
+                    }
+                    answer.push_str(chunk["response"].as_str().unwrap_or_default());
+                    thinking.push_str(chunk["thinking"].as_str().unwrap_or_default());
+                    if chunk["done"].as_bool() == Some(true) {
+                        break chunk;
+                    }
+                }
+                Ok(Streamed::Status(status, text)) => {
+                    let reason = ollama_error(&text, status);
+                    return Err(if status == 400 {
+                        Rejected(reason)
+                    } else {
+                        Failed(SynthesisError::Request(reason))
+                    });
+                }
+                Ok(Streamed::Unsent(e)) => return Err(unavailable(e)),
+                Ok(Streamed::Broken(e)) => return Err(SynthesisError::Request(e).into()),
+                Ok(Streamed::Unreadable(e)) => return Err(SynthesisError::Malformed(e).into()),
+                Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
+                Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
+                    return Err(SynthesisError::Request(
+                        "Ollama stopped answering before it had finished".into(),
+                    )
+                    .into());
+                }
+            }
+        };
 
-        let body: serde_json::Value =
-            serde_json::from_str(&text).map_err(|e| SynthesisError::Malformed(e.to_string()))?;
+        // The last chunk carries the counts and timings; the text came in
+        // pieces before it. Put together, it is the body a single response
+        // would have been, so everything below reads it as before.
+        let mut body = body;
+        body["response"] = answer.into();
+        if !thinking.is_empty() {
+            body["thinking"] = thinking.into();
+        }
 
         // Before the checks below, so a request that fails them is still
         // accounted for.
@@ -770,6 +834,60 @@ impl OllamaProvider {
         }
 
         Ok(body)
+    }
+}
+
+/// What the reading thread hands back.
+enum Streamed {
+    /// One line of Ollama's answer.
+    Chunk(serde_json::Value),
+    /// An error status, with the body that says why.
+    Status(u16, String),
+    /// The request never got an answer.
+    Unsent(String),
+    /// The answer stopped part-way.
+    Broken(String),
+    /// A line that was not JSON.
+    Unreadable(String),
+}
+
+/// Send one streamed request and pass each line back until it ends, or until
+/// the connection is hung up on from the other side.
+fn stream_generate(
+    connection: stream::Connection,
+    body: &[u8],
+    tx: &crossbeam_channel::Sender<Streamed>,
+) {
+    let mut response = match connection.post_json("/api/generate", body) {
+        Ok(response) => response,
+        Err(e) => {
+            let _ = tx.send(Streamed::Unsent(e.to_string()));
+            return;
+        }
+    };
+
+    // Error statuses are read rather than raised, because Ollama puts the
+    // reason in the body; a bare "400" says nothing about what to fix.
+    if response.status != 200 {
+        let mut text = String::new();
+        let _ = response.body.read_to_string(&mut text);
+        let _ = tx.send(Streamed::Status(response.status, text));
+        return;
+    }
+
+    for line in response.body.lines() {
+        let message = match line {
+            Ok(line) if line.trim().is_empty() => continue,
+            Ok(line) => match serde_json::from_str(&line) {
+                Ok(chunk) => Streamed::Chunk(chunk),
+                Err(e) => Streamed::Unreadable(e.to_string()),
+            },
+            Err(e) => Streamed::Broken(e.to_string()),
+        };
+        let last = !matches!(message, Streamed::Chunk(_));
+        if tx.send(message).is_err() || last {
+            return;
+        }
     }
 }
 

@@ -691,8 +691,17 @@ What the audit found besides, worst first. Evidence is `file:line` as of
    normal priority. *Fix:* thread counts need `transcribe-rs` to pass
    `create_session_with_threads` through `ParakeetModel::load` (an upstream
    PR); then a capped, below-normal pool for the re-pass. Medium.
-10. **No way to stop a slow summary or re-pass, and a slow Ollama fails at
-    once.** `REQUEST_TIMEOUT` is ten minutes per request, nine parts an hour;
+10. ~~**No way to stop a slow summary or re-pass, and a slow Ollama fails at
+    once.**~~ **Fixed in 0.33.0.** Stop on the note and in the status bar.
+    The summary request is now streamed over a plain socket
+    (`synthesis/stream.rs`) read in 200 ms slices, so it can hang up at any
+    moment; Ollama abandons a load or a generation when its client goes.
+    Measured with `examples/stop_check.rs`: 1 ms to stop mid-part, Ollama's
+    log shows `cancel task`; stopped mid-load, "aborting load" and nothing
+    left in memory. The re-pass checks between chunks, the memory wait and
+    the queue too. Notes wait up to a minute for an Ollama that is installed
+    but not answering. Not verified live: that wait (it needs Ollama quit
+    and started again). What it was: `REQUEST_TIMEOUT` is ten minutes per request, nine parts an hour;
     nothing cancels. Ollama still starting after a reboot fails the 2 s
     readiness probe and the notes fail outright. *Fix:* a Stop on the job,
     checked between parts and chunks; retry readiness for a minute first.

@@ -16,10 +16,10 @@
 //! seen but that was never written down is the one outcome worth avoiding.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter};
 
@@ -83,6 +83,68 @@ pub struct CaptureStatus {
     /// wait once the meeting ends. Said during the meeting, when closing
     /// something is still an option, rather than discovered after it.
     pub memory_tight: bool,
+    /// Minutes of recording the disk has room for, when that is under
+    /// `DISK_WARN_MINUTES`; `None` when there is plenty, or it cannot be read.
+    pub disk_minutes_left: Option<u64>,
+    /// Streams that stopped while the meeting goes on.
+    pub lost_streams: Vec<LostStream>,
+    /// The journal refused a write, so the live transcript is not being
+    /// kept. The WAVs may still be, and the full-quality pass reads those.
+    pub journal_failing: bool,
+}
+
+/// A stream that ended before the meeting did, and why.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LostStream {
+    pub source: StreamSource,
+    /// Into the meeting, on the session clock.
+    pub at_ms: u64,
+    pub reason: String,
+}
+
+/// Warn below this much room for recording. Two hours covers nearly any
+/// meeting started now, and leaves time to free space before it matters.
+pub const DISK_WARN_MINUTES: u64 = 120;
+
+/// How often the pump reads free space. A meeting fills a disk at ~700 MB an
+/// hour, so a minute is never the difference; a read every 50 ms tick would be.
+const DISK_CHECK_EVERY: Duration = Duration::from_secs(60);
+
+/// Free space not yet read, or not readable.
+const FREE_UNKNOWN: u64 = u64::MAX;
+
+/// Minutes of recording `free` bytes hold at `bytes_per_second`, or `None`
+/// when either is unknown.
+fn minutes_left(free: u64, bytes_per_second: u64) -> Option<u64> {
+    if free == FREE_UNKNOWN || bytes_per_second == 0 {
+        return None;
+    }
+    Some(free / bytes_per_second / 60)
+}
+
+/// What the pump learns about the meeting's footing, read by `status`.
+struct Health {
+    free_bytes: AtomicU64,
+    journal_failing: AtomicBool,
+    /// Said once in the log, not once a second.
+    logged_low: AtomicBool,
+}
+
+impl Health {
+    fn new(free: Option<u64>) -> Self {
+        Self {
+            free_bytes: AtomicU64::new(free.unwrap_or(FREE_UNKNOWN)),
+            journal_failing: AtomicBool::new(false),
+            logged_low: AtomicBool::new(false),
+        }
+    }
+
+    /// Note a journal append that failed, logging the first.
+    fn journal_failed(&self, error: &store::StoreError) {
+        if !self.journal_failing.swap(true, Ordering::Relaxed) {
+            diagnostics::log(format!("journal write failed mid-meeting: {error}"));
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -128,9 +190,28 @@ struct Active {
     /// starts from them. Each journal entry is the whole text, so a screen
     /// that started empty would replace them all with its first keystroke.
     notes: String,
+    health: Arc<Health>,
     /// Busy while recording: no idle sleep, and a quit or update asks first.
     /// The notes job takes over with its own.
     _busy: crate::busy::Busy,
+}
+
+impl Active {
+    /// Room left for recording, when it is short enough to say.
+    fn disk_minutes_left(&self) -> Option<u64> {
+        let free = self.health.free_bytes.load(Ordering::Relaxed);
+        let minutes = minutes_left(free, self.capture.bytes_per_second())?;
+        if minutes >= DISK_WARN_MINUTES {
+            return None;
+        }
+        if !self.health.logged_low.swap(true, Ordering::Relaxed) {
+            diagnostics::log(format!(
+                "disk low mid-meeting: {:.1} GB free, about {minutes} minutes of recording",
+                free as f64 / 1e9
+            ));
+        }
+        Some(minutes)
+    }
 }
 
 /// The application's capture state. One meeting at a time, by design.
@@ -254,9 +335,23 @@ impl CaptureManager {
             .map(Arc::new);
         let transcribing = live.is_some();
 
+        // Read before capture starts, so the log says what the meeting began
+        // with, and the first status already carries it.
+        let free = crate::system::free_space(&dir);
+        let health = Arc::new(Health::new(free));
+
         let (tap_tx, tap_rx) = crossbeam_channel::bounded::<CapturedAudio>(4000);
         let mic = mic_device.clone();
         let capture = CaptureSession::start(&session_id, &dir, mic_device, Some(tap_tx));
+        match free.and_then(|f| minutes_left(f, capture.bytes_per_second())) {
+            Some(minutes) => diagnostics::log(format!(
+                "disk: {:.1} GB free, room for about {}h{:02} of recording",
+                free.unwrap_or(0) as f64 / 1e9,
+                minutes / 60,
+                minutes % 60
+            )),
+            None => diagnostics::log("disk: free space unreadable"),
+        }
 
         let segments = Arc::new(Mutex::new(Vec::new()));
         let pump_stop = Arc::new(AtomicBool::new(false));
@@ -268,6 +363,8 @@ impl CaptureManager {
             Arc::clone(&journal),
             Arc::clone(&segments),
             Arc::clone(&pump_stop),
+            dir.clone(),
+            Arc::clone(&health),
         );
 
         let status = CaptureStatus {
@@ -283,6 +380,9 @@ impl CaptureManager {
             mic: mic.clone(),
             speech_model: speech.display_name.to_string(),
             memory_tight: false,
+            disk_minutes_left: None,
+            lost_streams: Vec::new(),
+            journal_failing: false,
         };
 
         *guard = Some(Active {
@@ -299,6 +399,7 @@ impl CaptureManager {
             model_hold,
             mic,
             notes: String::new(),
+            health,
             _busy: crate::busy::hold(),
         });
 
@@ -369,6 +470,18 @@ impl CaptureManager {
                 .model_hold
                 .as_ref()
                 .is_some_and(crate::synthesis::ollama::ModelHold::tight),
+            disk_minutes_left: active.disk_minutes_left(),
+            lost_streams: active
+                .capture
+                .lost()
+                .into_iter()
+                .map(|(source, end)| LostStream {
+                    source,
+                    at_ms: end.at_ms,
+                    reason: end.reason,
+                })
+                .collect(),
+            journal_failing: active.health.journal_failing.load(Ordering::Relaxed),
         })
     }
 
@@ -1227,11 +1340,21 @@ fn spawn_pump(
     journal: Arc<Mutex<Journal>>,
     segments: Arc<Mutex<Vec<Segment>>>,
     stop: Arc<AtomicBool>,
+    session_dir: PathBuf,
+    health: Arc<Health>,
 ) -> JoinHandle<()> {
     std::thread::Builder::new()
         .name("trace-pump".into())
         .spawn(move || {
+            // `start` has just read it.
+            let mut disk_checked = Instant::now();
             loop {
+                if disk_checked.elapsed() >= DISK_CHECK_EVERY {
+                    disk_checked = Instant::now();
+                    let free = crate::system::free_space(&session_dir).unwrap_or(FREE_UNKNOWN);
+                    health.free_bytes.store(free, Ordering::Relaxed);
+                }
+
                 // Drain audio into the transcriber. When no engine is loaded
                 // the blocks are discarded, so the channel cannot back up and
                 // stall capture.
@@ -1255,7 +1378,11 @@ fn spawn_pump(
                             LiveEvent::Segment(segment) => {
                                 // Durable first, visible second.
                                 if let Ok(mut journal) = journal.lock() {
-                                    let _ = journal.append(&JournalEvent::Segment(segment.clone()));
+                                    if let Err(e) =
+                                        journal.append(&JournalEvent::Segment(segment.clone()))
+                                    {
+                                        health.journal_failed(&e);
+                                    }
                                 }
                                 if let Ok(mut segments) = segments.lock() {
                                     segments.push(segment.clone());
@@ -1290,6 +1417,21 @@ fn spawn_pump(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn minutes_left_is_free_space_over_the_write_rate() {
+        // Two 48 kHz 16-bit streams: 192 kB a second, ~691 MB an hour.
+        let rate = 2 * 48_000 * 2;
+        assert_eq!(minutes_left(691_200_000, rate), Some(60));
+        assert_eq!(minutes_left(0, rate), Some(0));
+    }
+
+    #[test]
+    fn minutes_left_is_unknown_without_both_numbers() {
+        assert_eq!(minutes_left(FREE_UNKNOWN, 192_000), None);
+        // Both streams gone: nothing is being written, so no estimate.
+        assert_eq!(minutes_left(1_000_000, 0), None);
+    }
 
     #[test]
     fn a_fresh_manager_has_no_active_meeting() {

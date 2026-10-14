@@ -28,7 +28,7 @@
 //! is acoustic echo cancellation (the `wasapi` crate ships an `aec.rs`
 //! example) — not a change to the stream topology.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
 pub mod envelope;
@@ -147,6 +147,24 @@ pub struct StreamStats {
     pub silence_padded_frames: AtomicU64,
     /// The last moment of the waveform, for the live scope.
     pub scope: scope::Scope,
+    /// The rate the file is written at, or 0 before the device opens. For
+    /// estimating how long the disk will last.
+    pub sample_rate: AtomicU32,
+    /// Set when the capture thread ends before the meeting does.
+    ///
+    /// A write error ends the thread at once, and a full disk used to be
+    /// discovered only when the meeting was stopped — by then an hour of one
+    /// side was missing. This is what lets the recording screen say so while
+    /// there is still something to be done about it.
+    pub ended: std::sync::OnceLock<StreamEnd>,
+}
+
+/// When and why a stream stopped early.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamEnd {
+    /// On the session clock.
+    pub at_ms: u64,
+    pub reason: String,
 }
 
 impl Default for StreamStats {
@@ -160,6 +178,8 @@ impl Default for StreamStats {
             start_offset_ms: AtomicU64::new(OFFSET_UNSET),
             silence_padded_frames: AtomicU64::new(0),
             scope: scope::Scope::default(),
+            sample_rate: AtomicU32::new(0),
+            ended: std::sync::OnceLock::new(),
         }
     }
 }

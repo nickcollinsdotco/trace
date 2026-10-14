@@ -144,6 +144,9 @@ pub fn run_capture(
     });
 
     let mut sink = WavSink::create(&path, format.sample_rate)?;
+    stats
+        .sample_rate
+        .store(format.sample_rate, Ordering::Relaxed);
     let mut byte_buf: Vec<u8> = Vec::new();
 
     // Wall-clock instant at which this stream's first sample arrived. Gaps are

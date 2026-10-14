@@ -634,7 +634,16 @@ What the audit found besides, worst first. Evidence is `file:line` as of
    `%LOCALAPPDATA%\TRACE\sessions`, notes wherever the user likes; warn when
    the notes folder is in OneDrive or Dropbox. Medium, because existing
    sessions move.
-4. **A full disk silently ends a stream.** `mic.rs` (`write_chunk(...)?`) and
+4. ~~**A full disk silently ends a stream.**~~ **Fixed in 0.31.0.** A
+   stream thread that ends before the meeting does records when and why
+   (`StreamStats::ended`, set in `session::spawn_stream`), and the recording
+   screen and mini window say so at once. Free space is read at the start
+   and every minute by the pump; under two hours of room it is said, under
+   fifteen minutes in red. A failed journal append is said too. Verified with
+   `examples/stream_loss_check.rs` on real devices; a genuinely full volume
+   is still untested (it needs a small one to fill). Still not built:
+   refusing or confirming a start with almost no room. What it was:
+   `mic.rs` (`write_chunk(...)?`) and
    `loopback_win.rs` (`sink.write(&mono)?`) end their capture thread on the
    first write error; the pump ignores journal failures
    (`let _ = journal.append`). Nothing reaches the UI until the meeting is

@@ -39,6 +39,10 @@ use super::AudioError;
 /// has to be close for tools that never go through `repair`.
 const CHECKPOINT_SECS: u64 = 1;
 
+/// Mono 16-bit: what a second of one stream costs on disk is its rate times
+/// this. Read by the free-space estimate, so the two cannot drift apart.
+pub const BYTES_PER_SAMPLE: u64 = 2;
+
 pub struct WavSink {
     writer: Option<WavWriter<BufWriter<File>>>,
     path: PathBuf,
@@ -57,7 +61,7 @@ impl WavSink {
         let spec = WavSpec {
             channels: 1,
             sample_rate,
-            bits_per_sample: 16,
+            bits_per_sample: (BYTES_PER_SAMPLE * 8) as u16,
             sample_format: SampleFormat::Int,
         };
 

@@ -105,6 +105,9 @@ pub fn run_capture(
         .map_err(|e| AudioError::Backend(e.to_string()))?;
 
     let mut sink = WavSink::create(&path, format.sample_rate)?;
+    stats
+        .sample_rate
+        .store(format.sample_rate, std::sync::atomic::Ordering::Relaxed);
 
     // Drain until stopped, then drain whatever the callback already queued so
     // the tail of the meeting is not truncated.

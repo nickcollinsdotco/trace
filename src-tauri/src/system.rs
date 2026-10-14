@@ -86,6 +86,11 @@ pub fn report(spec: &ModelSpec) -> SystemReport {
     }
 }
 
+/// Free space on the volume `path` lives on, for the recording's disk watch.
+pub fn free_space(path: &std::path::Path) -> Option<u64> {
+    free_space_for(&path.display().to_string())
+}
+
 /// Free space on the volume a path lives on.
 ///
 /// Matched by longest mount point rather than first hit, so a path under a

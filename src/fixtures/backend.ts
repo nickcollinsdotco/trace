@@ -766,6 +766,9 @@ function status(
     mic: "Microphone (Razer Seiren V3 Mini)",
     speechModel: "Parakeet TDT 0.6B v3 (int8)",
     memoryTight: false,
+    diskMinutesLeft: null,
+    lostStreams: [],
+    journalFailing: false,
     ...state.statusOverrides,
   };
 }

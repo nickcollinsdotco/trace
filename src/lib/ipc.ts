@@ -130,6 +130,14 @@ export interface StreamLevel {
   level: number;
 }
 
+/** A stream that stopped while the meeting goes on. */
+export interface LostStream {
+  source: AudioSource;
+  /** Into the meeting. */
+  atMs: number;
+  reason: string;
+}
+
 export interface CaptureStatus {
   sessionId: string;
   title: string;
@@ -150,6 +158,12 @@ export interface CaptureStatus {
   speechModel: string;
   /** No room for the summary model right now, so notes may wait after the meeting. */
   memoryTight: boolean;
+  /** Minutes of recording the disk has room for, when under two hours; null when plenty. */
+  diskMinutesLeft: number | null;
+  /** Streams that stopped mid-meeting — a full disk, a device gone. */
+  lostStreams: LostStream[];
+  /** The journal refused a write: the live transcript is not being kept. */
+  journalFailing: boolean;
 }
 
 /** One stream's latest waveform, oldest sample first, at about 12kHz. */

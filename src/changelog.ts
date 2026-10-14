@@ -26,6 +26,14 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.30.1",
+    date: "2026-10-14",
+    title: "The first update delivered from inside TRACE",
+    notes: [
+      "Nothing new to use. This version exists so 0.30.0 has something to update to, proving the update button end to end.",
+    ],
+  },
+  {
     version: "0.30.0",
     date: "2026-10-12",
     title: "Updates from inside TRACE, and a warning before quitting mid-meeting",

@@ -767,6 +767,19 @@ pub fn activity() -> Vec<crate::activity::Job> {
     crate::activity::ACTIVITY.snapshot()
 }
 
+/// Whether the note's body was changed outside TRACE since TRACE wrote it.
+///
+/// Asked before regenerating, which writes the body afresh. False for a note
+/// from before the hash, which cannot say: that one is copied regardless, but
+/// asking "you edited this" of someone who did not would be crying wolf.
+#[tauri::command]
+pub fn note_edited(note_path: String) -> bool {
+    std::fs::read_to_string(note_path)
+        .ok()
+        .and_then(|text| store::markdown::body_edited(&text))
+        .unwrap_or(false)
+}
+
 /// Whether this note's journal still exists, so regeneration would work.
 ///
 /// The UI asks before offering the control. Finding out that a button does

@@ -329,7 +329,14 @@ export type JobStep = StepKind & {
 };
 
 export type JobOutcome =
-  | { state: "generated"; dropped: number; fabricated: number; uncited: number }
+  | {
+      state: "generated";
+      dropped: number;
+      fabricated: number;
+      uncited: number;
+      /** File name of the copy kept of the note as it was, when it had been edited outside TRACE. */
+      kept: string | null;
+    }
   | { state: "failed"; message: string };
 
 /**
@@ -501,6 +508,8 @@ export const ipc = {
   renameNote: (notePath: string, title: string) => call<string>("rename_note", { notePath, title }),
   regenerateNotes: (notePath: string) => call<void>("regenerate_notes", { notePath }),
   canRegenerate: (notePath: string) => call<boolean>("can_regenerate", { notePath }),
+  /** Whether the note's body was changed outside TRACE since TRACE wrote it. */
+  noteEdited: (notePath: string) => call<boolean>("note_edited", { notePath }),
   activity: () => call<Job[]>("activity"),
 
   llmStatus: () => call<LlmStatus>("llm_status"),

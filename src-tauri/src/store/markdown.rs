@@ -19,6 +19,14 @@
 //!
 //! Round-tripping is then lossless by construction rather than by effort,
 //! because nothing regenerates the prose.
+//!
+//! # Except regeneration, which rewrites the whole body
+//!
+//! Regenerating replays the journal and writes the body afresh, so prose the
+//! user changed in another editor would go with it. `body_hash` in the
+//! frontmatter is what the body was when TRACE wrote it; a body that no
+//! longer matches was edited outside TRACE, and `store::rewrite_note` keeps a
+//! copy before replacing it.
 
 use crate::meeting::{ActionItem, Meeting, MeetingType};
 
@@ -26,6 +34,7 @@ use super::StoreError;
 
 /// Render a meeting as a Markdown document.
 pub fn serialize(meeting: &Meeting) -> String {
+    let body = render_body(meeting);
     let mut out = String::new();
 
     out.push_str("---\n");
@@ -55,8 +64,15 @@ pub fn serialize(meeting: &Meeting) -> String {
     }
     push_list(&mut out, "participants", &meeting.participants);
     push_list(&mut out, "tags", &meeting.tags);
+    push_field(&mut out, "body_hash", &hash_body(&body));
     out.push_str("---\n\n");
+    out.push_str(&body);
+    out
+}
 
+/// Everything after the frontmatter.
+fn render_body(meeting: &Meeting) -> String {
+    let mut out = String::new();
     out.push_str(&format!("# {}\n", meeting.title));
 
     if let Some(generated) = &meeting.generated {
@@ -107,6 +123,60 @@ pub fn serialize(meeting: &Meeting) -> String {
     }
 
     out
+}
+
+/// Whether a note's body has changed since TRACE wrote it.
+///
+/// `None` for a note written before 0.32, which has no hash to compare.
+pub fn body_edited(markdown: &str) -> Option<bool> {
+    let stored = frontmatter_value(markdown, "body_hash")?;
+    Some(stored != hash_body(body_of(markdown)))
+}
+
+/// The text after the frontmatter, or all of it when there is none.
+fn body_of(markdown: &str) -> &str {
+    let mut lines = markdown.split_inclusive('\n');
+    let Some(first) = lines.next().filter(|l| l.trim() == "---") else {
+        return markdown;
+    };
+    let mut offset = first.len();
+    for line in lines {
+        offset += line.len();
+        if line.trim() == "---" {
+            return &markdown[offset..];
+        }
+    }
+    markdown
+}
+
+/// A fingerprint of a body, blind to what is not an edit worth keeping.
+///
+/// The `# ` heading is left out because TRACE rewrites it itself on a rename,
+/// and the title survives regeneration anyway. Line endings and trailing
+/// whitespace are left out because editors change them on save without
+/// anyone having edited anything.
+///
+/// FNV-1a rather than `DefaultHasher`, whose output may change between Rust
+/// releases: this one is stored in files and compared years later.
+fn hash_body(body: &str) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut heading_skipped = false;
+    let lines = body.lines().map(str::trim_end).filter(|line| {
+        if !heading_skipped && line.starts_with("# ") {
+            heading_skipped = true;
+            return false;
+        }
+        !line.is_empty()
+    });
+    for line in lines {
+        for byte in line.bytes().chain(std::iter::once(b'\n')) {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x0100_0000_01b3);
+        }
+    }
+    // Named, so no YAML reader takes an all-digit one for a number and
+    // rewrites it on save.
+    format!("fnv1a-{hash:016x}")
 }
 
 /// A checkbox line from `## Action items`.
@@ -528,6 +598,12 @@ mod tests {
         m
     }
 
+    fn generated_meeting() -> Meeting {
+        let mut m = meeting();
+        m.generated = Some(generated());
+        m
+    }
+
     fn generated() -> GeneratedMeeting {
         GeneratedMeeting {
             summary: "We discussed pricing.".into(),
@@ -722,6 +798,47 @@ mod tests {
     fn parsing_a_note_with_no_action_section_yields_nothing() {
         assert!(parse_action_items("# Title\n\nJust prose.\n").is_empty());
         assert!(parse_action_items("").is_empty());
+    }
+
+    #[test]
+    fn a_note_as_written_is_not_edited() {
+        assert_eq!(body_edited(&serialize(&meeting())), Some(false));
+    }
+
+    #[test]
+    fn a_changed_line_in_the_body_is_an_edit() {
+        let md = serialize(&generated_meeting())
+            .replace("## Summary", "## Summary\n\nMy own paragraph.");
+        assert_eq!(body_edited(&md), Some(true));
+    }
+
+    #[test]
+    fn a_ticked_box_is_an_edit() {
+        // Regeneration writes the action items afresh, unticked, so a box
+        // ticked in another editor is lost like any other change.
+        let md = serialize(&generated_meeting());
+        assert!(md.contains("- [ ]"), "fixture needs an open action item");
+        assert_eq!(body_edited(&md.replacen("- [ ]", "- [x]", 1)), Some(true));
+    }
+
+    #[test]
+    fn what_trace_changes_itself_is_not_an_edit() {
+        let md = serialize(&meeting());
+        let md = replace_title(&md, "Renamed");
+        let md = replace_frontmatter_list(&md, "tags", &["client".to_string()]);
+        let md = replace_frontmatter_scalar(&md, "context", Some("an interview"));
+        assert_eq!(body_edited(&md), Some(false));
+    }
+
+    #[test]
+    fn an_editor_rewriting_line_endings_is_not_an_edit() {
+        let md = serialize(&meeting()).replace('\n', "  \r\n");
+        assert_eq!(body_edited(&md), Some(false));
+    }
+
+    #[test]
+    fn a_note_from_before_the_hash_cannot_say() {
+        assert_eq!(body_edited("---\nid: x\n---\n\n# Old\n\nText\n"), None);
     }
 
     #[test]

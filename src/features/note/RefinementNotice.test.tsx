@@ -57,6 +57,23 @@ describe("RefinementNotice", () => {
     expect(status).not.toHaveTextContent("part 8 of 8");
   });
 
+  it("names the copy kept of a note edited outside TRACE", () => {
+    render(
+      <RefinementNotice
+        job={job([step({ kind: "notes" }, -60_000, -1_000)], {
+          state: "generated",
+          dropped: 0,
+          fabricated: 0,
+          uncited: 0,
+          kept: "A (before regenerating 2026-10-14 1630).md.bak",
+        })}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "The note as it was is kept beside it, as “A (before regenerating 2026-10-14 1630).md.bak”",
+    );
+  });
+
   it("says a queued job is waiting, not stuck", () => {
     render(<RefinementNotice job={job([step({ kind: "transcript" }), step({ kind: "notes" })])} />);
     expect(screen.getByRole("status")).toHaveTextContent("waiting for another meeting's notes");
@@ -74,7 +91,7 @@ describe("RefinementNotice", () => {
       <RefinementNotice
         job={job(
           [step({ kind: "transcript" }, -90_000, -52_000), step(part(1, 1), -52_000, -11_000)],
-          { state: "generated", dropped: 0, fabricated: 0, uncited: 0 },
+          { state: "generated", dropped: 0, fabricated: 0, uncited: 0, kept: null },
         )}
       />,
     );
@@ -102,7 +119,7 @@ describe("RefinementNotice", () => {
             },
             step(part(1, 1), -58_000, -10_000),
           ],
-          { state: "generated", dropped: 0, fabricated: 0, uncited: 0 },
+          { state: "generated", dropped: 0, fabricated: 0, uncited: 0, kept: null },
         )}
       />,
     );
@@ -125,6 +142,7 @@ describe("RefinementNotice", () => {
           dropped: 2,
           fabricated: 2,
           uncited: 0,
+          kept: null,
         })}
       />,
     );

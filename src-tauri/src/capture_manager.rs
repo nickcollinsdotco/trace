@@ -1116,12 +1116,15 @@ fn synthesize(
         .and_then(|replay| {
             store::rewrite_note(note_path, &replay.meeting).map_err(|e| e.to_string())
         });
-    if let Err(e) = written {
-        fail(format!(
-            "the notes were written but the file could not be updated: {e}"
-        ));
-        return;
-    }
+    let kept = match written {
+        Ok(kept) => kept,
+        Err(e) => {
+            fail(format!(
+                "the notes were written but the file could not be updated: {e}"
+            ));
+            return;
+        }
+    };
 
     let _ = app.emit(
         EVENT_NOTES_GENERATED,
@@ -1133,6 +1136,10 @@ fn synthesize(
         dropped: report.total_dropped(),
         fabricated: report.fabricated,
         uncited: report.uncited,
+        kept: kept
+            .as_deref()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned()),
     });
 }
 

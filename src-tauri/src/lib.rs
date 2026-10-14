@@ -121,6 +121,7 @@ pub fn run() {
             commands::reveal_notes_folder,
             commands::regenerate_notes,
             commands::can_regenerate,
+            commands::note_edited,
             commands::activity,
             commands::system_report,
             commands::get_settings,

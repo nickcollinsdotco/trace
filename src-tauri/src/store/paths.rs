@@ -272,6 +272,28 @@ fn sanitize(component: &str) -> String {
         .collect()
 }
 
+/// Where `rewrite_note` keeps a note's previous text: beside it, named for
+/// when, and ending `.bak` so neither the library nor Obsidian takes it for
+/// a second copy of the meeting.
+pub fn kept_copy_path(note: &Path, at: &chrono::DateTime<chrono::Local>) -> PathBuf {
+    let stem = note
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "note".into());
+    let base = format!(
+        "{stem} (before regenerating {})",
+        at.format("%Y-%m-%d %H%M")
+    );
+    let mut candidate = note.with_file_name(format!("{base}.md.bak"));
+    let mut n = 2;
+    // Two regenerations in one minute must not overwrite the first copy.
+    while candidate.exists() {
+        candidate = note.with_file_name(format!("{base} {n}.md.bak"));
+        n += 1;
+    }
+    candidate
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

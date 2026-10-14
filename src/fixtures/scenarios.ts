@@ -304,6 +304,7 @@ function jobAt(
       error: s.error ?? null,
     })),
     waiting: waiting && { ...waiting, since: waiting.since - at },
+    stopping: false,
     outcome,
   };
 }
@@ -1000,6 +1001,50 @@ export const SCENARIOS: Scenario[] = [
           { step: PART(3) },
           { step: { kind: "combine" } },
         ]),
+      ],
+    },
+  },
+  {
+    id: "note-stopping",
+    name: "Stopping",
+    group: "Reading",
+    note: "Stop was pressed part-way through part 2. Said at once, while the request lets go of Ollama — a fraction of a second, measured, even mid-load.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: {
+      ...POPULATED,
+      activity: [
+        {
+          ...jobAt(0, PRICING_JOB, [
+            { step: PART(1), from: -48_000, to: -17_000 },
+            { step: PART(2), from: -17_000 },
+            { step: PART(3) },
+            { step: { kind: "combine" } },
+          ]),
+          stopping: true,
+        },
+      ],
+    },
+  },
+  {
+    id: "note-stopped",
+    name: "Notes stopped",
+    group: "Reading",
+    note: "Stopped by the user. Not a failure, so not amber: the transcript is saved and ↻ writes the notes whenever. No toast elsewhere, since they pressed it.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: {
+      ...POPULATED,
+      activity: [
+        jobAt(
+          0,
+          PRICING_JOB,
+          [
+            { step: PART(1), from: -48_000, to: -17_000 },
+            { step: PART(2), from: -17_000, to: -2_000 },
+          ],
+          { state: "stopped" },
+        ),
       ],
     },
   },

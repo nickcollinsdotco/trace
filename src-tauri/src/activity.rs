@@ -79,6 +79,9 @@ pub enum Outcome {
     Failed {
         message: String,
     },
+    /// The user pressed Stop. Not a failure: nothing went wrong, and the
+    /// notes can be written from the note whenever they like.
+    Stopped,
 }
 
 /// Notes held back because the summary model has no room to load.
@@ -115,6 +118,9 @@ pub struct Job {
     pub steps: Vec<Step>,
     /// Present while the job is waiting for memory.
     pub waiting: Option<MemoryWait>,
+    /// Stop was pressed and the job is winding down. Shown, because the
+    /// running request takes a moment to let go.
+    pub stopping: bool,
     /// Absent while the job is queued or running.
     pub outcome: Option<Outcome>,
     /// Kept for the rest of the job: someone who said "anyway" once should
@@ -193,6 +199,7 @@ impl Activity {
             queued_at: now_ms(),
             steps,
             waiting: None,
+            stopping: false,
             outcome: None,
             choice: None,
         });
@@ -276,6 +283,7 @@ impl Activity {
             }
             job.steps.retain(|s| s.started_at.is_some());
             job.waiting = None;
+            job.stopping = false;
             job.outcome = Some(outcome);
         });
 
@@ -308,6 +316,29 @@ impl Activity {
             }
             None => false,
         }
+    }
+
+    /// Ask the job on this note to stop, queued or running. False when there
+    /// is no such job, so the UI can say it had already finished.
+    pub fn request_stop(&self, note_path: &str) -> bool {
+        let mut jobs = self.jobs();
+        match jobs
+            .list
+            .iter_mut()
+            .find(|j| j.note_path == note_path && !j.finished())
+        {
+            Some(job) => {
+                job.stopping = true;
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Whether Stop was pressed for this job. Asked between every piece of
+    /// work, and by the running request itself.
+    pub fn stopping(&self, id: u64) -> bool {
+        self.jobs().list.iter().any(|j| j.id == id && j.stopping)
     }
 
     pub fn choice(&self, id: u64) -> Option<WaitChoice> {
@@ -347,6 +378,27 @@ pub fn now_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stop_reaches_the_running_job_and_only_it() {
+        let a = Activity::new();
+        let id = a.begin("a.md", "A", false).unwrap();
+        let other = a.begin("b.md", "B", false).unwrap();
+        assert!(!a.stopping(id));
+
+        assert!(a.request_stop("a.md"));
+        assert!(a.stopping(id));
+        assert!(!a.stopping(other));
+    }
+
+    #[test]
+    fn stopping_a_finished_job_says_so() {
+        let a = Activity::new();
+        let id = a.begin("a.md", "A", false).unwrap();
+        a.finish(id, Outcome::Stopped);
+        assert!(!a.request_stop("a.md"));
+        assert!(!a.stopping(id), "a finished job is no longer stopping");
+    }
 
     fn kinds(a: &Activity) -> Vec<StepKind> {
         a.snapshot()[0]

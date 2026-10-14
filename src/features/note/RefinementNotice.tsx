@@ -52,56 +52,67 @@ export function RefinementNotice({ job }: { job: Job | null }) {
           ? headline(job)
           : outcome.state === "failed"
             ? `Notes could not be generated: ${outcome.message}`
-            : `${fromLive ? "Notes generated from the live transcript" : "Notes generated"}${
-                outcome.kept ? `. The note as it was is kept beside it, as “${outcome.kept}”` : ""
-              }`}
+            : outcome.state === "stopped"
+              ? "Notes stopped"
+              : `${fromLive ? "Notes generated from the live transcript" : "Notes generated"}${
+                  outcome.kept ? `. The note as it was is kept beside it, as “${outcome.kept}”` : ""
+                }`}
       </span>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className={`flex w-fit max-w-full items-baseline gap-2 rounded-xs text-left font-mono text-2xs trace-press ${
-          warn ? "text-warn" : "text-phosphor"
-        }`}
-      >
-        {running ? <Spinner /> : <span aria-hidden>&gt;</span>}
-        <span className="min-w-0">
-          {outcome === null ? (
-            <Running job={job} now={now} />
-          ) : outcome.state === "failed" ? (
-            // Not an error state for the note itself — the transcript and the
-            // user's own notes are intact and saved. Only the summary is missing.
-            <>notes could not be generated — {outcome.message}. The transcript is saved.</>
-          ) : (
-            <>
-              notes generated
-              {fromLive && <span className="text-warn"> from the live transcript</span>}
-              {outcome.dropped > 0 && (
-                <>
-                  {" — "}
-                  <span className="text-warn">
-                    {outcome.dropped} item{outcome.dropped === 1 ? "" : "s"} discarded
-                    {outcome.fabricated > 0 && " for citing something not in the transcript"}
-                  </span>
-                </>
-              )}
-              {/* Regenerating wrote the body afresh; where the old one went
+      {/* Stop sits beside the line rather than in it: the line is itself
+          a button, which opens the steps. */}
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+          className={`flex w-fit max-w-full items-baseline gap-2 rounded-xs text-left font-mono text-2xs trace-press ${
+            warn ? "text-warn" : "text-phosphor"
+          }`}
+        >
+          {running ? <Spinner /> : <span aria-hidden>&gt;</span>}
+          <span className="min-w-0">
+            {outcome === null ? (
+              <Running job={job} now={now} />
+            ) : outcome.state === "failed" ? (
+              // Not an error state for the note itself — the transcript and the
+              // user's own notes are intact and saved. Only the summary is missing.
+              <>notes could not be generated — {outcome.message}. The transcript is saved.</>
+            ) : outcome.state === "stopped" ? (
+              <span className="text-ink-muted">
+                notes stopped — ↻ writes them when you like. The transcript is saved.
+              </span>
+            ) : (
+              <>
+                notes generated
+                {fromLive && <span className="text-warn"> from the live transcript</span>}
+                {outcome.dropped > 0 && (
+                  <>
+                    {" — "}
+                    <span className="text-warn">
+                      {outcome.dropped} item{outcome.dropped === 1 ? "" : "s"} discarded
+                      {outcome.fabricated > 0 && " for citing something not in the transcript"}
+                    </span>
+                  </>
+                )}
+                {/* Regenerating wrote the body afresh; where the old one went
                   is the one thing someone who edited it needs to know. */}
-              {outcome.kept && (
-                <>
-                  {" — "}
-                  <span className="text-warn">
-                    the note as it was is kept beside it, as “{outcome.kept}”
-                  </span>
-                </>
-              )}
-            </>
-          )}
-        </span>
-        <span aria-hidden className="text-ink-faint">
-          {open ? "▾" : "▸"}
-        </span>
-      </button>
+                {outcome.kept && (
+                  <>
+                    {" — "}
+                    <span className="text-warn">
+                      the note as it was is kept beside it, as “{outcome.kept}”
+                    </span>
+                  </>
+                )}
+              </>
+            )}
+          </span>
+          <span aria-hidden className="text-ink-faint">
+            {open ? "▾" : "▸"}
+          </span>
+        </button>
+        {running && <StopButton job={job} />}
+      </div>
 
       {waiting && <MemoryWaitPanel notePath={job.notePath} wait={waiting} />}
 
@@ -165,6 +176,29 @@ function MemoryWaitPanel({ notePath, wait }: { notePath: string; wait: MemoryWai
         </span>
       </div>
     </div>
+  );
+}
+
+/**
+ * Stop the notes being written. No confirmation: nothing is lost by it — the
+ * transcript is saved and ↻ starts again — and a question in the way of
+ * stopping something slowing the computer down is the wrong way round.
+ */
+function StopButton({ job }: { job: Job }) {
+  const [sent, setSent] = useState(false);
+  const stopping = sent || job.stopping;
+  return (
+    <button
+      type="button"
+      disabled={stopping}
+      onClick={() => {
+        setSent(true);
+        void ipc.stopNotes(job.notePath).catch(() => setSent(false));
+      }}
+      className="trace-control shrink-0 font-mono text-2xs tracking-system text-ink-muted trace-press hover:text-ink disabled:opacity-60"
+    >
+      {stopping ? "stopping…" : "stop"}
+    </button>
   );
 }
 

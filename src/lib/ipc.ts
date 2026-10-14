@@ -337,7 +337,9 @@ export type JobOutcome =
       /** File name of the copy kept of the note as it was, when it had been edited outside TRACE. */
       kept: string | null;
     }
-  | { state: "failed"; message: string };
+  | { state: "failed"; message: string }
+  /** The user pressed Stop. Not a failure; ↻ writes them whenever. */
+  | { state: "stopped" };
 
 /**
  * Notes held back because the summary model has no room to load. Still
@@ -368,6 +370,8 @@ export interface Job {
   steps: JobStep[];
   /** Present while the job is waiting for memory. */
   waiting: MemoryWait | null;
+  /** Stop was pressed and the job is letting go. */
+  stopping: boolean;
   /** null while queued or running. */
   outcome: JobOutcome | null;
 }
@@ -498,6 +502,8 @@ export const ipc = {
   resumeNotes: (sessionDir: string) => call<void>("resume_notes", { sessionDir }),
   dismissInterrupted: (sessionDir: string) => call<void>("dismiss_interrupted", { sessionDir }),
   /** False when the note's job had already moved on. */
+  /** Stop the notes being written for a note. False when nothing was running. */
+  stopNotes: (notePath: string) => call<boolean>("stop_notes", { notePath }),
   memoryWaitChoice: (notePath: string, choice: WaitChoice) =>
     call<boolean>("memory_wait_choice", { notePath, choice }),
 

@@ -40,7 +40,10 @@ export function ActivityToast({
     for (const job of jobs) {
       const done = job.outcome !== null;
       next.set(job.id, done);
-      if (done && previous.get(job.id) === false && job.notePath !== openNote) {
+      // A stop is the user's own doing, from wherever they pressed it:
+      // nothing to tell them.
+      const news = done && job.outcome?.state !== "stopped";
+      if (news && previous.get(job.id) === false && job.notePath !== openNote) {
         setShown(job);
       }
     }

@@ -39,6 +39,8 @@ pub enum TranscribeError {
         #[source]
         source: hound::Error,
     },
+    #[error("stopped")]
+    Stopped,
 }
 
 /// One transcribed span, positioned on the session timeline.
@@ -96,11 +98,15 @@ impl Transcriber {
     /// not pause — measured in M2, where 30s of continuous speech produced
     /// exactly one segment. Chunking also skips silence entirely, so a quiet
     /// meeting costs proportionally less to transcribe.
+    ///
+    /// `stop` is asked before every chunk, so an hour's pass can be given up
+    /// within a chunk's time rather than run to the end.
     pub fn transcribe_stream(
         &mut self,
         wav_path: &Path,
         source: StreamSource,
         start_offset_ms: u64,
+        stop: &dyn Fn() -> bool,
     ) -> Result<Vec<Segment>, TranscribeError> {
         let prefix = match source {
             StreamSource::Microphone => "mic",
@@ -109,6 +115,9 @@ impl Transcriber {
 
         let mut out = Vec::new();
         stream_chunks(wav_path, |chunk| {
+            if stop() {
+                return Err(TranscribeError::Stopped);
+            }
             let chunk_offset_ms = start_offset_ms + chunk.start_ms(TARGET_SAMPLE_RATE);
             for seg in self.transcribe_chunk(&chunk.samples)? {
                 // Skip empty results rather than emitting blank segments.

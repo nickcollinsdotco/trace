@@ -1,6 +1,6 @@
 import { Popover, PopoverDivider, PopoverHeading, PopoverItem } from "../../components/ui/Popover";
 import { Gauge, Spinner } from "../../components/ui/terminal";
-import type { Job } from "../../lib/ipc";
+import { ipc, type Job } from "../../lib/ipc";
 import { JobSteps } from "./JobSteps";
 import { formatDuration, headline, isQueued, isRunning, partsDone, startedAt } from "./jobs";
 import { useNow } from "./useActivity";
@@ -82,6 +82,14 @@ export function ActivityEntry({
                   Open note
                 </PopoverItem>
               )}
+              {/* Here as well as on the note: the machine slowing down is
+                  noticed wherever someone happens to be. */}
+              <PopoverItem
+                disabled={job.stopping}
+                onSelect={() => void ipc.stopNotes(job.notePath).catch(() => {})}
+              >
+                {job.stopping ? "Stopping…" : "Stop"}
+              </PopoverItem>
             </div>
           ))}
           <PopoverDivider />

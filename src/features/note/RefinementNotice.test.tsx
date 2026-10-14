@@ -24,6 +24,7 @@ function job(steps: JobStep[], outcome: Job["outcome"] = null): Job {
     queuedAt: NOW - 60_000,
     steps,
     waiting: null,
+    stopping: false,
     outcome,
   };
 }

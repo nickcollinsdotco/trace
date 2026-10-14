@@ -610,6 +610,8 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         case "dismiss_interrupted":
           interrupted = interrupted.filter((c) => c.sessionDir !== args?.sessionDir);
           return null;
+        case "stop_notes":
+          return stopJob(emit, () => jobs, args?.notePath as string);
         case "memory_wait_choice":
           return answerWait(emit, () => jobs, args?.notePath as string, args?.choice as WaitChoice);
         case "recover_session":
@@ -841,6 +843,47 @@ function answerWait(
 }
 
 /**
+ * Stop, as the backend answers it: "stopping" at once, then the job ends a
+ * moment later, as a real one does once its request lets go.
+ */
+function stopJob(
+  emit: (event: string, payload: unknown) => void,
+  current: () => Job[],
+  notePath: string,
+): boolean {
+  const job = current().find((j) => j.notePath === notePath && j.outcome === null);
+  if (!job) return false;
+  const relative = (j: Job): Job => ({
+    ...j,
+    queuedAt: j.queuedAt - Date.now(),
+    steps: j.steps.map((s) => ({
+      ...s,
+      startedAt: s.startedAt === null ? null : s.startedAt - Date.now(),
+      finishedAt: s.finishedAt === null ? null : s.finishedAt - Date.now(),
+    })),
+    waiting: j.waiting && { ...j.waiting, since: j.waiting.since - Date.now() },
+  });
+  const stopping: Job = { ...job, stopping: true };
+  const stopped: Job = {
+    ...job,
+    steps: job.steps
+      .filter((s) => s.startedAt !== null)
+      .map((s) => (s.finishedAt === null ? { ...s, finishedAt: Date.now() } : s)),
+    waiting: null,
+    stopping: false,
+    outcome: { state: "stopped" },
+  };
+  const send = (replacement: Job) =>
+    emit(
+      EVENT.activity,
+      current().map((j) => relative(j.id === job.id ? replacement : j)),
+    );
+  window.setTimeout(() => send(stopping), 50);
+  window.setTimeout(() => send(stopped), 700);
+  return true;
+}
+
+/**
  * A regenerate, compressed into a few seconds: three parts and the combining
  * pass, published the way the real backend publishes them. Pressing ↻ in the
  * gallery shows the whole sequence rather than nothing.
@@ -875,6 +918,7 @@ function simulateRegenerate(
         error: null,
       })),
       waiting: null,
+      stopping: false,
       outcome,
     };
     // Relative times for everyone else too, since the payload is rebased.

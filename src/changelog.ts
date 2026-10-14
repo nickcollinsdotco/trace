@@ -26,6 +26,22 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.33.0",
+    date: "2026-10-14",
+    title: "Stop notes part-way, and a wait for Ollama after a reboot",
+    notes: [
+      'Notes being written can be stopped: "stop" beside the progress line on the note, or Stop in the status bar\'s list. It takes effect at once — even while the summary model is still loading, which is when the computer slows down most — and Ollama lets go of the model too.',
+      "Stopped notes are not a failure: the transcript is saved, and ↻ writes them whenever you like. Stopping during the full-quality pass skips the summary as well.",
+      'Right after a reboot, Ollama can take a little while to start. Notes now wait up to a minute for it instead of failing straight away with "Ollama is not running".',
+    ],
+    screens: {
+      "note-regenerating":
+        'Has "stop" beside the progress line. Press it: "stopping…", then the stopped line.',
+      "note-stopping": 'New. "stopping" while the request lets go.',
+      "note-stopped": "New. Stopped, in grey rather than amber, with ↻ to write them later.",
+    },
+  },
+  {
     version: "0.32.0",
     date: "2026-10-14",
     title: "Regenerating keeps what you wrote in another editor",

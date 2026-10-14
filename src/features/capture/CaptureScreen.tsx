@@ -18,6 +18,7 @@ import { shortcutLabel, useMiniShortcut } from "../mini/shortcut";
 import { ScopeStrip, ScopeView, useScopeMode } from "../scope/ScopePanels";
 import { AudioRetentionField } from "../settings/AudioRetentionField";
 import { MicCheck } from "./MicCheck";
+import { troubles } from "./trouble";
 import { useCapture } from "./useCapture";
 
 /**
@@ -219,6 +220,12 @@ export function CaptureScreen({
           meeting until there is room, unless you close something.
         </Banner>
       )}
+      {capture.status &&
+        troubles(capture.status).map((t) => (
+          <Banner key={t.short} tone={t.tone}>
+            {t.message}
+          </Banner>
+        ))}
       {capture.error && <Banner tone="error">{capture.error}</Banner>}
 
       {/* The strip, the notes and the transcript in the page column, as

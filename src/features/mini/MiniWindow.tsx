@@ -11,6 +11,7 @@ import { SwitchLook } from "../../components/ui/Switch";
 import { formatElapsed, Prompt } from "../../components/ui/terminal";
 import { type CaptureStatus, hasBackend, ipc, onCaptureChanged } from "../../lib/ipc";
 import { shortMic, shortModel } from "../../lib/names";
+import { troubles } from "../capture/trouble";
 import { Scope } from "../scope/Scope";
 import { shortcutLabel, useMiniShortcut } from "./shortcut";
 
@@ -135,6 +136,8 @@ export function MiniWindow({
   }
 
   const recording = phase.kind === "recording";
+  // The worst thing going wrong, said in the few words the bar has room for.
+  const trouble = phase.kind === "recording" ? troubles(phase.status)[0] : undefined;
 
   /*
    * The window is sized to what it shows. Wider when a theme in capitals or
@@ -304,9 +307,11 @@ export function MiniWindow({
                     {/* A click on Stop is answered here, under the name, where
                       the eye already is — not over the waveform. */}
                     <span
-                      className={`font-mono text-2xs tabular-nums ${hint ? "text-error" : "text-ink-muted"}`}
+                      className={`max-w-48 truncate font-mono text-2xs tabular-nums ${hint || trouble?.tone === "error" ? "text-error" : trouble ? "text-warn" : "text-ink-muted"}`}
                     >
-                      {hint ? "hold to stop" : formatElapsed(phase.status.elapsedMs)}
+                      {hint
+                        ? "hold to stop"
+                        : `${formatElapsed(phase.status.elapsedMs)}${trouble ? ` · ${trouble.short}` : ""}`}
                     </span>
                   </button>
                   {/* Faint, so it is life at the edge of the eye rather than

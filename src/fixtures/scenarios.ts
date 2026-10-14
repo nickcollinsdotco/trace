@@ -684,6 +684,25 @@ export const SCENARIOS: Scenario[] = [
     state: { ...POPULATED, recording: true, startElapsedMs: 31 * 60_000, script: liveScript() },
   },
   {
+    id: "mini-stream-lost",
+    name: "Mini window, a stream stopped",
+    group: "Capture",
+    note: "The worst thing going wrong, in a few words beside the time, red. The full sentence is on the recording screen.",
+    screen: "mini",
+    state: {
+      ...POPULATED,
+      recording: true,
+      startElapsedMs: 41 * 60_000,
+      script: liveScript(),
+      statusOverrides: {
+        diskMinutesLeft: 0,
+        lostStreams: [
+          { source: "microphone", atMs: 40 * 60_000, reason: "wav write failed: disk full" },
+        ],
+      },
+    },
+  },
+  {
     id: "mini-options",
     name: "Mini window, options",
     group: "Capture",
@@ -812,6 +831,44 @@ export const SCENARIOS: Scenario[] = [
       startElapsedMs: 31 * 60_000,
       script: liveScript(),
       statusOverrides: { memoryTight: true },
+    },
+  },
+  {
+    id: "capture-disk-low",
+    name: "Disk running low",
+    group: "Capture",
+    note: "Under two hours of room left for recording, read at the start and every minute after. A warning until fifteen minutes, an error after.",
+    screen: "capture",
+    state: {
+      ...POPULATED,
+      recording: true,
+      startElapsedMs: 12 * 60_000,
+      script: liveScript(),
+      statusOverrides: { diskMinutesLeft: 47 },
+    },
+  },
+  {
+    id: "capture-stream-lost",
+    name: "Disk full, a stream stopped",
+    group: "Capture",
+    note: "The disk filled and the microphone's writes failed. Said at once, with when, rather than found when the meeting is stopped. The transcript stops saving too.",
+    screen: "capture",
+    state: {
+      ...POPULATED,
+      recording: true,
+      startElapsedMs: 41 * 60_000,
+      script: liveScript(),
+      statusOverrides: {
+        diskMinutesLeft: 0,
+        journalFailing: true,
+        lostStreams: [
+          {
+            source: "microphone",
+            atMs: 40 * 60_000 + 12_000,
+            reason: "wav write failed: There is not enough space on the disk. (os error 112)",
+          },
+        ],
+      },
     },
   },
   {

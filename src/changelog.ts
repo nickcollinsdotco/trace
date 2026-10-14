@@ -26,6 +26,23 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.31.0",
+    date: "2026-10-14",
+    title: "A full disk is said during the meeting, not after it",
+    notes: [
+      "If the microphone or system audio stops recording mid-meeting — a full disk, most likely — the recording screen says so at once, with when and why. It used to be found only when the meeting was stopped, with the rest of that side missing.",
+      "Free space is read when a meeting starts and every minute after. Under two hours of room left, the recording screen says how much; under fifteen minutes it turns red.",
+      "The mini window shows the worst of these beside the time, so it is seen during a call.",
+      "If the live transcript cannot be saved, that is said too. The note is still transcribed again from the audio afterwards.",
+    ],
+    screens: {
+      "capture-disk-low": "New. Amber: about 47 minutes of room left.",
+      "capture-stream-lost":
+        "New. Red: the microphone stopped at 40:12 with the disk's own error, the transcript not saving, the disk full.",
+      "mini-stream-lost": "New. 41:03 · mic stopped, in red under the meeting's name.",
+    },
+  },
+  {
     version: "0.30.1",
     date: "2026-10-14",
     title: "The first update delivered from inside TRACE",

@@ -44,7 +44,7 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Instant;
 
-use super::{AudioError, StopSignal, StreamFormat, StreamSource, StreamStats};
+use super::{AudioError, StopSignal, StreamEnd, StreamFormat, StreamSource, StreamStats};
 
 /// What one stream did over the course of a session.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -193,6 +193,31 @@ impl CaptureSession {
             .collect()
     }
 
+    /// Streams that have stopped while the meeting goes on.
+    pub fn lost(&self) -> Vec<(StreamSource, StreamEnd)> {
+        self.threads
+            .iter()
+            .filter_map(|t| t.stats.ended.get().map(|end| (t.source, end.clone())))
+            .collect()
+    }
+
+    /// Bytes a second the streams still running are writing to disk.
+    ///
+    /// A stream whose device has not opened yet is counted at 48 kHz, the
+    /// commonest rate, so the estimate at the very start is not half what
+    /// it will be a second later.
+    pub fn bytes_per_second(&self) -> u64 {
+        self.threads
+            .iter()
+            .filter(|t| t.stats.ended.get().is_none())
+            .map(|t| match t.stats.sample_rate.load(Ordering::Relaxed) {
+                0 => 48_000,
+                rate => u64::from(rate),
+            })
+            .map(|rate| rate * super::wav::BYTES_PER_SAMPLE)
+            .sum()
+    }
+
     pub fn elapsed_ms(&self) -> u64 {
         self.clock.elapsed().as_millis() as u64
     }
@@ -273,7 +298,30 @@ where
 
     let handle = std::thread::Builder::new()
         .name(format!("trace-capture-{}", source.file_stem()))
-        .spawn(move || run(thread_path, thread_stats, thread_stop, clock))
+        .spawn(move || {
+            let result = run(
+                thread_path,
+                Arc::clone(&thread_stats),
+                thread_stop.clone(),
+                clock,
+            );
+            // Ending before being asked to is the failure worth saying at
+            // once: the backends end on their first write error, and a full
+            // disk is otherwise found only when the meeting is stopped.
+            if !thread_stop.is_stopped() {
+                let reason = match &result {
+                    Err(e) => e.to_string(),
+                    Ok(_) => "the device stopped sending audio".to_string(),
+                };
+                let at_ms = clock.elapsed().as_millis() as u64;
+                crate::diagnostics::log(format!(
+                    "stream {source:?} ended {}s into the meeting: {reason}",
+                    at_ms / 1000
+                ));
+                let _ = thread_stats.ended.set(StreamEnd { at_ms, reason });
+            }
+            result
+        })
         .expect("failed to spawn capture thread");
 
     StreamThread {
@@ -360,6 +408,64 @@ mod tests {
             summary.captured_anything(),
             "one working stream must still yield a usable session"
         );
+    }
+
+    /// Run a fake backend on a real stream thread and wait for it.
+    fn run_stream<F>(stop: &StopSignal, run: F) -> Arc<StreamStats>
+    where
+        F: FnOnce(
+                PathBuf,
+                Arc<StreamStats>,
+                StopSignal,
+                Instant,
+            ) -> Result<StreamFormat, AudioError>
+            + Send
+            + 'static,
+    {
+        let dir = std::env::temp_dir();
+        let thread = spawn_stream(StreamSource::Microphone, &dir, stop, Instant::now(), run);
+        thread.handle.join().unwrap().ok();
+        thread.stats
+    }
+
+    fn format() -> StreamFormat {
+        StreamFormat {
+            sample_rate: 48_000,
+            source_channels: 1,
+            device_name: "test".into(),
+        }
+    }
+
+    #[test]
+    fn a_stream_that_fails_mid_meeting_says_why() {
+        // The full-disk case: the backend returns its first write error and
+        // the meeting carries on without it.
+        let stop = StopSignal::new();
+        let stats = run_stream(&stop, |_, _, _, _| {
+            Err(AudioError::Io(std::io::Error::other("disk full")))
+        });
+        let end = stats
+            .ended
+            .get()
+            .expect("an early failure must be recorded");
+        assert!(end.reason.contains("disk full"), "{}", end.reason);
+    }
+
+    #[test]
+    fn a_stream_that_returns_early_without_an_error_is_still_lost() {
+        let stop = StopSignal::new();
+        let stats = run_stream(&stop, |_, _, _, _| Ok(format()));
+        assert!(stats.ended.get().is_some());
+    }
+
+    #[test]
+    fn a_stream_stopped_by_the_meeting_is_not_lost() {
+        let stop = StopSignal::new();
+        let stats = run_stream(&stop, |_, _, stop, _| {
+            stop.stop();
+            Ok(format())
+        });
+        assert!(stats.ended.get().is_none());
     }
 
     #[test]

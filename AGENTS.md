@@ -110,6 +110,7 @@ cargo run --release --example wav_check     -- <session dir>   # are the two str
 cargo run --release --example transcribe_spike -- <session dir>
 cargo run --release --example memory_check  -- [model]          # would the summary model load now?
 cargo run --example awake_check                                # does the keep-awake request reach Windows?
+cargo run --example stream_loss_check                          # is a stream that dies mid-meeting reported live?
 cargo run --release --example repass_memory -- <whole|stream> [minutes]
 cargo run --release --example thinking_compare -- <session dir> <on|off>
 ```

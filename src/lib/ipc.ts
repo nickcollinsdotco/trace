@@ -252,6 +252,15 @@ export interface AppInfo {
   notesSyncedBy: string | null;
 }
 
+/**
+ * What a check for updates found. Only ever asked for by a click on the
+ * version: TRACE does not go online on its own.
+ */
+export interface UpdateCheck {
+  /** The newer version on offer, or null when this one is the latest. */
+  latest: string | null;
+}
+
 /** A model Ollama has in memory, and how much of it is on the GPU. */
 export interface LoadedModel {
   name: string;
@@ -486,6 +495,14 @@ export const ipc = {
   openLink: (link: "ollama" | "releases") => call<void>("open_link", { link }),
 
   appInfo: () => call<AppInfo>("app_info"),
+  /** Asks GitHub Releases. Only from a click on the version. */
+  checkForUpdate: () => call<UpdateCheck>("check_for_update"),
+  /**
+   * Resolves once downloaded and verified; TRACE then closes itself to
+   * install it, or emits `updateFailed` if it could not. Refused while a
+   * meeting records or its notes are written.
+   */
+  installUpdate: () => call<void>("install_update"),
   /** Opens the screen gallery in its own window, or focuses it. */
   openGallery: () => call<void>("open_gallery"),
   /** The mini window: a name and Start, or the recording bar. */
@@ -523,6 +540,8 @@ export const EVENT = {
   summaryPull: "trace://summary-pull",
   captureChanged: "trace://capture-changed",
   openNote: "trace://open-note",
+  updateProgress: "trace://update-progress",
+  updateFailed: "trace://update-failed",
 } as const;
 
 /** A meeting started or ended — in this window or the other one. */
@@ -601,4 +620,14 @@ export function onSummaryPull(
   handler: (p: { model: string; percent: number }) => void,
 ): Promise<UnlistenFn> {
   return subscribe(EVENT.summaryPull, handler);
+}
+
+/** Progress of an update downloading, 0 to 100. */
+export function onUpdateProgress(handler: (p: { percent: number }) => void): Promise<UnlistenFn> {
+  return subscribe(EVENT.updateProgress, handler);
+}
+
+/** A downloaded update whose installer could not be started. */
+export function onUpdateFailed(handler: (p: { message: string }) => void): Promise<UnlistenFn> {
+  return subscribe(EVENT.updateFailed, handler);
 }

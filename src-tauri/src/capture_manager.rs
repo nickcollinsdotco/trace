@@ -128,8 +128,9 @@ struct Active {
     /// starts from them. Each journal entry is the whole text, so a screen
     /// that started empty would replace them all with its first keystroke.
     notes: String,
-    /// No idle sleep while recording; the notes job takes over with its own.
-    _awake: crate::awake::Awake,
+    /// Busy while recording: no idle sleep, and a quit or update asks first.
+    /// The notes job takes over with its own.
+    _busy: crate::busy::Busy,
 }
 
 /// The application's capture state. One meeting at a time, by design.
@@ -298,7 +299,7 @@ impl CaptureManager {
             model_hold,
             mic,
             notes: String::new(),
-            _awake: crate::awake::hold(),
+            _busy: crate::busy::hold(),
         });
 
         Ok(status)
@@ -790,7 +791,7 @@ pub fn is_underway(session_dir: &std::path::Path) -> bool {
 /// there to catch.
 struct Underway {
     dir: PathBuf,
-    _awake: crate::awake::Awake,
+    _busy: crate::busy::Busy,
 }
 
 impl Underway {
@@ -808,7 +809,7 @@ impl Underway {
         }
         Self {
             dir: session_dir.to_path_buf(),
-            _awake: crate::awake::hold(),
+            _busy: crate::busy::hold(),
         }
     }
 }

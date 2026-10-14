@@ -1566,4 +1566,57 @@ describe("Gallery", () => {
     expect(await screen.findByRole("button", { name: "Start a meeting" })).toBeInTheDocument();
     expect(screen.getByText("Type only what matters")).toBeInTheDocument();
   });
+
+  it("checks for an update only when the version is clicked, and says it is current", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "About");
+
+    const version = await screen.findByRole("button", { name: "v0.1.0" });
+    expect(screen.queryByText("up to date")).toBeNull();
+    await user.click(version);
+    expect(screen.getByText("checking…")).toBeInTheDocument();
+    expect(await screen.findByText("up to date")).toBeInTheDocument();
+  });
+
+  it("downloads an update from the status bar with a bar, then restarts to install it", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Update available");
+
+    await user.click(await screen.findByRole("button", { name: "update available · v0.31.0" }));
+    expect(screen.getByRole("img", { name: /Downloading/ })).toBeInTheDocument();
+    // No second download, or a check over the top of this one.
+    expect(screen.getByRole("button", { name: "v0.1.0" })).toBeDisabled();
+    expect(
+      await screen.findByText("restarting to install v0.31.0…", {}, { timeout: 5_000 }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not offer an update's download while a meeting records", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Update waiting for a meeting");
+
+    expect(await screen.findByText("update v0.31.0 after this meeting")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /update available/ })).toBeNull();
+  });
+
+  it("keeps What's new closed on About until it is opened, and open when sent to it", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "About");
+
+    const toggle = await screen.findByRole("button", { name: "What's new" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("trace --changelog")).toBeNull();
+    await user.click(toggle);
+    expect(screen.getByText("trace --changelog")).toBeInTheDocument();
+
+    await openScenario(user, "About, what's new");
+    expect(await screen.findByRole("button", { name: "What's new" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
 });

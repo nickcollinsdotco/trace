@@ -1099,6 +1099,20 @@ pub fn app_info(app: AppHandle, manager: State<'_, CaptureManager>) -> AppInfo {
     }
 }
 
+/// Ask GitHub whether there is a newer TRACE. Only ever from a click on the
+/// version: see `update`.
+#[tauri::command]
+pub async fn check_for_update(app: AppHandle) -> CmdResult<crate::update::UpdateCheck> {
+    crate::update::check(&app).await
+}
+
+/// Download the update just found; TRACE then closes to install it. Refused
+/// while a meeting records or its notes are written.
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> CmdResult<()> {
+    crate::update::install(app).await
+}
+
 /// Open the mini window, or bring it forward.
 #[tauri::command]
 pub async fn open_mini(app: AppHandle) -> CmdResult<()> {

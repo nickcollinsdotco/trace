@@ -26,6 +26,29 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.30.0",
+    date: "2026-10-12",
+    title: "Updates from inside TRACE, and a warning before quitting mid-meeting",
+    notes: [
+      'Clicking the version at the bottom right checks GitHub for a newer TRACE. If there is one, clicking "update available" downloads it, then TRACE closes, installs it and opens again. Only a click checks — TRACE still never goes online by itself.',
+      "While a meeting records or its notes are written, the update waits and says so: installing closes TRACE, which would end the meeting there.",
+      "Closing TRACE while a meeting records, or while notes are being written, now asks first. With the mini window open it does not, since TRACE carries on in it.",
+      "pnpm update-app no longer closes a TRACE that is recording or writing notes, even with -Yes. It leaves the build ready to install afterwards.",
+      "What's new on About is closed until opened, and each version's notes are one line until clicked. Versions not seen yet open on their own, and the status bar's \"what's new\" opens the section.",
+    ],
+    screens: {
+      "update-available":
+        'New. Click "update available" to watch the download bar fill in the version\'s place, then "restarting to install".',
+      "update-downloading": "New. The bar held at 42%.",
+      "update-waiting":
+        'New. Mid-meeting, "update v0.31.0 after this meeting" instead of the download; why on hover.',
+      "update-failed":
+        'New. "couldn\'t check" in amber beside the version; the reason is on hover.',
+      about: "What's new is closed. Opening it shows each version cut to a line.",
+      "about-whats-new": "Opens with What's new expanded and the unseen versions in full.",
+    },
+  },
+  {
     version: "0.29.2",
     date: "2026-10-11",
     title: "No sideways scrollbar",

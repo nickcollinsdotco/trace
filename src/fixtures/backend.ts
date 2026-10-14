@@ -105,6 +105,8 @@ export interface BackendState {
   appInfo: AppInfo;
   /** Earlier meetings' audio the retention setting no longer keeps. */
   audioBeyond: AudioBeyond;
+  /** What a check for updates finds: a newer version, or null for none. */
+  latestVersion: string | null;
   /** Log lines the diagnostics screen shows, oldest first. */
   recentLog: string[];
   speechModels: SpeechModel[];
@@ -175,6 +177,7 @@ export const DEFAULT_STATE: BackendState = {
   failures: {},
   llm: { state: "ready", model: "qwen3:14b" },
   appInfo: { version: "0.1.0", devBuild: true, notesSyncedBy: null },
+  latestVersion: null,
   audioBeyond: { meetings: 0, bytes: 0 },
   speechModels: [
     {
@@ -648,6 +651,13 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return llm;
         case "app_info":
           return state.appInfo;
+        // A pause long enough to read "checking…", as a real round trip has.
+        case "check_for_update":
+          return new Promise((resolve) =>
+            window.setTimeout(() => resolve({ latest: state.latestVersion }), 900),
+          );
+        case "install_update":
+          return simulateUpdate(emit);
         case "diagnostics_report": {
           const report: DiagnosticsReport = {
             appVersion: state.appInfo.version,
@@ -899,6 +909,21 @@ function simulatePull(
         resolve(null);
       }
     }, 120);
+  });
+}
+
+/** An update downloading, slowly enough to watch the bar fill. */
+function simulateUpdate(emit: (event: string, payload: unknown) => void): Promise<null> {
+  return new Promise((resolve) => {
+    let percent = 0;
+    const id = window.setInterval(() => {
+      percent = Math.min(100, percent + 6);
+      emit(EVENT.updateProgress, { percent });
+      if (percent === 100) {
+        window.clearInterval(id);
+        resolve(null);
+      }
+    }, 150);
   });
 }
 

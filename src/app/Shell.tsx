@@ -7,6 +7,7 @@ import { useActivity } from "../features/activity/useActivity";
 import { hasBackend, ipc } from "../lib/ipc";
 import { type Page, Sidebar, SidebarHead } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
+import type { UpdateView } from "./UpdateEntry";
 
 /**
  * Below this width the sidebar stops taking a column of its own.
@@ -33,6 +34,7 @@ export function Shell({
   openNote = null,
   onOpenNote,
   onWhatsNew,
+  initialUpdate,
   children,
 }: {
   /** The page to mark in the sidebar; null for a note, which is not a place. */
@@ -43,6 +45,8 @@ export function Shell({
   onOpenNote?: (path: string) => void;
   /** Opens the changelog, offered in the status bar after an update. */
   onWhatsNew?: () => void;
+  /** The gallery's way to open on an update state; the app starts idle. */
+  initialUpdate?: UpdateView | undefined;
   children: ReactNode;
 }) {
   // Read once here and handed down, so the status bar and the toast cannot
@@ -174,6 +178,8 @@ export function Shell({
             onManageModels={() => onNavigate("models")}
             onOpenNote={onOpenNote}
             onWhatsNew={onWhatsNew}
+            recording={recording !== null}
+            initialUpdate={initialUpdate}
           />
         </div>
       </ConfirmProvider>

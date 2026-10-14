@@ -27,8 +27,9 @@
     build. Nothing is pulled, built, installed or closed.
 
 .PARAMETER Yes
-    Do not ask before building or before closing TRACE. Only safe when no
-    meeting is recording.
+    Do not ask before building or before closing TRACE. A TRACE that is
+    recording or writing notes is still never closed: the update stops and
+    says so.
 
 .EXAMPLE
     pnpm update-app -Check
@@ -100,6 +101,24 @@ function Get-InstalledVersion {
 # The tidy-up is only deferred: git runs it the next time it is used
 # directly, and nothing depends on it happening now.
 $quiet = @('-c', 'maintenance.auto=false', '-c', 'gc.auto=0')
+
+# The installed TRACE, if it is recording a meeting or writing its notes.
+# TRACE keeps a marker file holding its process id while it is (busy.rs);
+# a marker whose process has gone was left by a crash and means nothing,
+# and one from a development build is not what this script closes.
+function Get-BusyTrace {
+    if (-not $env:LOCALAPPDATA) { return $null }
+    $marker = Join-Path $env:LOCALAPPDATA 'TRACE/busy'
+    if (-not (Test-Path $marker)) { return $null }
+    $id = 0
+    if (-not [int]::TryParse((Get-Content $marker -Raw).Trim(), [ref]$id)) { return $null }
+    $process = Get-Process -Id $id -ErrorAction SilentlyContinue
+    if (-not $process -or $process.ProcessName -ne 'TRACE') { return $null }
+    if ($process.Path -and $process.Path.StartsWith($repo, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $null
+    }
+    return $process
+}
 
 function Confirm-Step([string]$question) {
     if ($Yes) { return $true }
@@ -175,6 +194,11 @@ $current = $incoming.Count -eq 0 -and $installed -eq $available
 if ($current) {
     Write-Host ''
     Write-Host "You are up to date. Updating now would rebuild and reinstall $available." -ForegroundColor Green
+}
+if (Get-BusyTrace) {
+    Write-Host ''
+    Write-Host 'TRACE is recording a meeting or writing its notes. The build can run' -ForegroundColor Yellow
+    Write-Host 'meanwhile, but TRACE will not be closed until that has finished.' -ForegroundColor Yellow
 }
 
 if ($Check) {
@@ -280,10 +304,15 @@ $running = @(Get-Process -Name 'TRACE' -ErrorAction SilentlyContinue | Where-Obj
 if ($running.Count -eq 0) {
     Write-Host 'TRACE is not running.'
 } else {
-    if (-not $Yes) {
-        Write-Host 'TRACE is running. If a meeting is recording, stop it in TRACE first:' -ForegroundColor Yellow
-        Write-Host 'closing the app mid-meeting ends the recording there (what was captured' -ForegroundColor Yellow
-        Write-Host 'is offered for recovery next time TRACE opens).' -ForegroundColor Yellow
+    # Asked here, after the build, because a meeting may have started during
+    # it. Even with -Yes: closing ends a recording where it is.
+    if (Get-BusyTrace) {
+        Write-Host ''
+        Write-Host 'TRACE is recording a meeting or writing its notes, so it was left running.' -ForegroundColor Yellow
+        Write-Host 'Once it has finished, install the build that is ready:' -ForegroundColor Yellow
+        Write-Host "  $($installer.FullName)"
+        Write-Host 'or run "pnpm open-installers".'
+        exit 1
     }
     if (-not (Confirm-Step 'Close TRACE and install the update now?')) {
         Write-Host ''

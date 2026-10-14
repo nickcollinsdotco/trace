@@ -577,6 +577,7 @@ function Preview({ scenario }: { scenario: Scenario }) {
         onOpenNote={noop}
         // So the status bar's "updated · what's new" can be seen here too.
         onWhatsNew={noop}
+        initialUpdate={scenario.update}
       >
         {scenario.screen === "library" && (
           <LibraryScreen

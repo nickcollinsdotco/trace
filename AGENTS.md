@@ -59,6 +59,11 @@ to look for. The gallery badges those as new (and the version before as
 recent) until they are opened. The version test fails if the newest entry is
 not the version being built.
 
+Merging is not releasing. Installed copies update in-app from GitHub
+Releases, which only `pnpm release` makes (`--dry-run` to build without
+publishing); it needs the updater key in `~/.tauri/`. Ask before running
+it — a release reaches every installed copy.
+
 ## Shape
 
 ```

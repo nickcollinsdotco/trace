@@ -443,36 +443,54 @@ Audio already keeps them, and `chunk_check` replays the VAD over them. A
 filler-word toggle remains an idea. Synthesis already guards against a
 runaway filler (`synthesis/prompt.rs`), but the transcript keeps them.
 
-## In-app updates — later, after code signing
+## In-app updates — built in 0.30.0
 
-**Idea.** An "Update available" notice in the status bar, as Handy has, that
-downloads and installs a new version from inside the app.
+**What it does.** Clicking the version in the status bar checks GitHub
+Releases (`src/app/UpdateEntry.tsx`, `src-tauri/src/update.rs`). A newer
+version becomes "update available · vX"; clicking that downloads it with a
+bar in its place, verifies it against the updater key, and TRACE closes, runs
+the installer passively and reopens. Gallery: `update-available`,
+`update-downloading`, `update-waiting`, `update-failed`.
 
-**Today.** `pnpm update-app -Check` shows what an update would bring, and
-`pnpm update-app` pulls, builds and launches the installer locally
-(`scripts/update.ps1`); `pnpm bump` gives each build its own version.
-That is enough while TRACE has one user who builds it from source.
+**Why a click, not a background check.** A background check would be the one
+thing that made TRACE contact the network on its own. That would have to be a
+visible, opt-out setting, not a default added in passing — the product promise
+is that nothing needs a network after setup. A click on the version is the
+user asking, which keeps the promise without a setting.
 
-**What the real thing needs**, in order:
+**How a release is made.** `pnpm release` on this machine
+(`scripts/release.mjs`): refuses anything but a clean, pushed `origin/main`,
+builds the NSIS installer with updater signatures, writes `latest.json`, and
+publishes both as GitHub Release `vX.Y.Z` with the changelog entry as notes.
+`pnpm release --dry-run` builds and signs without publishing. The endpoint is
+`releases/latest/download/latest.json`, so the newest non-prerelease wins.
 
-1. **The code-signing decision** (`docs/11-PLAN.md`, M8). Everything below
-   depends on it. Windows SmartScreen warns on every unsigned download, and an
-   updater that triggers that warning on each release is worse than no updater.
-2. **Signed release builds published to GitHub Releases** — a CI workflow that
-   builds on Windows, signs, and uploads the installer with a `latest.json`
-   manifest.
-3. **Tauri's updater plugin** (`tauri-plugin-updater`), configured with the
-   manifest URL and an update-signing key pair. This key is separate from the
-   Windows certificate: it proves an update came from us, and losing it means
-   no installed copy can ever update again. It must live somewhere safer than
-   a laptop.
-4. **The UI**: a status-bar notice and an About entry, following the same
-   "say it, do not hide it" rule as the Ollama notice.
+**Decided 2026-10-11: unsigned.** No Authenticode certificate. The updater's
+own key proves origin, and a file the app downloads itself carries no Mark of
+the Web, so SmartScreen should warn only on a first install from the
+browser. *To verify on the first real update.*
 
-**Why not now.** It is the one feature that would make TRACE contact the
-network on its own. That has to be a visible, opt-out setting, not a default
-added in passing — the product promise is that nothing needs a network after
-setup.
+**The key.** `~/.tauri/trace-updater.key` (no password), generated
+2026-10-12; the public half is in `tauri.conf.json`. Losing it means no
+installed copy can update itself again — it needs a copy somewhere other than
+this laptop. Until the first release is published it can still be replaced
+(regenerate, and swap the public key in the config).
+
+**Nothing lost by updating.** Installing closes TRACE, so it is refused while
+a meeting records or notes are written: the status bar says "update vX after
+this meeting" instead of offering the download, and the backend refuses
+again, both at the click and just before the installer runs.
+
+### Still open
+
+- **The first real update**, end to end, from an installed 0.30.0 to a
+  published 0.30.1: SmartScreen, the passive installer, the relaunch.
+- **`pnpm update-app` and releases.** Both paths now exist. Building from
+  source stays for the developer; whether `update-app` should become
+  "install the latest release" is worth deciding after the first few
+  releases.
+- **CI release builds**, if releasing from this machine becomes a chore.
+  The key would then live in a repository secret.
 
 ## Library and meeting management
 
@@ -632,13 +650,11 @@ What the audit found besides, worst first. Evidence is `file:line` as of
    battery. What wake does to the timeline is unmeasured. *Fix:*
    `ES_SYSTEM_REQUIRED | ES_CONTINUOUS` while recording and while notes are
    written; then test a sleep and wake. Small.
-6. **Quitting or updating mid-meeting gives no warning.** No
-   `CloseRequested` handling (`windows.rs` watches focus only), and
-   `scripts/update.ps1` force-closes after ten seconds without knowing
-   whether a meeting is recording. Notes cut off this way are now offered on
-   the next launch, but the meeting itself ends where it was. *Fix:* confirm
-   on close while recording or writing; a busy marker the update script
-   reads. Small.
+6. ~~**Quitting or updating mid-meeting gives no warning.**~~ **Done in
+   0.30.0.** Closing the last window asks while recording or writing notes
+   (`windows.rs`). `busy.rs` keeps `%LOCALAPPDATA%\TRACE\busy`, holding the
+   process id, for as long as either lasts; `update.ps1` reads it and leaves
+   a busy TRACE running, even with `-Yes`, and the in-app updater refuses.
 7. **Regenerating overwrites body edits made outside TRACE.**
    `store::rewrite_note` keeps the title, tags, context and names from the
    file and nothing else, by design — but nothing tells someone who edited

@@ -11,6 +11,7 @@
 pub mod activity;
 pub mod audio;
 pub mod awake;
+pub mod busy;
 pub mod capture_manager;
 pub mod commands;
 pub mod diagnostics;
@@ -23,6 +24,7 @@ pub mod store;
 pub mod synthesis;
 pub mod system;
 pub mod transcribe;
+pub mod update;
 pub mod windows;
 
 use capture_manager::CaptureManager;
@@ -38,6 +40,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
@@ -60,6 +63,7 @@ pub fn run() {
         // One meeting at a time, owned by the app rather than any window.
         .manage(CaptureManager::default())
         .manage(windows::MiniState::default())
+        .manage(update::Pending::default())
         // Mark development builds in the title bar and taskbar, so a
         // `pnpm tauri dev` window is never mistaken for the installed app —
         // they share the notes folder, so recording into the wrong one is
@@ -145,6 +149,8 @@ pub fn run() {
             commands::start_ollama,
             commands::open_link,
             commands::app_info,
+            commands::check_for_update,
+            commands::install_update,
             commands::open_gallery,
             commands::open_mini,
             commands::fit_mini,

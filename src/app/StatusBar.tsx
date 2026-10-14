@@ -18,6 +18,7 @@ import {
 } from "../lib/ipc";
 import { shortModel } from "../lib/names";
 import type { Page } from "./Sidebar";
+import { type UpdateBlock, UpdateEntry, type UpdateView } from "./UpdateEntry";
 
 /**
  * The bottom bar: which models are in play, what they are doing, and which
@@ -31,7 +32,8 @@ import type { Page } from "./Sidebar";
  * that downloads them.
  *
  * Three parts: the models and background work on the left, the narrator in
- * the middle where it is seen, the build on the right.
+ * the middle where it is seen, the build on the right — which is also where
+ * updates are checked for and fetched.
  */
 export function StatusBar({
   page = null,
@@ -39,6 +41,8 @@ export function StatusBar({
   onManageModels,
   onOpenNote,
   onWhatsNew,
+  recording = false,
+  initialUpdate,
 }: {
   /** Where the user is, for the narrator. */
   page?: Page | null;
@@ -47,6 +51,9 @@ export function StatusBar({
   onOpenNote?: ((path: string) => void) | undefined;
   /** After an update: where its changes are read. */
   onWhatsNew?: (() => void) | undefined;
+  /** A meeting is recording, which an update must not close. */
+  recording?: boolean;
+  initialUpdate?: UpdateView | undefined;
 }) {
   const [speech, setSpeech] = useState<SpeechModel[] | null>(null);
   const updated = useUnseenVersion();
@@ -72,6 +79,11 @@ export function StatusBar({
   if (!hasBackend()) return null;
 
   const active = speech?.find((m) => m.active);
+  const updateBlock: UpdateBlock | null = recording
+    ? "recording"
+    : jobs.some(isRunning)
+      ? "writing"
+      : null;
 
   return (
     // The sides as wide as they need and no wider; the narrator has the rest.
@@ -115,7 +127,9 @@ export function StatusBar({
           </button>
         )}
         {info?.devBuild && <span className="text-warn">dev</span>}
-        {info && <span>v{info.version}</span>}
+        {info && (
+          <UpdateEntry version={info.version} blocked={updateBlock} initial={initialUpdate} />
+        )}
       </span>
     </footer>
   );

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "TRACE",
-  "version": "0.29.2",
+  "version": "0.30.0",
   "identifier": "computer.trace.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -42,6 +42,15 @@
       "redist/vcruntime140.dll": "vcruntime140.dll",
       "redist/vcruntime140_1.dll": "vcruntime140_1.dll",
       "redist/DirectML.dll": "DirectML.dll"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDAzNEU4MzY2N0I5MTJBMjUKUldRbEtwRjdab05PQXkzZjJKTHY4WGdUUzlBSmVLbkhYSEpwKzNFcE4ydWFwL2s0VUZReE15bDUK",
+      "endpoints": [
+        "https://github.com/nickcollinsdotco/trace/releases/latest/download/latest.json"
+      ],
+      "windows": { "installMode": "passive" }
     }
   }
 }

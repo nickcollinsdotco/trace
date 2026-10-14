@@ -116,6 +116,11 @@ skip both questions.
 It stops with a clear message, and nothing installed, if there are
 uncommitted changes, the pull fails, or the build fails.
 
+Last, it tidies the build folder, which Cargo otherwise lets grow without
+limit: installers from earlier builds are deleted, and so are the debug builds
+(`src-tauri\target\debug`) once they pass 20 GB. The release build is kept, so
+the next update only recompiles what changed.
+
 `pnpm open-installers` opens the folder the installers are built into
 (`src-tauri\target\release\bundle\nsis`) and names the newest.
 

@@ -47,7 +47,9 @@ $repo = Split-Path -Parent $PSScriptRoot
 # Forward slashes: Windows accepts them, and they keep the script testable
 # under PowerShell 7 on Linux, which is where CI and the tests run.
 $bundle = Join-Path $repo 'src-tauri/target/release/bundle/nsis'
-$steps = 7
+$steps = 8
+# Above this, target/debug is deleted after an update rather than left to grow.
+$debugCapGB = 20
 
 function Write-Step([int]$n, [string]$text) {
     Write-Host ''
@@ -224,6 +226,47 @@ if (-not $installer -or $installer.LastWriteTime -lt $buildStarted) {
 }
 Write-Host "Built $($installer.Name)."
 
+# --- Tidying, run last ------------------------------------------------------
+
+# Cargo never deletes anything from target. Each dependency or flag change
+# builds a fresh copy beside the old one, and the folder had passed 40 GB.
+# Nothing here can fail the update: the installer is already built.
+function Invoke-Tidy {
+    Write-Step 8 'Tidying build files'
+
+    # Installers and MSIs from earlier builds. This build's stay, with its
+    # signature and latest.json, so "pnpm open-installers" still finds it.
+    $bundleRoot = Split-Path -Parent $bundle
+    $old = @(Get-ChildItem -Path $bundleRoot -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -lt $buildStarted })
+    $old | Remove-Item -Force -ErrorAction SilentlyContinue
+    Write-Host "Removed $($old.Count) old installer file(s)."
+
+    # Stale copies cannot be told from live ones: Cargo does not touch what it
+    # reuses, and Windows does not record last access. So target/debug - dev
+    # runs, tests, clippy - is deleted whole once it passes the cap, which
+    # costs one full debug build some weeks apart. target/release is kept:
+    # it is what makes the next update incremental rather than from scratch.
+    $debug = Join-Path $repo 'src-tauri/target/debug'
+    if (-not (Test-Path $debug)) { return }
+    $gb = (Get-ChildItem -Path $debug -Recurse -File -ErrorAction SilentlyContinue |
+        Measure-Object -Property Length -Sum).Sum / 1GB
+    if ($gb -le $debugCapGB) {
+        Write-Host ("Debug builds take {0:N1} GB; kept (cap {1} GB)." -f $gb, $debugCapGB)
+        return
+    }
+    # A TRACE running from target/debug holds its files open.
+    $dev = @(Get-Process -Name 'TRACE' -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -and $_.Path.StartsWith($debug.Replace('/', '\'), [System.StringComparison]::OrdinalIgnoreCase)
+    })
+    if ($dev.Count -gt 0) {
+        Write-Host ("Debug builds take {0:N1} GB, but a dev TRACE is running from them; left for next time." -f $gb) -ForegroundColor Yellow
+        return
+    }
+    Remove-Item -Path $debug -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host ("Deleted debug builds ({0:N1} GB). The next dev run or test builds them afresh." -f $gb)
+}
+
 # --- 6. Close the running TRACE ----------------------------------------------
 
 Write-Step 6 'Closing TRACE'
@@ -247,6 +290,7 @@ if ($running.Count -eq 0) {
         Write-Host "Left TRACE running. The installer is ready whenever you are:"
         Write-Host "  $($installer.FullName)"
         Write-Host 'or run "pnpm open-installers".'
+        Invoke-Tidy
         exit 0
     }
 
@@ -288,3 +332,5 @@ Start-Process -FilePath $installer.FullName
 Write-Host ''
 Write-Host "The installer is open. Finish it, and TRACE $version starts from there." -ForegroundColor Green
 Write-Host 'The version is shown at the bottom right of the app and on the About page.'
+
+Invoke-Tidy

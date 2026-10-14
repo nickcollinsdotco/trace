@@ -58,6 +58,12 @@ sysinfo = { version = "0.36.1", default-features = false, features = ["system", 
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
+# Debug info for dependencies was most of target/debug - many gigabytes for
+# Tauri, ONNX Runtime and windows-rs internals nobody steps into. Our own
+# crate keeps it, so backtraces and the debugger still work on our code.
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 codegen-units = 1
 lto = true

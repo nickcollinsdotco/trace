@@ -166,15 +166,31 @@ pub fn find_note(notes_root: &std::path::Path, id: &str) -> Option<PathBuf> {
 /// edited in the file directly — see `context::apply_edits` — so replaying the
 /// journal verbatim quietly undid a rename and dropped every tag the moment
 /// notes were regenerated.
+///
+/// The body is not kept: it is written afresh from the journal. So when the
+/// body was edited outside TRACE — or the note predates the hash that would
+/// say — the file as it was is copied beside the note first, and that copy's
+/// path returned for the user to be told.
 pub fn rewrite_note(
     path: &std::path::Path,
     meeting: &crate::meeting::Meeting,
-) -> Result<(), StoreError> {
+) -> Result<Option<PathBuf>, StoreError> {
     let mut meeting = meeting.clone();
+    let mut kept = None;
     if let Ok(existing) = std::fs::read_to_string(path) {
         context::apply_edits(&mut meeting, &existing);
+        if markdown::body_edited(&existing) != Some(false) {
+            let copy = paths::kept_copy_path(path, &chrono::Local::now());
+            // Copied, not rewritten, so the user's bytes are kept exactly.
+            // A copy that cannot be made stops the rewrite: losing the
+            // edits is the thing this is here to prevent.
+            std::fs::copy(path, &copy)?;
+            crate::diagnostics::log("note edited outside TRACE: a copy was kept before rewriting");
+            kept = Some(copy);
+        }
     }
-    paths::write_atomic(path, &markdown::serialize(&meeting))
+    paths::write_atomic(path, &markdown::serialize(&meeting))?;
+    Ok(kept)
 }
 
 /// Write a meeting to its canonical Markdown file.
@@ -396,6 +412,48 @@ pub fn rename_note(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rewriting_an_untouched_note_keeps_no_copy() {
+        let root = scratch("rewrite-untouched");
+        let meeting = a_meeting("m1", "Standup");
+        let written = write_note(&root, &meeting).unwrap();
+        assert_eq!(rewrite_note(&written, &meeting).unwrap(), None);
+        assert_eq!(
+            std::fs::read_dir(written.parent().unwrap())
+                .unwrap()
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn rewriting_an_edited_note_keeps_the_edits_in_a_copy() {
+        let root = scratch("rewrite-edited");
+        let meeting = a_meeting("m1", "Standup");
+        let written = write_note(&root, &meeting).unwrap();
+        let edited = std::fs::read_to_string(&written).unwrap() + "\nMy own words.\n";
+        std::fs::write(&written, &edited).unwrap();
+
+        let copy = rewrite_note(&written, &meeting).unwrap().expect("a copy");
+        assert_eq!(std::fs::read_to_string(&copy).unwrap(), edited);
+        assert!(copy.to_string_lossy().ends_with(".md.bak"));
+        assert!(!std::fs::read_to_string(&written)
+            .unwrap()
+            .contains("My own words"));
+
+        // The rewritten note is TRACE's again, so the next rewrite keeps none.
+        assert_eq!(rewrite_note(&written, &meeting).unwrap(), None);
+    }
+
+    #[test]
+    fn rewriting_a_note_from_before_the_hash_keeps_a_copy() {
+        let root = scratch("rewrite-legacy");
+        let path = root.join("old.md");
+        std::fs::write(&path, "---\nid: m1\ntitle: Old\n---\n\n# Old\n\nEdited?\n").unwrap();
+        let meeting = a_meeting("m1", "Old");
+        assert!(rewrite_note(&path, &meeting).unwrap().is_some());
+    }
 
     /// A scratch notes root. Matches the convention in `audio::wav`'s tests
     /// rather than adding a dependency for four tests.

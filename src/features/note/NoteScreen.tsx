@@ -130,8 +130,26 @@ export function NoteScreen({
   }, [busy, picked]);
 
   async function regenerate() {
+    // Busy from the press, so a second one cannot slip in while asking.
     setRequesting(true);
     setError(null);
+    // The body is written afresh, so prose changed in another editor would
+    // go. A copy is kept regardless; asking first is for the edits' sake.
+    const edited = hasBackend() && (await ipc.noteEdited(path).catch(() => false));
+    if (
+      edited &&
+      !(await confirm({
+        title: "This note was edited outside TRACE",
+        body: [
+          "Regenerating writes the whole note again from the meeting, so those edits will not be in it.",
+          "The note as it is now is kept beside it, ending .md.bak.",
+        ],
+        confirm: "Regenerate",
+      }))
+    ) {
+      setRequesting(false);
+      return;
+    }
     try {
       await ipc.regenerateNotes(path);
     } catch (e) {

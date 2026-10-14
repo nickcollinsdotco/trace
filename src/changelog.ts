@@ -26,6 +26,22 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.32.0",
+    date: "2026-10-14",
+    title: "Regenerating keeps what you wrote in another editor",
+    notes: [
+      'Regenerating writes a note again from the meeting, so anything changed in its body in another app — a reworded line, a ticked box — used to vanish. Now TRACE notices, and keeps the note as it was beside it, named "… (before regenerating date time).md.bak". The library and Obsidian both leave that file alone.',
+      "↻ asks first when the note was edited outside TRACE, and the notice afterwards says where the copy went.",
+      "Notes written before this version cannot say whether they were edited, so the first regeneration of each keeps a copy anyway, without asking.",
+      "Title, tags, context and names are still kept from the file as before; changing those in TRACE does not count as an edit.",
+    ],
+    screens: {
+      "note-edited-outside":
+        "New. Press ↻: it asks first, saying the edits will not be in the new note and where the copy goes. Regenerate, and the notice names the copy.",
+      "note-kept-copy": "New. The notice after regenerating, naming the copy kept.",
+    },
+  },
+  {
     version: "0.31.0",
     date: "2026-10-14",
     title: "A full disk is said during the meeting, not after it",

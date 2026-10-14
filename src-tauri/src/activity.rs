@@ -72,6 +72,9 @@ pub enum Outcome {
         dropped: usize,
         fabricated: usize,
         uncited: usize,
+        /// The file name of the copy kept of the note as it was, when its
+        /// body had been edited outside TRACE. Beside the note.
+        kept: Option<String>,
     },
     Failed {
         message: String,
@@ -442,6 +445,7 @@ mod tests {
                 dropped: 0,
                 fabricated: 0,
                 uncited: 0,
+                kept: None,
             },
         );
         let job = &a.snapshot()[0];
@@ -477,6 +481,7 @@ mod tests {
                 dropped: 0,
                 fabricated: 0,
                 uncited: 0,
+                kept: None,
             },
         );
         a.finish(

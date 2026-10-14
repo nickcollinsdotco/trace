@@ -570,6 +570,30 @@ describe("Gallery", () => {
     expect(bar).not.toHaveTextContent("writing notes");
   }, 15_000);
 
+  it("asks before regenerating a note edited outside TRACE, and says where the copy went", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Edited outside TRACE");
+
+    const regenerate = await screen.findByRole("button", { name: "↻" });
+    await waitFor(() => expect(regenerate).toBeEnabled());
+    await user.click(regenerate);
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("edited outside TRACE");
+
+    // Cancelled: nothing runs.
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(regenerate).toBeEnabled());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(regenerate);
+    await user.click(await screen.findByRole("button", { name: "Regenerate" }));
+    // Once on the line, once in the announcement.
+    await waitFor(() => expect(screen.getAllByText(/kept beside it, as/)).toHaveLength(2), {
+      timeout: 8_000,
+    });
+  }, 15_000);
+
   it("writes notes from the live transcript when the full-quality pass fails", async () => {
     const user = userEvent.setup();
     render(<Gallery />);

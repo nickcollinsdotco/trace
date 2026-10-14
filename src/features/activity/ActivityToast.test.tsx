@@ -15,7 +15,7 @@ const running: Job = {
 const done: Job = {
   ...running,
   steps: [{ kind: "notes", startedAt: 1, finishedAt: 2, failed: false, error: null }],
-  outcome: { state: "generated", dropped: 0, fabricated: 0, uncited: 0 },
+  outcome: { state: "generated", dropped: 0, fabricated: 0, uncited: 0, kept: null },
 };
 
 describe("ActivityToast", () => {

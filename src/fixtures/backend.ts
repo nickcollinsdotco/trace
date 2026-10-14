@@ -77,6 +77,8 @@ export interface BackendState {
   immediate: ScriptedEvent[];
   /** Whether the open note's journal still exists. */
   canRegenerate: boolean;
+  /** Whether the open note's body was edited outside TRACE. */
+  editedOutside: boolean;
   /**
    * Background jobs when the scenario opens.
    *
@@ -140,6 +142,7 @@ export const DEFAULT_STATE: BackendState = {
   script: [],
   immediate: [],
   canRegenerate: true,
+  editedOutside: false,
   activity: [],
   afterGenerate: {},
   tags: {},
@@ -640,10 +643,17 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
             throw new Error("notes for this meeting are already being written");
           }
           const title = state.notes.find((n) => n.path === path)?.title ?? "";
-          return simulateRegenerate(emit, () => jobs, path, title);
+          // Named from the note's own file, as `paths::kept_copy_path` does.
+          const stem = ((path ?? "").split(/[\\/]/).pop() || "note").replace(/\.md$/, "");
+          const kept = state.editedOutside
+            ? `${stem} (before regenerating 2026-10-14 1630).md.bak`
+            : null;
+          return simulateRegenerate(emit, () => jobs, path, title, kept);
         }
         case "can_regenerate":
           return state.canRegenerate;
+        case "note_edited":
+          return state.editedOutside;
         case "activity":
           return jobs;
 
@@ -840,6 +850,7 @@ function simulateRegenerate(
   current: () => Job[],
   notePath: string,
   title: string,
+  kept: string | null = null,
 ): Promise<null> {
   // Times are relative, as every activity payload here is; each step is
   // stamped with how long ago it started as of the moment it is sent.
@@ -890,7 +901,7 @@ function simulateRegenerate(
       emit(EVENT.notesGenerated, { notePath });
       emit(
         EVENT.activity,
-        snapshot(4, { state: "generated", dropped: 0, fabricated: 0, uncited: 0 }),
+        snapshot(4, { state: "generated", dropped: 0, fabricated: 0, uncited: 0, kept }),
       );
       resolve(null);
     }, marks[4]);

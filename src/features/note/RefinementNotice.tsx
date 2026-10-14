@@ -52,9 +52,9 @@ export function RefinementNotice({ job }: { job: Job | null }) {
           ? headline(job)
           : outcome.state === "failed"
             ? `Notes could not be generated: ${outcome.message}`
-            : fromLive
-              ? "Notes generated from the live transcript"
-              : "Notes generated"}
+            : `${fromLive ? "Notes generated from the live transcript" : "Notes generated"}${
+                outcome.kept ? `. The note as it was is kept beside it, as “${outcome.kept}”` : ""
+              }`}
       </span>
       <button
         type="button"
@@ -82,6 +82,16 @@ export function RefinementNotice({ job }: { job: Job | null }) {
                   <span className="text-warn">
                     {outcome.dropped} item{outcome.dropped === 1 ? "" : "s"} discarded
                     {outcome.fabricated > 0 && " for citing something not in the transcript"}
+                  </span>
+                </>
+              )}
+              {/* Regenerating wrote the body afresh; where the old one went
+                  is the one thing someone who edited it needs to know. */}
+              {outcome.kept && (
+                <>
+                  {" — "}
+                  <span className="text-warn">
+                    the note as it was is kept beside it, as “{outcome.kept}”
                   </span>
                 </>
               )}

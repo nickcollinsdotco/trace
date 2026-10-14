@@ -373,6 +373,7 @@ function writtenAnywayScript(): ScriptedEvent[] {
           dropped: 0,
           fabricated: 0,
           uncited: 0,
+          kept: null,
         }),
       ],
     },
@@ -426,7 +427,7 @@ function writingScript(): ScriptedEvent[] {
     snap(P3),
     snap(C),
     { atMs: D, event: EVENT.notesGenerated, payload: { notePath: PATHS.pricing } },
-    snap(D, { state: "generated", dropped: 0, fabricated: 0, uncited: 0 }),
+    snap(D, { state: "generated", dropped: 0, fabricated: 0, uncited: 0, kept: null }),
   ];
 }
 
@@ -460,7 +461,7 @@ function liveFallbackScript(): ScriptedEvent[] {
     snap(T),
     snap(F),
     { atMs: D, event: EVENT.notesGenerated, payload: { notePath: PATHS.pricing } },
-    snap(D, { state: "generated", dropped: 0, fabricated: 0, uncited: 0 }),
+    snap(D, { state: "generated", dropped: 0, fabricated: 0, uncited: 0, kept: null }),
   ];
 }
 
@@ -1003,6 +1004,43 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: "note-edited-outside",
+    name: "Edited outside TRACE",
+    group: "Reading",
+    note: "The note's body was changed in another editor. ↻ asks first, since regenerating writes the body afresh; the note as it was is kept beside it, and the notice says where.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: { ...POPULATED, editedOutside: true },
+  },
+  {
+    id: "note-kept-copy",
+    name: "Regenerated, edits kept",
+    group: "Reading",
+    note: "Notes regenerated over a note edited outside TRACE. The copy kept of it is named in the notice.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: {
+      ...POPULATED,
+      activity: [
+        jobAt(
+          0,
+          PRICING_JOB,
+          [
+            { step: { kind: "transcript" }, from: -140_000, to: -101_000 },
+            { step: PART(1, 1), from: -101_000, to: -52_000 },
+          ],
+          {
+            state: "generated",
+            dropped: 0,
+            fabricated: 0,
+            uncited: 0,
+            kept: "2026-09-05-pricing-page-rework (before regenerating 2026-10-14 1630).md.bak",
+          },
+        ),
+      ],
+    },
+  },
+  {
     id: "note-queued",
     name: "Waiting its turn",
     group: "Reading",
@@ -1028,7 +1066,7 @@ export const SCENARIOS: Scenario[] = [
             { step: { kind: "transcript" }, from: -140_000, to: -101_000 },
             { step: PART(1, 1), from: -101_000, to: -52_000 },
           ],
-          { state: "generated", dropped: 2, fabricated: 2, uncited: 0 },
+          { state: "generated", dropped: 2, fabricated: 2, uncited: 0, kept: null },
         ),
       ],
     },

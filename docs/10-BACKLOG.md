@@ -664,7 +664,13 @@ What the audit found besides, worst first. Evidence is `file:line` as of
    (`windows.rs`). `busy.rs` keeps `%LOCALAPPDATA%\TRACE\busy`, holding the
    process id, for as long as either lasts; `update.ps1` reads it and leaves
    a busy TRACE running, even with `-Yes`, and the in-app updater refuses.
-7. **Regenerating overwrites body edits made outside TRACE.**
+7. ~~**Regenerating overwrites body edits made outside TRACE.**~~ **Fixed
+   in 0.32.0.** `body_hash` in the frontmatter fingerprints the body as
+   TRACE wrote it (heading, line endings and trailing space left out);
+   `rewrite_note` copies a note whose body no longer matches, or that has
+   no hash, to `<name> (before regenerating …).md.bak` beside it, and the
+   job's outcome names the copy. ↻ asks first when the hash says edited.
+   Still not built: anything that merges the edits back. What it was:
    `store::rewrite_note` keeps the title, tags, context and names from the
    file and nothing else, by design — but nothing tells someone who edited
    the Markdown in another app. *Fix:* hash the body when written; if it

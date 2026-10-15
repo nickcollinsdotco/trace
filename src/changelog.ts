@@ -26,6 +26,26 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.35.0",
+    date: "2026-10-15",
+    title: "Notes in progress, seen from the list",
+    notes: [
+      "A meeting whose notes are still being written shows as a draft in Meetings: a dashed outline and a line saying what it is doing, instead of “— no summary”.",
+      "Waiting for memory is amber, on the meeting's row and on Meetings in the sidebar, so a wait that needs you is noticed from anywhere.",
+      "The list picks up the new summary as soon as the notes are written, without leaving and coming back.",
+      "A model downloading after you leave Models is reported by the narrator — as it starts, at each quarter, and when it is in — since the status bar has no progress for it. Its jokes wait until the download is done.",
+    ],
+    screens: {
+      "fun-narrator-download":
+        "New. The narrator reporting qwen3:14b downloading, 0% to 75%, then fetched.",
+      "library-waiting-memory":
+        "New. Amber dashed row saying waiting for memory, and an amber spinner beside Meetings in the sidebar.",
+      "library-working":
+        "The row being written is outlined in green dashes with a spinner, and Meetings spins in the sidebar.",
+      "library-queued": "Both rows are drafts; the second says it is waiting its turn.",
+    },
+  },
+  {
     version: "0.34.0",
     date: "2026-10-15",
     title: "Pause a meeting",

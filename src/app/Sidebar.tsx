@@ -1,11 +1,14 @@
-import { type RefObject, useEffect, useRef } from "react";
-import { formatElapsed, SystemLabel } from "../components/ui/terminal";
+import { type ReactNode, type RefObject, useEffect, useRef } from "react";
+import { formatElapsed, Spinner, SystemLabel } from "../components/ui/terminal";
 import { MiniIcon } from "../features/mini/MiniIcon";
 import { shortcutLabel, useMiniShortcut } from "../features/mini/shortcut";
 import { ipc } from "../lib/ipc";
 import { Wordmark } from "./Wordmark";
 
 export type Page = "library" | "capture" | "models" | "appearance" | "settings" | "about";
+
+/** Notes being written in the background, as far as the sidebar cares. */
+export type NotesWork = "writing" | "waiting" | null;
 
 const PRIMARY: Array<{ page: Page; label: string }> = [
   { page: "library", label: "Meetings" },
@@ -26,6 +29,10 @@ const SECONDARY: Array<{ page: Page; label: string }> = [
  * the backend, not by a component — so "Record" turns into a live timer while
  * one is running. Leaving a recording must never feel like losing it.
  *
+ * "Meetings" carries a spinner while notes are being written, amber while they
+ * wait for memory. That wait lasts as long as the apps stay open, so it needs
+ * the user, and the status bar alone was too easy to read past.
+ *
  * It can be hidden (Shell.tsx): by hand at any width, and automatically in a
  * narrow window, where it comes back as an overlay rather than a column.
  */
@@ -34,6 +41,7 @@ export function Sidebar({
   onNavigate,
   recording,
   paused = false,
+  notes = null,
   onHide,
   overlay = false,
 }: {
@@ -43,6 +51,7 @@ export function Sidebar({
   recording: number | null;
   /** The meeting is open but paused: nothing is being heard. */
   paused?: boolean;
+  notes?: NotesWork;
   onHide: () => void;
   /** Shown over the content rather than beside it. */
   overlay?: boolean;
@@ -81,7 +90,11 @@ export function Sidebar({
               onSelect={() => onNavigate(page)}
               live={page === "capture" && recording !== null && !paused}
               trailing={
-                page === "capture" && recording !== null ? formatElapsed(recording) : undefined
+                page === "capture" && recording !== null ? (
+                  formatElapsed(recording)
+                ) : page === "library" && notes !== null ? (
+                  <NotesSpinner work={notes} />
+                ) : undefined
               }
             />
           ))}
@@ -147,6 +160,16 @@ function MiniFoot() {
   );
 }
 
+function NotesSpinner({ work }: { work: "writing" | "waiting" }) {
+  const said = work === "waiting" ? "notes waiting for memory" : "notes being written";
+  return (
+    <span title={said} className={work === "waiting" ? "text-warn" : "text-phosphor"}>
+      <Spinner />
+      <span className="sr-only">, {said}</span>
+    </span>
+  );
+}
+
 function NavGroup({ label, children }: { label?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -171,7 +194,7 @@ function NavItem({
   current: boolean;
   onSelect: () => void;
   live?: boolean;
-  trailing?: string | undefined;
+  trailing?: ReactNode;
 }) {
   return (
     <button

@@ -646,7 +646,7 @@ export const SCENARIOS: Scenario[] = [
     id: "library-working",
     name: "Working in the background",
     group: "Library",
-    note: "A meeting just ended. The status bar shows its notes being written; when they finish, a toast says so, because nothing on this screen would.",
+    note: "A meeting just ended. Its row is outlined in dashes with a spinner, Meetings in the sidebar spins, and the status bar shows the step; when they finish, a toast says so.",
     screen: "library",
     state: { ...POPULATED, script: writingScript() },
   },
@@ -654,9 +654,20 @@ export const SCENARIOS: Scenario[] = [
     id: "library-queued",
     name: "Two meetings queued",
     group: "Library",
-    note: "Back-to-back meetings. One is written at a time; the status bar says the other is waiting.",
+    note: "Back-to-back meetings. One is written at a time; both rows are drafts, and the second says it is waiting its turn.",
     screen: "library",
     state: { ...POPULATED, activity: QUEUED },
+  },
+  {
+    id: "library-waiting-memory",
+    name: "Waiting for memory, in the list",
+    group: "Library",
+    note: "Notes held back for memory, seen from the list: an amber dashed row saying so, and an amber spinner on Meetings in the sidebar. Opening the row is where Write notes anyway lives.",
+    screen: "library",
+    state: {
+      ...POPULATED,
+      activity: [jobAt(0, PRICING_JOB, WAITING_STEPS, null, SHORT_OF_MEMORY)],
+    },
   },
 
   /* --- Capture ----------------------------------------------------- */
@@ -1340,6 +1351,22 @@ export const SCENARIOS: Scenario[] = [
     screen: "library",
     narrator: true,
     state: POPULATED,
+  },
+  {
+    id: "fun-narrator-download",
+    name: "The narrator, a download",
+    group: "Pages",
+    note: "A summary model downloading after Models was left. The bar has no progress for it, so the narrator says so: as it starts, at each quarter, and when it is in. Idle remarks wait until it is done.",
+    screen: "library",
+    narrator: true,
+    state: {
+      ...POPULATED,
+      script: [8, 31, 58, 83, 100].map((percent, i) => ({
+        atMs: 600 + i * 1_800,
+        event: EVENT.summaryPull,
+        payload: { model: "qwen3:14b", percent },
+      })),
+    },
   },
   {
     id: "fun-boot",

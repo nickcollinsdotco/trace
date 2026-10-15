@@ -51,7 +51,10 @@ export type NarratorEvent =
   /** The clock reached the hour. */
   | { kind: "hour"; hour: number }
   /** The narrator was clicked, this many times in a row. */
-  | { kind: "poke"; count: number };
+  | { kind: "poke"; count: number }
+  /** A model downloading somewhere the bar does not show it. */
+  | { kind: "fetching"; what: string; percent: number }
+  | { kind: "fetched"; what: string };
 
 const PAGE_LINES: Record<Page, string> = {
   library: "meetings. all of them on this machine.",
@@ -157,6 +160,10 @@ export function narrate(event: NarratorEvent): string {
     }
     case "poke":
       return POKES[Math.min(event.count, POKES.length) - 1] ?? "yes?";
+    case "fetching":
+      return `fetching ${event.what} in the background. ${event.percent}%.`;
+    case "fetched":
+      return `${event.what} fetched. ready when you are.`;
   }
 }
 
@@ -170,6 +177,16 @@ export function keyDelay(prev: string, random: number): number {
   if (/[,:;]/.test(prev)) return 100 + random * 90;
   if (prev === " ") return 40 + random * 50;
   return 16 + random * 40;
+}
+
+/**
+ * A download is worth a word as it starts and at each quarter after: often
+ * enough to show it is moving, not so often it reads as a progress bar.
+ * Null when `said` already covers it.
+ */
+export function downloadQuarter(said: number | undefined, percent: number): number | null {
+  const quarter = Math.min(75, Math.floor(Math.max(0, percent) / 25) * 25);
+  return said === undefined || quarter > said ? quarter : null;
 }
 
 /** Every hundred segments is worth a word; fewer would chatter. */

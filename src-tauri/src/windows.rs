@@ -635,11 +635,8 @@ pub fn watch_main(app: &AppHandle) {
         tauri::WindowEvent::Resized(_) if watched.is_minimized().unwrap_or(false) => {
             on_trigger(&handle, Trigger::Minimised);
         }
-        tauri::WindowEvent::CloseRequested { api, .. } => {
-            if let Some(question) = close_question(&handle) {
-                api.prevent_close();
-                confirm_close(&handle, &watched, question);
-            }
+        tauri::WindowEvent::CloseRequested { api, .. } if !close_now(&handle, &watched) => {
+            api.prevent_close();
         }
         _ => {}
     });
@@ -649,55 +646,180 @@ pub fn watch_main(app: &AppHandle) {
 /// not asked about a second time.
 static QUIT_CONFIRMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// What closing the main window would lose, as a question, if anything.
+/// Whether the main window may close now. If not, whatever happens instead
+/// — a question, or going to the tray — has been started.
 ///
-/// Only when it is the last window: with the mini window open, TRACE keeps
-/// running and the meeting with it, which is the point of the mini window.
-fn close_question(app: &AppHandle) -> Option<(&'static str, &'static str)> {
+/// Closing it used to leave TRACE running behind the mini window, which has
+/// no taskbar button: a mini window on another screen was easy to miss, and
+/// once it was closed there was no telling whether TRACE had gone. Now it
+/// quits, mini window and all, or goes to the tray if the user chose that —
+/// and the tray icon is there for as long as the process is.
+fn close_now(app: &AppHandle, main: &WebviewWindow) -> bool {
+    use crate::settings::CloseAction;
     if QUIT_CONFIRMED.load(std::sync::atomic::Ordering::Relaxed) {
-        return None;
+        close_others(app);
+        return true;
     }
-    if app.webview_windows().keys().any(|label| label != "main") {
-        return None;
+    match crate::settings::load().close_action {
+        None => {
+            ask_close_action(app, main);
+            false
+        }
+        Some(CloseAction::Tray) => {
+            let _ = main.hide();
+            false
+        }
+        Some(CloseAction::Quit) => match close_loss(app) {
+            Some(loss) => {
+                confirm_close(app, main, loss);
+                false
+            }
+            None => {
+                close_others(app);
+                true
+            }
+        },
     }
+}
+
+/// Quit from the tray, whatever closing the window is set to do.
+fn request_quit(app: &AppHandle) {
+    let Some(main) = app.get_webview_window("main") else {
+        app.exit(0);
+        return;
+    };
+    match close_loss(app) {
+        Some(loss) => {
+            let _ = main.show();
+            confirm_close(app, &main, loss);
+        }
+        None => {
+            QUIT_CONFIRMED.store(true, std::sync::atomic::Ordering::Relaxed);
+            let _ = main.close();
+        }
+    }
+}
+
+/// What quitting would lose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Loss {
+    Recording,
+    Writing,
+}
+
+/// What quitting would lose, if anything.
+fn close_loss(app: &AppHandle) -> Option<Loss> {
     if app
         .state::<crate::capture_manager::CaptureManager>()
         .status()
         .is_some()
     {
-        Some((
-            "A meeting is recording. Quitting ends it here; what was captured is offered for recovery next time TRACE opens.",
-            "Keep recording",
-        ))
+        Some(Loss::Recording)
     } else if crate::busy::is_busy() {
-        Some((
-            "TRACE is still writing notes. Quitting stops them part-way; they are offered again next time TRACE opens.",
-            "Keep writing",
-        ))
+        Some(Loss::Writing)
     } else {
         None
     }
 }
 
+/// Close every window but the main one — the mini window, the gallery — so
+/// the main one closing is the last and the process ends with it.
+fn close_others(app: &AppHandle) {
+    for (label, window) in app.webview_windows() {
+        if label != "main" {
+            let _ = window.close();
+        }
+    }
+}
+
+/// The first close: quit, or keep running in the tray? Asked once and
+/// remembered; Settings changes it. Cancelled, nothing is remembered and
+/// the next close asks again.
+fn ask_close_action(app: &AppHandle, main: &WebviewWindow) {
+    use crate::settings::CloseAction;
+    use tauri_plugin_dialog::{
+        DialogExt, MessageDialogButtons, MessageDialogKind, MessageDialogResult,
+    };
+    const QUIT: &str = "Quit";
+    const TRAY: &str = "Keep running in the tray";
+
+    let _ = main.unminimize();
+    let main = main.clone();
+    app.dialog()
+        .message(
+            "Closing the window can quit TRACE, or leave it running in the tray by the clock, ready for the next meeting.\n\nAsked once. Settings → Closing TRACE changes it.",
+        )
+        .title("When you close TRACE")
+        .kind(MessageDialogKind::Info)
+        .buttons(MessageDialogButtons::YesNoCancelCustom(
+            QUIT.into(),
+            TRAY.into(),
+            "Cancel".into(),
+        ))
+        .parent(&main)
+        .show_with_result(move |answer| {
+            let action = match answer {
+                MessageDialogResult::Custom(s) if s == QUIT => CloseAction::Quit,
+                MessageDialogResult::Custom(s) if s == TRAY => CloseAction::Tray,
+                _ => return,
+            };
+            if let Err(e) = crate::settings::update(|s| s.close_action = Some(action)) {
+                crate::diagnostics::log(format!("could not save the close setting: {e}"));
+            }
+            // Closed again, now with an answer to act on.
+            let _ = main.close();
+        });
+}
+
 /// Ask, without blocking the event loop the window's own events arrive on.
-fn confirm_close(app: &AppHandle, main: &WebviewWindow, (message, stay): (&str, &str)) {
-    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+fn confirm_close(app: &AppHandle, main: &WebviewWindow, loss: Loss) {
+    use tauri_plugin_dialog::{
+        DialogExt, MessageDialogButtons, MessageDialogKind, MessageDialogResult,
+    };
+    const QUIT: &str = "Quit";
+    const MINI_INSTEAD: &str = "Keep recording in the mini window";
+
+    // Closed from the taskbar while minimised, the question would otherwise
+    // be asked of a window nobody can see.
+    let _ = main.unminimize();
+    let (message, buttons) = match loss {
+        Loss::Recording => (
+            "A meeting is recording. Quitting ends it here; what was captured is offered for recovery next time TRACE opens.",
+            MessageDialogButtons::YesNoCancelCustom(
+                QUIT.into(),
+                MINI_INSTEAD.into(),
+                "Keep recording".into(),
+            ),
+        ),
+        Loss::Writing => (
+            "TRACE is still writing notes. Quitting stops them part-way; they are offered again next time TRACE opens.",
+            MessageDialogButtons::OkCancelCustom(QUIT.into(), "Keep writing".into()),
+        ),
+    };
+    let app = app.clone();
     let main = main.clone();
     app.dialog()
         .message(message)
         .title("Quit TRACE?")
         .kind(MessageDialogKind::Warning)
-        .buttons(MessageDialogButtons::OkCancelCustom(
-            "Quit".into(),
-            stay.into(),
-        ))
+        .buttons(buttons)
         .parent(&main)
-        .show(move |quit| {
-            if quit {
+        .show_with_result(move |answer| match answer {
+            MessageDialogResult::Custom(s) if s == QUIT => {
                 crate::diagnostics::log("quit while busy, confirmed");
                 QUIT_CONFIRMED.store(true, std::sync::atomic::Ordering::Relaxed);
                 let _ = main.close();
             }
+            MessageDialogResult::Custom(s) if s == MINI_INSTEAD => {
+                // The mini window first: minimising may open one by itself,
+                // and two opening at once would race for the label.
+                if let Err(e) = open_mini(&app, Open::Asked) {
+                    crate::diagnostics::log(format!("could not open the mini window: {e}"));
+                    return;
+                }
+                let _ = main.minimize();
+            }
+            _ => {}
         });
 }
 
@@ -842,11 +964,97 @@ pub fn show_main(
         app.emit_to("main", EVENT_OPEN_NOTE, path)?;
     }
     if attention_only {
+        // In the tray there is no taskbar button to flash: put one back,
+        // minimised, so coming back still lands on the note.
+        if !main.is_visible()? {
+            main.minimize()?;
+            main.show()?;
+        }
         main.request_user_attention(Some(UserAttentionType::Informational))
     } else {
         main.unminimize()?;
         main.show()?;
         main.set_focus()
+    }
+}
+
+/// A meeting ended from the main window. A mini window that opened by
+/// itself for it has done its job — under "always" it would otherwise stay
+/// on screen, idle, until closed by hand. One stopped from the mini window
+/// closes itself once it has said the meeting is saved.
+pub fn meeting_ended(app: &AppHandle) {
+    if app.state::<MiniState>().with(|s| s.auto) {
+        let _ = close_mini(app);
+    }
+}
+
+/// Label of the tray icon.
+const TRAY: &str = "main";
+
+/// The tray icon, there for as long as TRACE runs: the one place that always
+/// says it is running, whatever windows are open, and the way back to it or
+/// out of it. Left click opens TRACE; right click has the menu.
+pub fn install_tray(app: &AppHandle) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+    let open = MenuItem::with_id(app, "open", "Open TRACE", true, None::<&str>)?;
+    let mini = MenuItem::with_id(app, "mini", "Mini window", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit TRACE", true, None::<&str>)?;
+    let menu = Menu::with_items(
+        app,
+        &[&open, &mini, &PredefinedMenuItem::separator(app)?, &quit],
+    )?;
+    let mut tray = TrayIconBuilder::with_id(TRAY)
+        .tooltip(tray_tooltip(false))
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "open" => {
+                let _ = show_main(app, None, false);
+            }
+            "mini" => {
+                // Off the event loop: building a window on it deadlocks.
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = open_mini(&app, Open::Asked) {
+                        crate::diagnostics::log(format!("could not open the mini window: {e}"));
+                    }
+                });
+            }
+            "quit" => request_quit(app),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let _ = show_main(tray.app_handle(), None, false);
+            }
+        });
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(app)?;
+    Ok(())
+}
+
+fn tray_tooltip(recording: bool) -> &'static str {
+    match (recording, cfg!(debug_assertions)) {
+        (true, false) => "TRACE — recording",
+        (true, true) => "TRACE (dev) — recording",
+        (false, false) => "TRACE",
+        (false, true) => "TRACE (dev)",
+    }
+}
+
+/// Keep the tray's tooltip saying whether a meeting is recording.
+pub fn tray_recording(app: &AppHandle, recording: bool) {
+    if let Some(tray) = app.tray_by_id(TRAY) {
+        let _ = tray.set_tooltip(Some(tray_tooltip(recording)));
     }
 }
 

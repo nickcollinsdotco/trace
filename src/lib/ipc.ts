@@ -64,6 +64,9 @@ export type SummaryMemory = "during_meetings" | "while_writing";
 /** When the mini window opens by itself during a meeting. */
 export type MiniAuto = "off" | "minimised" | "switch_away" | "always";
 
+/** What closing the main window does. */
+export type CloseAction = "quit" | "tray";
+
 export interface Settings {
   audioRetention: AudioRetention;
   /** Id of the speech model meetings use. */
@@ -82,6 +85,7 @@ export interface Settings {
   miniShortcut: string;
   /** Another app held it when TRACE started, so it does nothing. */
   miniShortcutTaken: boolean;
+  closeAction: CloseAction;
 }
 
 export interface SpeechModel {
@@ -461,6 +465,7 @@ export const ipc = {
   setSummaryMemory: (memory: SummaryMemory) => call<Settings>("set_summary_memory", { memory }),
   setDefaultMic: (name: string | null) => call<Settings>("set_default_mic", { name }),
   setMiniAuto: (mode: MiniAuto) => call<Settings>("set_mini_auto", { mode }),
+  setCloseAction: (action: CloseAction) => call<Settings>("set_close_action", { action }),
   /** Refused, keeping the old one, when another app holds the combination. */
   setMiniShortcut: (shortcut: string) => call<Settings>("set_mini_shortcut", { shortcut }),
   /** Without an id, the speech model meetings will use — what first run wants. */

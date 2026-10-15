@@ -142,6 +142,22 @@ export function FirstRunScreen({ onReady }: { onReady: () => void }) {
               <Row label="Summaries" value={<Summaries status={llm.status} />} wrap="words" />
             </Group>
 
+            {/* Said here because neither is found by looking at the main
+                window: the mini window only opens when asked for, by the
+                setting's default, and the tray icon sits in the corner. */}
+            <Group>
+              <Row
+                label="During calls"
+                value="Mini window · a small bar over any app — from the sidebar, or Ctrl+Shift+Alt+M"
+                wrap="words"
+              />
+              <Row
+                label="Tray"
+                value="Icon by the clock while TRACE runs · right click to quit"
+                wrap="words"
+              />
+            </Group>
+
             <Group last>
               {progress ? (
                 <Row label={progress.phase} value={<Gauge percent={progress.percent} />} />

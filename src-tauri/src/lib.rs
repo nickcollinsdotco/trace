@@ -79,6 +79,10 @@ pub fn run() {
             }
             // The mini window from anywhere, by the shortcut in Settings.
             windows::register_shortcut(app.handle());
+            // Always there while TRACE runs, so it can be seen to be running.
+            if let Err(e) = windows::install_tray(app.handle()) {
+                diagnostics::log(format!("could not add the tray icon: {e}"));
+            }
             // The mini window opening by itself, as the setting says.
             windows::watch_main(app.handle());
             // The main window is created hidden, so it can be sized to the
@@ -161,6 +165,7 @@ pub fn run() {
             commands::mini_ready,
             commands::protect_mini,
             commands::set_mini_auto,
+            commands::set_close_action,
             commands::set_mini_shortcut,
             commands::reset_mini,
             commands::close_mini,

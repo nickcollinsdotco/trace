@@ -3,6 +3,7 @@ import { Page } from "../../components/ui/Page";
 import { Prompt, Section } from "../../components/ui/terminal";
 import { formatBytes } from "../../lib/format";
 import {
+  type CloseAction,
   type DeviceInfo,
   hasBackend,
   ipc,
@@ -72,6 +73,23 @@ const MINI_OPTIONS: Array<{ value: MiniAuto; label: string; note: string }> = [
   },
 ];
 
+/*
+ * Quit first, and the default: an app still running after its window is
+ * closed is one nobody can tell has gone. The first close asks.
+ */
+const CLOSE_OPTIONS: Array<{ value: CloseAction; label: string; note: string }> = [
+  {
+    value: "quit",
+    label: "Quit TRACE",
+    note: "The mini window closes with it. A meeting recording, or notes being written, asks first.",
+  },
+  {
+    value: "tray",
+    label: "Keep running in the tray",
+    note: "By the clock, ready for the next meeting. Its icon opens TRACE, or quits it from a right click.",
+  },
+];
+
 /**
  * The few preferences that are real decisions.
  *
@@ -108,7 +126,7 @@ export function SettingsScreen() {
   return (
     <Page
       title="Settings"
-      lead="What happens to a meeting: the microphone it starts with, what is kept afterwards, and when the mini window appears."
+      lead="What happens to a meeting: the microphone it starts with, what is kept afterwards, when the mini window appears, and what closing TRACE does."
       className="gap-10"
     >
       {error && (
@@ -195,6 +213,32 @@ export function SettingsScreen() {
               >
                 Bring it back
               </button>
+            </Field>
+          </Section>
+
+          <Section title="Closing TRACE">
+            <Field label="Closing the window">
+              <div
+                role="radiogroup"
+                aria-label="What closing the window does"
+                className="flex flex-col gap-2"
+              >
+                {CLOSE_OPTIONS.map((o) => (
+                  <label key={o.value} className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="radio"
+                      name="close-action"
+                      checked={settings.closeAction === o.value}
+                      onChange={() => save(ipc.setCloseAction(o.value))}
+                      className="mt-1 size-3.5 shrink-0 accent-phosphor"
+                    />
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-sm text-ink">{o.label}</span>
+                      <span className="text-2xs text-ink-faint">{o.note}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
             </Field>
           </Section>
 

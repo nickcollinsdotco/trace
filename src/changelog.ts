@@ -26,6 +26,22 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.35.0",
+    date: "2026-10-15",
+    title: "A tray icon, and closing TRACE closes all of it",
+    notes: [
+      "TRACE has an icon by the clock for as long as it runs. Click it to open TRACE; right click for the mini window or to quit.",
+      "Closing the main window quits TRACE, and the mini window goes with it. It used to leave TRACE running in the mini window alone, with nothing in the taskbar, so a mini window on another screen kept it running unseen.",
+      "Or it can keep running in the tray instead. The first close asks which, and Settings → Closing TRACE changes it.",
+      "Quitting while a meeting records still asks first, and now offers to keep recording in the mini window instead.",
+      "Under “Always during meetings”, the mini window now closes when the meeting is stopped from the main window, rather than staying on screen.",
+    ],
+    screens: {
+      settings: "New Closing TRACE section: Quit TRACE (default) or Keep running in the tray.",
+      "first-run-report": "Two new rows: During calls (the mini window) and Tray.",
+    },
+  },
+  {
     version: "0.34.0",
     date: "2026-10-15",
     title: "Pause a meeting",

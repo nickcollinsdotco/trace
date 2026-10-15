@@ -263,10 +263,14 @@ pub fn set_title(manager: State<'_, CaptureManager>, title: String) -> CmdResult
 #[tauri::command]
 pub async fn stop_capture(
     app: AppHandle,
+    window: tauri::WebviewWindow,
     manager: State<'_, CaptureManager>,
 ) -> CmdResult<FinishedMeeting> {
     let finished = manager.stop(app.clone()).map_err(err)?;
     capture_changed(&app);
+    if window.label() != crate::windows::MINI {
+        crate::windows::meeting_ended(&app);
+    }
     Ok(finished)
 }
 
@@ -291,6 +295,10 @@ pub const EVENT_CAPTURE_CHANGED: &str = "trace://capture-changed";
 
 fn capture_changed(app: &AppHandle) {
     let _ = app.emit(EVENT_CAPTURE_CHANGED, ());
+    let recording = tauri::Manager::state::<CaptureManager>(app)
+        .status()
+        .is_some();
+    crate::windows::tray_recording(app, recording);
 }
 
 /* ------------------------------------------------------------------ *
@@ -957,6 +965,14 @@ pub fn set_mini_auto(app: AppHandle, mode: crate::settings::MiniAuto) -> CmdResu
     Ok(SettingsView::from(&s))
 }
 
+/// What closing the main window does. Choosing here answers the first-close
+/// question too.
+#[tauri::command]
+pub fn set_close_action(action: crate::settings::CloseAction) -> CmdResult<SettingsView> {
+    let s = crate::settings::update(|s| s.close_action = Some(action))?;
+    Ok(SettingsView::from(&s))
+}
+
 /// The mini window's shortcut, or none for an empty string. Refused, with
 /// the old one kept, if another app already holds it. Async so it runs off
 /// the main thread, which the shortcut plugin waits on to register.
@@ -978,6 +994,7 @@ pub async fn reset_mini(app: AppHandle) -> CmdResult<()> {
 pub fn abort_capture(app: AppHandle, manager: State<'_, CaptureManager>) -> CmdResult<()> {
     manager.abort().map_err(err)?;
     capture_changed(&app);
+    crate::windows::meeting_ended(&app);
     Ok(())
 }
 

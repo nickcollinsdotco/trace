@@ -643,12 +643,16 @@ describe("Gallery", () => {
     render(<Gallery />);
     await openScenario(user, "Waiting for memory");
 
+    // The app holding the most, named, rather than "some apps".
     expect(
-      await screen.findByText("Waiting for memory: close some apps, or write notes anyway."),
+      await screen.findByText("Waiting for memory: close Figma, or write notes anyway."),
     ).toBeInTheDocument();
     // The numbers that make it a decision rather than a stall.
-    expect(screen.getByText(/needs 10\.6 GiB/)).toBeInTheDocument();
-    expect(screen.getByText(/5\.1 GiB on the graphics card/)).toBeInTheDocument();
+    expect(screen.getByText(/qwen3:8b needs 5\.9 GiB/)).toBeInTheDocument();
+    expect(screen.getByText(/2\.1 GiB on the graphics card/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Using the most: Figma 7\.0 GiB graphics, 3\.4 GiB memory · chrome/),
+    ).toBeInTheDocument();
     const bar = await screen.findByRole("contentinfo");
     expect(bar).toHaveTextContent("waiting for memory");
 
@@ -661,15 +665,57 @@ describe("Gallery", () => {
     expect(screen.queryByRole("button", { name: "Write notes anyway" })).toBeNull();
   });
 
+  it("says notes are interim and writes them with the chosen model when asked", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Interim notes");
+
+    expect(
+      await screen.findByText(/interim notes, by qwen3:8b — there was no room for qwen3:14b/),
+    ).toBeInTheDocument();
+    // It fits here, so nothing is asked before it starts.
+    await user.click(screen.getByRole("button", { name: "write them now" }));
+    // The rewrite takes the fixture's few seconds, as a real one takes minutes.
+    expect(
+      await screen.findByText(/Notes written by qwen3:14b/, undefined, { timeout: 12_000 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/interim notes, by/)).toBeNull();
+  }, 20_000);
+
+  it("asks before writing with a model that has no room, naming what holds it", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Interim notes, no room yet");
+    // The scenario opens on the question; dismissed, the note's own button asks it.
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    await user.click(await screen.findByRole("button", { name: "write them now" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Not enough free memory for qwen3:14b");
+    expect(dialog).toHaveTextContent("It needs 10.1 GiB");
+    expect(dialog).toHaveTextContent("Using the most: Figma 7.0 GiB graphics");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    // Declined: nothing started, the interim notes stay.
+    expect(screen.getByText(/interim notes, by qwen3:8b/)).toBeInTheDocument();
+  });
+
+  it("names an idle-time rewrite as better notes", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Better notes, while idle");
+    // On the note's line and in the sidebar's activity alike.
+    expect(
+      await screen.findAllByRole("button", { name: /writing better notes, part 2 of 3/ }),
+    ).not.toHaveLength(0);
+  });
+
   it("writes notes anyway when told to, and the wait clears", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
     await openScenario(user, "Waiting for memory");
 
     await user.click(await screen.findByRole("button", { name: "Write notes anyway" }));
-    await waitFor(() =>
-      expect(screen.queryByText(/Waiting for memory: close some apps/)).toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByText(/Waiting for memory: close/)).toBeNull());
     const bar = await screen.findByRole("contentinfo");
     expect(bar).not.toHaveTextContent("waiting for memory");
   });

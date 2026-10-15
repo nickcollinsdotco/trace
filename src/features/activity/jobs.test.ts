@@ -24,6 +24,7 @@ function job(steps: JobStep[], outcome: Job["outcome"] = null): Job {
     steps,
     waiting: null,
     stopping: false,
+    upgrade: false,
     outcome,
   };
 }
@@ -42,7 +43,14 @@ describe("jobs", () => {
     const stopping: Job = {
       ...job([step(part(2, 3), 1)]),
       stopping: true,
-      waiting: { neededBytes: 1, ramAvailableBytes: 1, gpuFreeBytes: null, since: 1 },
+      waiting: {
+        model: "m",
+        neededBytes: 1,
+        ramAvailableBytes: 1,
+        gpuFreeBytes: null,
+        since: 1,
+        hogs: [],
+      },
     };
     expect(headline(stopping)).toBe("stopping");
   });
@@ -50,7 +58,14 @@ describe("jobs", () => {
   it("says a job held back for memory is waiting, not writing", () => {
     const waiting: Job = {
       ...job([step(part(1, 1), 1)]),
-      waiting: { neededBytes: 1, ramAvailableBytes: 1, gpuFreeBytes: null, since: 1 },
+      waiting: {
+        model: "m",
+        neededBytes: 1,
+        ramAvailableBytes: 1,
+        gpuFreeBytes: null,
+        since: 1,
+        hogs: [],
+      },
     };
     expect(isWaitingForMemory(waiting)).toBe(true);
     expect(headline(waiting)).toBe("waiting for memory");

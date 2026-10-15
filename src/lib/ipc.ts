@@ -356,12 +356,35 @@ export type JobOutcome =
  * coming: the backend looks again every few seconds.
  */
 export interface MemoryWait {
+  /** The smallest model that would do: the one "anyway" loads. */
+  model: string;
   neededBytes: number;
   ramAvailableBytes: number;
   /** Null when the GPU's memory cannot be read. */
   gpuFreeBytes: number | null;
   /** Unix milliseconds. */
   since: number;
+  /** The apps holding the most memory, so the user knows what to close. */
+  hogs: Hog[];
+}
+
+/** An app holding a share of the memory the summary model needs. */
+export interface Hog {
+  /** As Windows names the program, without `.exe`. */
+  name: string;
+  gpuBytes: number;
+  ramBytes: number;
+}
+
+/** Whether the chosen summary model has room now, and if not, what holds it. */
+export interface SummaryRoom {
+  model: string;
+  fits: boolean;
+  neededBytes: number;
+  ramAvailableBytes: number;
+  gpuFreeBytes: number | null;
+  /** Empty when it fits. */
+  hogs: Hog[];
 }
 
 /** An answer to a wait for memory. */
@@ -382,6 +405,8 @@ export interface Job {
   waiting: MemoryWait | null;
   /** Stop was pressed and the job is letting go. */
   stopping: boolean;
+  /** Rewriting interim notes with the chosen model, unasked, while the machine is idle. */
+  upgrade: boolean;
   /** null while queued or running. */
   outcome: JobOutcome | null;
 }
@@ -526,7 +551,14 @@ export const ipc = {
   revealNote: (notePath: string) => call<void>("reveal_note", { notePath }),
   deleteNote: (notePath: string) => call<void>("delete_note", { notePath }),
   renameNote: (notePath: string, title: string) => call<string>("rename_note", { notePath, title }),
-  regenerateNotes: (notePath: string) => call<void>("regenerate_notes", { notePath }),
+  /**
+   * `best` writes them with the chosen model only, never a smaller one, and
+   * does not wait for memory: for after `summaryRoom` has been shown.
+   */
+  regenerateNotes: (notePath: string, best = false) =>
+    call<void>("regenerate_notes", { notePath, best }),
+  /** Null when there is no summary model to ask about. */
+  summaryRoom: () => call<SummaryRoom | null>("summary_room"),
   canRegenerate: (notePath: string) => call<boolean>("can_regenerate", { notePath }),
   /** Whether the note's body was changed outside TRACE since TRACE wrote it. */
   noteEdited: (notePath: string) => call<boolean>("note_edited", { notePath }),

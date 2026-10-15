@@ -69,7 +69,11 @@ export function headline(job: Job): string {
   if (isWaitingForMemory(job)) return "waiting for memory";
   const step = currentStep(job);
   // Said while it matters, not only afterwards: these notes will be rougher.
-  const writing = liveFallback(job) ? "writing notes from the live transcript" : "writing notes";
+  const writing = job.upgrade
+    ? "writing better notes"
+    : liveFallback(job)
+      ? "writing notes from the live transcript"
+      : "writing notes";
   if (step === null) return writing;
   switch (step.kind) {
     case "transcript":

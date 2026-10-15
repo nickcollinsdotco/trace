@@ -189,6 +189,39 @@ impl OllamaProvider {
 /// sits entirely on a 16 GB card.
 pub const PREFERRED: &[&str] = &["qwen3:14b", "qwen3:8b", "gemma3:12b"];
 
+/// Smaller models good enough to write interim notes when the chosen one has
+/// no room, best first.
+///
+/// Only models read beside the 14B's notes on real meetings. The 8B
+/// (2026-10-15, two 40-minute calls) got the facts and the ground right but
+/// padded the decisions and action items with things that were neither, and
+/// lost track of who said what: interim notes worth having, and worth replacing
+/// when the machine is free. Smaller ones were tried on the same meetings
+/// and left out: qwen3:4b reasoned until it ran out of room, or with
+/// thinking off returned empty notes; granite4.2:3b returned empty notes;
+/// gemma3:4b repeated itself out of room on one meeting and on the other
+/// listed transcript lines ("Let's discuss the rest of the stuff") as
+/// decisions. `examples/model_compare.rs` repeats the test for a new one.
+pub const INTERIM_MODELS: &[&str] = &["qwen3:8b"];
+
+/// What to try, in order, when `chosen` is the model to write notes with:
+/// itself, then the installed interim models smaller than it.
+///
+/// Smaller by what loading takes (`need`, normally `footprint`), since that
+/// is the only reason to fall back.
+pub fn ladder(chosen: &str, installed: &[String], need: impl Fn(&str) -> u64) -> Vec<String> {
+    let mut out = vec![chosen.to_string()];
+    for interim in INTERIM_MODELS {
+        if *interim != chosen
+            && installed.iter().any(|m| m == interim)
+            && need(interim) < need(chosen)
+        {
+            out.push((*interim).to_string());
+        }
+    }
+    out
+}
+
 /// The model to suggest pulling when none is installed.
 ///
 /// The 8B rather than the first preference: it is what fits on the hardware
@@ -1278,6 +1311,26 @@ mod tests {
 
     const VALID: &str = r#"{"summary":"We talked.","key_points":[],"decisions":[],
         "action_items":[],"open_questions":[]}"#;
+
+    #[test]
+    fn an_interim_model_is_offered_only_below_the_chosen_one() {
+        const GIB: u64 = 1 << 30;
+        let need = |m: &str| match m {
+            "qwen3:14b" => 10 * GIB,
+            "qwen3:8b" => 6 * GIB,
+            _ => 3 * GIB,
+        };
+        let both: Vec<String> = vec!["qwen3:14b".into(), "qwen3:8b".into()];
+        assert_eq!(ladder("qwen3:14b", &both, need), ["qwen3:14b", "qwen3:8b"]);
+        // The 8B chosen is already the floor; a lone 14B has nothing below.
+        assert_eq!(ladder("qwen3:8b", &both, need), ["qwen3:8b"]);
+        assert_eq!(
+            ladder("qwen3:14b", &["qwen3:14b".to_string()], need),
+            ["qwen3:14b"]
+        );
+        // A chosen model smaller than every interim one is not "fallen back" from.
+        assert_eq!(ladder("tiny:1b", &both, need), ["tiny:1b"]);
+    }
 
     #[test]
     fn plain_json_parses() {

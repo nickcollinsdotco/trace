@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Gauge, Spinner } from "../../components/ui/terminal";
 import { formatBytes } from "../../lib/format";
-import { ipc, type Job, type MemoryWait, type WaitChoice } from "../../lib/ipc";
+import { type Hog, ipc, type Job, type MemoryWait, type WaitChoice } from "../../lib/ipc";
 import { JobSteps } from "../activity/JobSteps";
 import {
   formatDuration,
@@ -146,14 +146,17 @@ function MemoryWaitPanel({ notePath, wait }: { notePath: string; wait: MemoryWai
   return (
     <div className="flex flex-col gap-2 rounded-sm border border-warn/40 bg-warn-dim px-3 py-2.5">
       <p className="text-xs text-ink">
-        Waiting for memory: close some apps, or write notes anyway.
+        Waiting for memory: close {wait.hogs[0]?.name ?? "some apps"}, or write notes anyway.
       </p>
       <p className="font-mono text-2xs text-ink-muted">
-        The summary model needs {formatBytes(wait.neededBytes)}. Free now:{" "}
+        {wait.model} needs {formatBytes(wait.neededBytes)}. Free now:{" "}
         {formatBytes(wait.ramAvailableBytes)} of memory
         {wait.gpuFreeBytes !== null && <>, {formatBytes(wait.gpuFreeBytes)} on the graphics card</>}
         . TRACE checks again every few seconds and carries on by itself when there is room.
       </p>
+      {wait.hogs.length > 0 && (
+        <p className="font-mono text-2xs text-ink-muted">Using the most: {hogList(wait.hogs)}.</p>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -177,6 +180,23 @@ function MemoryWaitPanel({ notePath, wait }: { notePath: string; wait: MemoryWai
       </div>
     </div>
   );
+}
+
+/**
+ * "Figma 4.4 GB graphics, 3.4 GB memory · chrome 2.7 GB memory". The kind
+ * of memory matters: it says whether closing the app frees the card, the
+ * system memory, or both.
+ */
+export function hogList(hogs: Hog[]): string {
+  return hogs
+    .map((h) => {
+      const held = [
+        h.gpuBytes >= 2 ** 28 && `${formatBytes(h.gpuBytes)} graphics`,
+        h.ramBytes >= 2 ** 28 && `${formatBytes(h.ramBytes)} memory`,
+      ].filter(Boolean);
+      return `${h.name} ${held.join(", ")}`;
+    })
+    .join(" · ");
 }
 
 /**

@@ -25,6 +25,7 @@ pub mod synthesis;
 pub mod system;
 pub mod transcribe;
 pub mod update;
+pub mod upgrade;
 pub mod windows;
 
 use capture_manager::CaptureManager;
@@ -85,6 +86,8 @@ pub fn run() {
             }
             // The mini window opening by itself, as the setting says.
             windows::watch_main(app.handle());
+            // Interim notes rewritten while nobody is using the machine.
+            upgrade::watch(app.handle().clone());
             // The main window is created hidden, so it can be sized to the
             // screen before anyone sees it at the wrong size. It is shown
             // whether or not the sizing worked: a window that never appears
@@ -127,6 +130,7 @@ pub fn run() {
             commands::stop_notes,
             commands::reveal_notes_folder,
             commands::regenerate_notes,
+            commands::summary_room,
             commands::can_regenerate,
             commands::note_edited,
             commands::activity,

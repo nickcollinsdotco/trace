@@ -25,6 +25,7 @@ function job(steps: JobStep[], outcome: Job["outcome"] = null): Job {
     steps,
     waiting: null,
     stopping: false,
+    upgrade: false,
     outcome,
   };
 }

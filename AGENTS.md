@@ -108,7 +108,8 @@ cd src-tauri
 cargo run --release --example chunk_check   -- <session dir>   # VAD + chunk boundaries
 cargo run --release --example wav_check     -- <session dir>   # are the two streams distinct
 cargo run --release --example transcribe_spike -- <session dir>
-cargo run --release --example memory_check  -- [model]          # would the summary model load now?
+cargo run --release --example memory_check  -- [model]          # would it load now, or interim notes, and which apps hold memory?
+cargo run --release --example model_compare -- <session dir> <model> [out.json] [--no-think]  # is a model good enough for interim notes?
 cargo run --example awake_check                                # does the keep-awake request reach Windows?
 cargo run --example stream_loss_check                          # is a stream that dies mid-meeting reported live?
 cargo run --release --example stop_check -- <session dir> [secs]  # does Stop let go of Ollama, even mid-load?

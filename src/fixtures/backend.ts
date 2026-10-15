@@ -29,6 +29,7 @@ import {
   type Settings,
   type SpeechModel,
   type SummaryModel,
+  type SummaryRoom,
   type SystemReport,
   type WaitChoice,
 } from "../lib/ipc";
@@ -104,6 +105,8 @@ export interface BackendState {
   failures: Record<string, string>;
   /** Whether Ollama is usable. Opening it from the notice makes it ready. */
   llm: LlmStatus;
+  /** Whether the chosen summary model has room, for "write them now". */
+  summaryRoom: SummaryRoom | null;
   appInfo: AppInfo;
   /** Earlier meetings' audio the retention setting no longer keeps. */
   audioBeyond: AudioBeyond;
@@ -180,6 +183,14 @@ export const DEFAULT_STATE: BackendState = {
   },
   failures: {},
   llm: { state: "ready", model: "qwen3:14b" },
+  summaryRoom: {
+    model: "qwen3:14b",
+    fits: true,
+    neededBytes: 10.1 * 1024 ** 3,
+    ramAvailableBytes: 14.3 * 1024 ** 3,
+    gpuFreeBytes: 12.7 * 1024 ** 3,
+    hogs: [],
+  },
   appInfo: { version: "0.1.0", devBuild: true, notesSyncedBy: null },
   latestVersion: null,
   audioBeyond: { meetings: 0, bytes: 0 },
@@ -680,6 +691,8 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
         case "llm_status":
           return llm;
+        case "summary_room":
+          return state.summaryRoom;
         case "app_info":
           return state.appInfo;
         // A pause long enough to read "checking…", as a real round trip has.
@@ -941,6 +954,7 @@ function simulateRegenerate(
       })),
       waiting: null,
       stopping: false,
+      upgrade: false,
       outcome,
     };
     // Relative times for everyone else too, since the payload is rebased.

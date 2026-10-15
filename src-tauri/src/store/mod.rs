@@ -131,6 +131,35 @@ pub fn scan_interrupted(
     found
 }
 
+/// Notes holding interim notes, newest first by path, which starts with the
+/// date. A walk, like `find_note`.
+pub fn interim_notes(notes_root: &std::path::Path) -> Vec<PathBuf> {
+    fn walk(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if path.file_name().is_some_and(|n| n != ".sessions") {
+                    walk(&path, out);
+                }
+            } else if path.extension().is_some_and(|e| e == "md")
+                && std::fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|text| markdown::frontmatter_value(&text, "interim"))
+                    .is_some_and(|v| v == "true")
+            {
+                out.push(path);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(notes_root, &mut out);
+    out.sort_by(|a, b| b.cmp(a));
+    out
+}
+
 /// The note written from session `id`, wherever it is now.
 ///
 /// Read from each note's frontmatter, which is what links a note to its

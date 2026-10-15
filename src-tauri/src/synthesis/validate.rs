@@ -83,6 +83,7 @@ pub fn validate(
         open_questions,
         model: model.to_string(),
         generated_at: chrono::Local::now().to_rfc3339(),
+        interim: false,
     };
 
     (generated, report)

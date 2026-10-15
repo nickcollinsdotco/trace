@@ -674,6 +674,23 @@ describe("Gallery", () => {
     expect(bar).not.toHaveTextContent("waiting for memory");
   });
 
+  it("marks a meeting waiting for memory in the list and the sidebar", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Waiting for memory, in the list");
+
+    const open = await screen.findByRole("button", { name: /Pricing page rework/ });
+    await waitFor(() => expect(open).toHaveTextContent("waiting for memory"));
+    // In place of "— no summary", which read as nothing happening.
+    expect(open).not.toHaveTextContent("no summary");
+    expect(open.closest("[data-note-row]")).toHaveClass("border-warn/60");
+
+    const nav = screen.getByRole("navigation", { name: "App" });
+    expect(
+      within(nav).getByRole("button", { name: /Meetings.*waiting for memory/ }),
+    ).toBeInTheDocument();
+  });
+
   it("warns mid-meeting when the summary model will not fit", async () => {
     const user = userEvent.setup();
     render(<Gallery />);
@@ -1353,6 +1370,28 @@ describe("Gallery", () => {
     await user.click(within(plain).getByRole("button", { name: "Poke the narrator" }));
     expect(await within(plainBar).findByRole("status", { name: "yes?" })).toBeInTheDocument();
   });
+
+  it("has the narrator report a download the bar has no progress for", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "The narrator, a download");
+
+    const bar = await screen.findByRole("contentinfo");
+    expect(
+      await within(bar).findByRole(
+        "status",
+        { name: "fetching qwen3:14b in the background. 0%." },
+        { timeout: 3_000 },
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await within(bar).findByRole(
+        "status",
+        { name: "fetching qwen3:14b in the background. 25%." },
+        { timeout: 4_000 },
+      ),
+    ).toBeInTheDocument();
+  }, 15_000);
 
   it("flicks the signal panel back through the weeks, and out to the year", async () => {
     const user = userEvent.setup();

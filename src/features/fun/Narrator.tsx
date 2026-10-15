@@ -3,9 +3,10 @@ import type { Page } from "../../app/Sidebar";
 import { Prompt } from "../../components/ui/terminal";
 import { AppearanceContext } from "../../design/appearance";
 import { THEME_TYPE } from "../../design/theme";
-import { type CaptureStatus, hasBackend, ipc } from "../../lib/ipc";
+import { type CaptureStatus, hasBackend, ipc, onModelProgress, onSummaryPull } from "../../lib/ipc";
 import { useFun } from "./fun";
 import {
+  downloadQuarter,
   type Ear,
   freshEar,
   keyDelay,
@@ -19,6 +20,21 @@ import {
 const IDLE_MS = 60_000;
 /** How often the clock is looked at, for the word on the hour. */
 const CLOCK_MS = 20_000;
+/**
+ * A download unheard from for this long is taken to have stopped. A failed
+ * one sends no last event, and without this would hold the narrator to its
+ * last report for good.
+ */
+const STALLED_MS = 120_000;
+
+/** A model downloading, as last heard of. */
+interface Download {
+  percent: number;
+  /** When it was last heard of. */
+  at: number;
+  /** The quarter last reported, once one has been. */
+  said?: number;
+}
 
 const reducedMotion = (): boolean =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -33,6 +49,11 @@ const reducedMotion = (): boolean =>
  * It steps aside whenever the bar has something real to say — a job
  * running, a model missing — so nothing that matters is ever hidden behind a
  * joke. During a meeting it speaks only about the meeting (docs/13 Q6).
+ *
+ * The reverse holds too: work the bar has no indicator for is the
+ * narrator's to report. A model downloading carries on after Models is
+ * left, and was otherwise a several-gigabyte download nothing on screen
+ * mentioned.
  */
 export function Narrator({ page, busy }: { page: Page | null; busy: boolean }) {
   const fun = useFun();
@@ -47,6 +68,19 @@ export function Narrator({ page, busy }: { page: Page | null; busy: boolean }) {
   const lastSaid = useRef(0);
   const pokes = useRef(0);
   const speaking = fun.narrator;
+  // Read by listeners that outlive a render.
+  const where = useRef(page);
+  where.current = page;
+  const downloads = useRef(new Map<string, Download>());
+
+  /** Downloads still being heard from; the rest are forgotten. */
+  const downloading = (): Array<[string, Download]> => {
+    const now = Date.now();
+    for (const [what, d] of downloads.current) {
+      if (now - d.at > STALLED_MS) downloads.current.delete(what);
+    }
+    return [...downloads.current];
+  };
 
   const say = (event: NarratorEvent) => {
     if (event.kind !== "poke") pokes.current = 0;
@@ -77,7 +111,16 @@ export function Narrator({ page, busy }: { page: Page | null; busy: boolean }) {
   useEffect(() => {
     if (!speaking || page === seenPage.current) return;
     seenPage.current = page;
-    if (page && !recording.current) say({ kind: "page", page });
+    if (!page || recording.current) return;
+    // Arriving somewhere, a download Models was showing is still the news.
+    const [running] = page === "models" ? [] : downloading();
+    if (running) {
+      const [what, d] = running;
+      d.said = downloadQuarter(undefined, d.percent) ?? 0;
+      say({ kind: "fetching", what, percent: d.percent });
+    } else {
+      say({ kind: "page", page });
+    }
   }, [page, speaking]);
 
   const seenTheme = useRef(theme);
@@ -140,7 +183,50 @@ export function Narrator({ page, busy }: { page: Page | null; busy: boolean }) {
     };
   }, [speaking]);
 
-  // Idle remarks, at most one a minute, never during a meeting.
+  // Models downloading, at the start, each quarter and the end. Quiet on
+  // Models, which shows its own progress, and during a meeting.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: say is stable enough
+  useEffect(() => {
+    if (!speaking || !hasBackend()) return;
+    let disposed = false;
+    const unlisteners: Array<() => void> = [];
+
+    const heard = (what: string, percent: number, done: boolean) => {
+      if (disposed) return;
+      const aside = where.current === "models" || recording.current;
+      if (done) {
+        downloads.current.delete(what);
+        if (!aside) say({ kind: "fetched", what });
+        return;
+      }
+      const d = downloads.current.get(what) ?? { percent, at: 0 };
+      d.percent = percent;
+      d.at = Date.now();
+      downloads.current.set(what, d);
+      const quarter = downloadQuarter(d.said, percent);
+      if (quarter === null || aside) return;
+      d.said = quarter;
+      say({ kind: "fetching", what, percent: quarter });
+    };
+
+    const subscriptions = [
+      onModelProgress((p) => heard("the speech model", p.percent, p.phase === "done")),
+      onSummaryPull((p) => heard(p.model, p.percent, p.percent >= 100)),
+    ];
+    for (const subscription of subscriptions) {
+      void subscription.then((un) => {
+        if (disposed) un();
+        else unlisteners.push(un);
+      });
+    }
+    return () => {
+      disposed = true;
+      for (const un of unlisteners) un();
+    };
+  }, [speaking]);
+
+  // Idle remarks, at most one a minute, never during a meeting, and not
+  // over a download's last report.
   // biome-ignore lint/correctness/useExhaustiveDependencies: say is stable enough
   useEffect(() => {
     if (!speaking) return;
@@ -155,7 +241,8 @@ export function Narrator({ page, busy }: { page: Page | null; busy: boolean }) {
         .catch(() => {});
     }
     const id = window.setInterval(() => {
-      if (recording.current || Date.now() - lastSaid.current < IDLE_MS - 5_000) return;
+      if (recording.current || downloading().length > 0) return;
+      if (Date.now() - lastSaid.current < IDLE_MS - 5_000) return;
       say({ kind: "idle", notes, tick: tick++ });
     }, IDLE_MS);
     return () => window.clearInterval(id);
@@ -168,7 +255,8 @@ export function Narrator({ page, busy }: { page: Page | null; busy: boolean }) {
     let saidFor = new Date().getHours();
     const id = window.setInterval(() => {
       const now = new Date();
-      if (now.getMinutes() !== 0 || now.getHours() === saidFor || recording.current) return;
+      if (now.getMinutes() !== 0 || now.getHours() === saidFor) return;
+      if (recording.current || downloading().length > 0) return;
       saidFor = now.getHours();
       say({ kind: "hour", hour: saidFor });
     }, CLOCK_MS);

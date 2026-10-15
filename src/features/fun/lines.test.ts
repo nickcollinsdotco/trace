@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { THEMES } from "../../design/theme";
 import { secretFor } from "./Eggs";
-import { freshEar, keyDelay, listen, narrate, segmentMilestone } from "./lines";
+import { downloadQuarter, freshEar, keyDelay, listen, narrate, segmentMilestone } from "./lines";
 
 describe("the narrator's lines", () => {
   it("remarks on every step of the capitals ladder", () => {
@@ -65,6 +65,18 @@ describe("the narrator's lines", () => {
     expect(segmentMilestone(98, 101)).toBe(100);
     expect(segmentMilestone(101, 140)).toBeNull();
     expect(segmentMilestone(0, 5)).toBeNull();
+  });
+
+  it("speaks of a download as it starts and at each quarter, once", () => {
+    expect(downloadQuarter(undefined, 3)).toBe(0);
+    expect(downloadQuarter(0, 24)).toBeNull();
+    expect(downloadQuarter(0, 51)).toBe(50);
+    expect(downloadQuarter(50, 60)).toBeNull();
+    // The end is "fetched", said apart; 100% is not a quarter of its own.
+    expect(downloadQuarter(75, 100)).toBeNull();
+    expect(narrate({ kind: "fetching", what: "qwen3:14b", percent: 50 })).toBe(
+      "fetching qwen3:14b in the background. 50%.",
+    );
   });
 });
 

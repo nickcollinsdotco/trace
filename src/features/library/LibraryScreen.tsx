@@ -4,7 +4,7 @@ import { Page } from "../../components/ui/Page";
 import { Popover, PopoverItem } from "../../components/ui/Popover";
 import { RenameInput } from "../../components/ui/RenameInput";
 import { TopBar, useScrolledPast } from "../../components/ui/TopBar";
-import { Prompt, SystemLabel } from "../../components/ui/terminal";
+import { Prompt, Spinner, SystemLabel } from "../../components/ui/terminal";
 import { isTypingTarget } from "../../design/theme";
 import { groupByDate } from "../../lib/dates";
 import { formatMeetingLength } from "../../lib/format";
@@ -12,10 +12,14 @@ import {
   hasBackend,
   type InterruptedNotes,
   ipc,
+  type Job,
   type NoteSummary,
+  onNotesGenerated,
   type RecoverableSession,
   type SearchHit,
 } from "../../lib/ipc";
+import { headline, isRunning, isWaitingForMemory } from "../activity/jobs";
+import { useActivity } from "../activity/useActivity";
 import { LlmNotice } from "../llm/LlmNotice";
 import { useLlmStatus } from "../llm/useLlmStatus";
 import { applyFilters, parseQuery, searchText, setToken } from "./query";
@@ -154,6 +158,31 @@ export function LibraryScreen({
     void refresh();
   }, [refresh]);
 
+  // Each meeting's notes still being written, so its row can say so.
+  const jobs = useActivity();
+  const working = useMemo(
+    () => new Map(jobs.filter(isRunning).map((j) => [j.notePath, j])),
+    [jobs],
+  );
+
+  // Notes written change the row's summary line, which the listing only
+  // learns by being read again.
+  useEffect(() => {
+    if (!hasBackend()) return;
+    let disposed = false;
+    let unlisten: (() => void) | null = null;
+    void onNotesGenerated(() => {
+      if (!disposed) void refresh();
+    }).then((un) => {
+      if (disposed) un();
+      else unlisten = un;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [refresh]);
+
   const filtered = useMemo(() => applyFilters(notes, parsed), [notes, parsed]);
 
   /*
@@ -259,6 +288,7 @@ export function LibraryScreen({
                 <NoteRow
                   key={note.path}
                   note={note}
+                  job={working.get(note.path) ?? null}
                   view={view}
                   activeTags={parsed.tags}
                   onOpen={onOpenNote}
@@ -275,6 +305,7 @@ export function LibraryScreen({
             <NoteRow
               key={note.path}
               note={note}
+              job={working.get(note.path) ?? null}
               view={view}
               activeTags={parsed.tags}
               onOpen={onOpenNote}
@@ -534,9 +565,15 @@ function BrowserNotice() {
  * happened on the right, and everything else out of the way. Rename and
  * delete moved into a menu — two buttons reserved in every row, invisible
  * until hover, took width from every title for actions used once a month.
+ *
+ * A meeting whose notes are still coming is drawn as a draft: a dashed
+ * outline and a line saying what it is waiting on, amber when that is
+ * memory. Otherwise it read "— no summary", as if nothing were happening,
+ * for as long as the wait lasted.
  */
 function NoteRow({
   note,
+  job,
   view,
   activeTags,
   onOpen,
@@ -544,6 +581,8 @@ function NoteRow({
   onChanged,
 }: {
   note: NoteSummary;
+  /** Its notes being written, or waiting to be. */
+  job: Job | null;
   view: View;
   activeTags: string[];
   onOpen: (path: string) => void;
@@ -579,13 +618,14 @@ function NoteRow({
 
   const time = startTime(note.startedAt);
   const list = view === "list";
+  const waiting = job !== null && isWaitingForMemory(job);
 
   return (
     <div
       data-note-row
-      className={`group flex items-start gap-4 rounded-md px-3 trace-press hover:bg-surface-2 focus-within:bg-surface-2 ${
-        list ? "py-3" : "py-2"
-      } ${busy ? "opacity-50" : ""}`}
+      className={`group flex items-start gap-4 rounded-md border border-dashed px-3 trace-press hover:bg-surface-2 focus-within:bg-surface-2 ${
+        job === null ? "border-transparent" : waiting ? "border-warn/60" : "border-phosphor/40"
+      } ${list ? "py-3" : "py-2"} ${busy ? "opacity-50" : ""}`}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         {/*
@@ -625,10 +665,20 @@ function NoteRow({
               {note.title}
             </span>
           )}
+          {job !== null && (
+            <span
+              className={`flex items-baseline gap-2 font-mono text-2xs ${
+                waiting ? "text-warn" : "text-phosphor"
+              }`}
+            >
+              <Spinner />
+              {headline(job)}
+            </span>
+          )}
           {list &&
             (note.gist ? (
               <span className="line-clamp-2 text-sm text-ink-muted">{note.gist}</span>
-            ) : (
+            ) : job !== null ? null : (
               // Said rather than left blank, so an old note reads as "not
               // summarised" instead of the view appearing to do nothing.
               <span className="font-mono text-2xs text-ink-faint">— no summary</span>

@@ -87,6 +87,21 @@ pub enum MiniAuto {
     Always,
 }
 
+/// What closing the main window does.
+///
+/// Quit by default: an app that keeps running after its window is closed is
+/// one people cannot tell is gone. Asked once, the first time the window is
+/// closed, so keeping it in the tray is a choice someone made.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CloseAction {
+    #[default]
+    Quit,
+    /// Hide the window and keep running in the notification area, from
+    /// where the tray icon brings it back or quits.
+    Tray,
+}
+
 /// Where the mini window was left on one monitor, by its bottom-right
 /// corner, in logical pixels: the window grows up and to the left from that
 /// corner, so it holds whatever size the window is showing.
@@ -132,6 +147,8 @@ pub struct Settings {
     pub mini_places: Vec<MiniPlace>,
     /// `None` is the default; an empty string is no shortcut at all.
     pub mini_shortcut: Option<String>,
+    /// `None` until the first close has asked.
+    pub close_action: Option<CloseAction>,
 }
 
 impl Settings {
@@ -194,6 +211,7 @@ pub struct SettingsView {
     /// Another app held it when TRACE started, so it does nothing — said in
     /// Settings, and left out of every hint that would promise it works.
     pub mini_shortcut_taken: bool,
+    pub close_action: CloseAction,
 }
 
 impl From<&Settings> for SettingsView {
@@ -210,6 +228,7 @@ impl From<&Settings> for SettingsView {
             mini_auto: s.mini_auto,
             mini_shortcut: s.mini_shortcut(),
             mini_shortcut_taken: crate::windows::shortcut_taken(),
+            close_action: s.close_action.unwrap_or_default(),
         }
     }
 }

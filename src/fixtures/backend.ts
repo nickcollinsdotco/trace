@@ -176,6 +176,7 @@ export const DEFAULT_STATE: BackendState = {
     miniAuto: "off",
     miniShortcut: "Ctrl+Shift+Alt+M",
     miniShortcutTaken: false,
+    closeAction: "quit",
   },
   failures: {},
   llm: { state: "ready", model: "qwen3:14b" },
@@ -444,6 +445,9 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return settings;
         case "set_mini_auto":
           settings = { ...settings, miniAuto: args?.mode as Settings["miniAuto"] };
+          return settings;
+        case "set_close_action":
+          settings = { ...settings, closeAction: args?.action as Settings["closeAction"] };
           return settings;
 
         case "speech_models":

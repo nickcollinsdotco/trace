@@ -22,8 +22,7 @@
 //! of any long meeting — the wrong trade for a tool whose job is not losing
 //! things.
 
-use crate::meeting::Meeting;
-use crate::transcribe::Segment;
+use crate::meeting::{Meeting, Moment};
 
 use super::citable::note_lines;
 
@@ -84,7 +83,7 @@ pub struct Window {
 /// callers do not need a special case.
 pub fn windows(meeting: &Meeting) -> Vec<Window> {
     let notes = render_notes(meeting);
-    let lines = transcript_lines(&meeting.transcript);
+    let lines = transcript_lines(meeting);
 
     // The notes are repeated in every window: they are the user's own signal
     // about what mattered, and a window that could not see them would extract
@@ -214,18 +213,30 @@ fn render_notes(meeting: &Meeting) -> String {
         .collect()
 }
 
-fn transcript_lines(segments: &[Segment]) -> Vec<String> {
-    segments
-        .iter()
-        .filter(|s| !s.text.trim().is_empty())
-        .map(|s| {
-            format!(
-                "[{}] ({}) {}: {}\n",
+fn transcript_lines(meeting: &Meeting) -> Vec<String> {
+    meeting
+        .timeline()
+        .into_iter()
+        .filter_map(|moment| match moment {
+            Moment::Said(s) if s.text.trim().is_empty() => None,
+            Moment::Said(s) => Some(format!(
+                "[{}] ({}) {}: {}
+",
                 s.id,
                 timestamp(s.start_ms),
                 s.speaker_label(),
                 collapse_repeats(s.text.trim())
-            )
+            )),
+            // Without an id, so it cannot be cited, and in words, so the gap
+            // in the timestamps is not read as a stretch nobody spoke in.
+            Moment::Paused(p) => Some(format!(
+                "({}) RECORDING PAUSED {}. Nothing said in that time was heard.
+",
+                timestamp(p.from_ms),
+                p.to_ms
+                    .map(|to| format!("until {}", timestamp(to)))
+                    .unwrap_or_else(|| "until the end".into())
+            )),
         })
         .collect()
 }
@@ -322,6 +333,7 @@ fn timestamp(ms: u64) -> String {
 mod tests {
     use super::*;
     use crate::audio::StreamSource;
+    use crate::transcribe::Segment;
 
     fn segment(id: &str, ms: u64, text: &str, source: StreamSource) -> Segment {
         Segment {
@@ -429,6 +441,26 @@ mod tests {
             .prompt
             .contains("[mic_0000] (01:12) you: shall we ship friday"));
         assert!(w[0].prompt.contains("[sys_0001] (01:15) them: yes lets"));
+    }
+
+    #[test]
+    fn a_pause_is_told_to_the_model_and_cannot_be_cited() {
+        let mut m = meeting_with(vec![
+            segment("mic_0000", 1_000, "before", StreamSource::Microphone),
+            segment("mic_0001", 300_000, "after", StreamSource::Microphone),
+        ]);
+        m.pauses = vec![crate::meeting::Pause {
+            from_ms: 60_000,
+            to_ms: Some(240_000),
+        }];
+        let prompt = &windows(&m)[0].prompt;
+        let line = "(01:00) RECORDING PAUSED until 04:00. Nothing said in that time was heard.";
+        let at = prompt.find(line).expect("the pause is in the transcript");
+        assert!(prompt.find("before").unwrap() < at && at < prompt.find("after").unwrap());
+        assert!(
+            !prompt[at - 2..at].contains(']'),
+            "a pause has no id to cite"
+        );
     }
 
     #[test]

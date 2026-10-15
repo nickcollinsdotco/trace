@@ -148,6 +148,41 @@ impl GeneratedMeeting {
     }
 }
 
+/// A stretch of the meeting in which nothing was recorded, on its clock.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Pause {
+    pub from_ms: u64,
+    /// `None` when the meeting ended while paused.
+    pub to_ms: Option<u64>,
+}
+
+impl Meeting {
+    /// The transcript with each pause in its place, in meeting order.
+    ///
+    /// Where the transcript is shown or read, a pause is said rather than
+    /// left as a gap in the timestamps: a gap reads as a silence, and a
+    /// silence is evidence that nobody spoke, which a pause is not.
+    pub fn timeline(&self) -> Vec<Moment<'_>> {
+        let mut out = Vec::with_capacity(self.transcript.len() + self.pauses.len());
+        let mut pauses = self.pauses.iter().peekable();
+        for segment in &self.transcript {
+            while let Some(pause) = pauses.next_if(|p| p.from_ms <= segment.start_ms) {
+                out.push(Moment::Paused(*pause));
+            }
+            out.push(Moment::Said(segment));
+        }
+        out.extend(pauses.map(|p| Moment::Paused(*p)));
+        out
+    }
+}
+
+/// One entry in [`Meeting::timeline`].
+#[derive(Debug, Clone, Copy)]
+pub enum Moment<'a> {
+    Said(&'a Segment),
+    Paused(Pause),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Meeting {
     pub id: String,
@@ -182,6 +217,11 @@ pub struct Meeting {
     pub notes: String,
     #[serde(default)]
     pub transcript: Vec<Segment>,
+    /// Stretches in which recording was paused. Nothing was heard in them,
+    /// which is not the same as nobody speaking — so they are said, wherever
+    /// the transcript is, rather than left as a quiet gap.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pauses: Vec<Pause>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generated: Option<GeneratedMeeting>,
     #[serde(default)]
@@ -206,6 +246,7 @@ impl Meeting {
             signal: None,
             notes: String::new(),
             transcript: Vec::new(),
+            pauses: Vec::new(),
             generated: None,
             status: MeetingStatus::Active,
         }
@@ -269,6 +310,38 @@ impl Meeting {
 mod tests {
     use super::*;
     use crate::audio::StreamSource;
+
+    #[test]
+    fn a_pause_sits_between_what_was_said_either_side_of_it() {
+        let said = |id: &str, ms: u64| Segment {
+            id: id.into(),
+            start_ms: ms,
+            end_ms: ms + 500,
+            text: "x".into(),
+            source: StreamSource::Microphone,
+        };
+        let mut m = Meeting::new("s", "t");
+        m.transcript = vec![said("a", 1_000), said("b", 9_000)];
+        m.pauses = vec![
+            Pause {
+                from_ms: 2_000,
+                to_ms: Some(8_000),
+            },
+            Pause {
+                from_ms: 10_000,
+                to_ms: None,
+            },
+        ];
+        let order: Vec<String> = m
+            .timeline()
+            .iter()
+            .map(|moment| match moment {
+                Moment::Said(s) => s.id.clone(),
+                Moment::Paused(p) => format!("pause@{}", p.from_ms),
+            })
+            .collect();
+        assert_eq!(order, ["a", "pause@2000", "b", "pause@10000"]);
+    }
 
     fn segment(id: &str) -> Segment {
         Segment {

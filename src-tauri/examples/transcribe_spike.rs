@@ -61,7 +61,7 @@ fn main() {
             continue;
         }
         let start = Instant::now();
-        match engine.transcribe_stream(&path, source, 0, &|| false) {
+        match engine.transcribe_stream(&path, source, 0, 0, &|| false) {
             Ok(segments) => {
                 println!(
                     "  {source:?}: {} segments in {:.1}s",

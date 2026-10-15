@@ -33,6 +33,7 @@ export function Sidebar({
   current,
   onNavigate,
   recording,
+  paused = false,
   onHide,
   overlay = false,
 }: {
@@ -40,6 +41,8 @@ export function Sidebar({
   onNavigate: (page: Page) => void;
   /** Elapsed milliseconds of the meeting being recorded, or null. */
   recording: number | null;
+  /** The meeting is open but paused: nothing is being heard. */
+  paused?: boolean;
   onHide: () => void;
   /** Shown over the content rather than beside it. */
   overlay?: boolean;
@@ -71,10 +74,12 @@ export function Sidebar({
           {PRIMARY.map(({ page, label }) => (
             <NavItem
               key={page}
-              label={page === "capture" && recording !== null ? "Recording" : label}
+              label={
+                page === "capture" && recording !== null ? (paused ? "Paused" : "Recording") : label
+              }
               current={current === page}
               onSelect={() => onNavigate(page)}
-              live={page === "capture" && recording !== null}
+              live={page === "capture" && recording !== null && !paused}
               trailing={
                 page === "capture" && recording !== null ? formatElapsed(recording) : undefined
               }

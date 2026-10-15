@@ -28,7 +28,7 @@
 //! longer matches was edited outside TRACE, and `store::rewrite_note` keeps a
 //! copy before replacing it.
 
-use crate::meeting::{ActionItem, Meeting, MeetingType};
+use crate::meeting::{ActionItem, Meeting, MeetingType, Moment};
 
 use super::StoreError;
 
@@ -104,13 +104,26 @@ fn render_body(meeting: &Meeting) -> String {
 
     if !meeting.transcript.is_empty() {
         out.push_str("\n## Transcript\n\n");
-        for segment in &meeting.transcript {
-            out.push_str(&format!(
-                "**{}** `{}` — {}\n\n",
-                meeting.speaker_name(segment),
-                fmt_timestamp(segment.start_ms),
-                segment.text.trim()
-            ));
+        for moment in meeting.timeline() {
+            match moment {
+                Moment::Said(segment) => out.push_str(&format!(
+                    "**{}** `{}` — {}\n\n",
+                    meeting.speaker_name(segment),
+                    fmt_timestamp(segment.start_ms),
+                    segment.text.trim()
+                )),
+                Moment::Paused(pause) => out.push_str(&match pause.to_ms {
+                    Some(to) => format!(
+                        "*Paused `{}` to `{}`: nothing was recorded.*\n\n",
+                        fmt_timestamp(pause.from_ms),
+                        fmt_timestamp(to)
+                    ),
+                    None => format!(
+                        "*Paused `{}` until the end: nothing was recorded.*\n\n",
+                        fmt_timestamp(pause.from_ms)
+                    ),
+                }),
+            }
         }
     }
 
@@ -669,6 +682,28 @@ mod tests {
         assert!(md.contains("## Transcript"));
         assert!(md.contains("`01:05`"), "timestamp should be mm:ss");
         assert!(md.contains("**you**"));
+    }
+
+    #[test]
+    fn a_pause_is_said_in_the_transcript_where_it_happened() {
+        let mut m = meeting();
+        m.pauses = vec![
+            crate::meeting::Pause {
+                from_ms: 70_000,
+                to_ms: Some(130_000),
+            },
+            crate::meeting::Pause {
+                from_ms: 200_000,
+                to_ms: None,
+            },
+        ];
+        let md = serialize(&m);
+        let said = md.find("`01:05`").unwrap();
+        let paused = md
+            .find("*Paused `01:10` to `02:10`: nothing was recorded.*")
+            .expect("the pause is in the transcript");
+        assert!(said < paused, "after what was said before it");
+        assert!(md.contains("*Paused `03:20` until the end: nothing was recorded.*"));
     }
 
     #[test]

@@ -686,6 +686,19 @@ export const SCENARIOS: Scenario[] = [
     state: { ...POPULATED, recording: true, startElapsedMs: 31 * 60_000, script: liveScript() },
   },
   {
+    id: "mini-paused",
+    name: "Mini window, paused",
+    group: "Capture",
+    note: "Paused from the bar: one click, left of Stop, so Stop never moves. The time runs on, marked paused; the play button resumes.",
+    screen: "mini",
+    state: {
+      ...POPULATED,
+      recording: true,
+      startElapsedMs: 31 * 60_000,
+      statusOverrides: { pausedSinceMs: 30 * 60_000 + 48_000 },
+    },
+  },
+  {
     id: "mini-stream-lost",
     name: "Mini window, a stream stopped",
     group: "Capture",
@@ -747,6 +760,21 @@ export const SCENARIOS: Scenario[] = [
     screen: "mini",
     miniSaved: true,
     state: POPULATED,
+  },
+  {
+    id: "capture-paused",
+    name: "Paused",
+    group: "Capture",
+    note: "Nothing is being recorded and the microphone is let go. The dot stops pulsing, the meters drop, and the banner says when it paused. Resume carries on into the same meeting; the note marks the gap.",
+    screen: "capture",
+    state: {
+      ...POPULATED,
+      recording: true,
+      startElapsedMs: 24 * 60_000,
+      // The backlog only: nothing new is said while paused.
+      script: liveScript().slice(0, 7),
+      statusOverrides: { pausedSinceMs: 23 * 60_000 + 15_000 },
+    },
   },
   {
     id: "capture-processing",
@@ -934,7 +962,7 @@ export const SCENARIOS: Scenario[] = [
     id: "note-transcript-only",
     name: "No notes, no summary",
     group: "Reading",
-    note: "Nothing typed and Ollama closed at the end. Opens on the summary side, offering to generate one.",
+    note: "Nothing typed and Ollama closed at the end. Opens on the summary side, offering to generate one. The transcript was paused for an aside, and says so where the gap is.",
     screen: "note",
     notePath: PATHS.vendor,
     state: { ...POPULATED, llm: { state: "not_running" } },

@@ -91,6 +91,10 @@ pub struct CaptureStatus {
     /// The journal refused a write, so the live transcript is not being
     /// kept. The WAVs may still be, and the full-quality pass reads those.
     pub journal_failing: bool,
+    /// When recording paused, on the meeting's clock; `None` while it runs.
+    /// The clock itself carries on: it is the meeting's, and a pause is a
+    /// stretch of the meeting nothing was recorded in, not time removed.
+    pub paused_since_ms: Option<u64>,
 }
 
 /// A stream that ended before the meeting did, and why.
@@ -112,6 +116,9 @@ const DISK_CHECK_EVERY: Duration = Duration::from_secs(60);
 
 /// Free space not yet read, or not readable.
 const FREE_UNKNOWN: u64 = u64::MAX;
+
+/// No pause waiting for the pump to pass on.
+const NOT_PAUSED: u64 = u64::MAX;
 
 /// Minutes of recording `free` bytes hold at `bytes_per_second`, or `None`
 /// when either is unknown.
@@ -172,7 +179,21 @@ struct Active {
     session_id: String,
     title: String,
     dir: PathBuf,
-    capture: CaptureSession,
+    /// The part recording now; `None` while paused.
+    capture: Option<CaptureSession>,
+    /// When the meeting began. Every part's offsets are measured from it.
+    clock: Instant,
+    /// The number of the part last started, from 1.
+    part: u32,
+    /// What every stream of every part already ended recorded.
+    recorded: Vec<StreamOutcome>,
+    /// Where each new part's audio goes: the same pump.
+    tap: crossbeam_channel::Sender<CapturedAudio>,
+    /// When the meeting last paused, for the pump to close the live
+    /// transcript's open utterances once it has passed on everything the
+    /// paused part recorded. `NOT_PAUSED` once it has.
+    pump_break: Arc<AtomicU64>,
+    paused_since_ms: Option<u64>,
     journal: Arc<Mutex<Journal>>,
     segments: Arc<Mutex<Vec<Segment>>>,
     live: Option<Arc<LiveTranscriber>>,
@@ -197,10 +218,18 @@ struct Active {
 }
 
 impl Active {
+    fn elapsed_ms(&self) -> u64 {
+        self.clock.elapsed().as_millis() as u64
+    }
+
     /// Room left for recording, when it is short enough to say.
     fn disk_minutes_left(&self) -> Option<u64> {
         let free = self.health.free_bytes.load(Ordering::Relaxed);
-        let minutes = minutes_left(free, self.capture.bytes_per_second())?;
+        let rate = self
+            .capture
+            .as_ref()
+            .map_or(0, CaptureSession::bytes_per_second);
+        let minutes = minutes_left(free, rate)?;
         if minutes >= DISK_WARN_MINUTES {
             return None;
         }
@@ -342,7 +371,15 @@ impl CaptureManager {
 
         let (tap_tx, tap_rx) = crossbeam_channel::bounded::<CapturedAudio>(4000);
         let mic = mic_device.clone();
-        let capture = CaptureSession::start(&session_id, &dir, mic_device, Some(tap_tx));
+        let clock = Instant::now();
+        let capture = CaptureSession::start_part(
+            &session_id,
+            &dir,
+            mic_device,
+            Some(tap_tx.clone()),
+            clock,
+            1,
+        );
         match free.and_then(|f| minutes_left(f, capture.bytes_per_second())) {
             Some(minutes) => diagnostics::log(format!(
                 "disk: {:.1} GB free, room for about {}h{:02} of recording",
@@ -355,6 +392,7 @@ impl CaptureManager {
 
         let segments = Arc::new(Mutex::new(Vec::new()));
         let pump_stop = Arc::new(AtomicBool::new(false));
+        let pump_break = Arc::new(AtomicU64::new(NOT_PAUSED));
 
         let pump = spawn_pump(
             app,
@@ -363,6 +401,7 @@ impl CaptureManager {
             Arc::clone(&journal),
             Arc::clone(&segments),
             Arc::clone(&pump_stop),
+            Arc::clone(&pump_break),
             dir.clone(),
             Arc::clone(&health),
         );
@@ -383,13 +422,20 @@ impl CaptureManager {
             disk_minutes_left: None,
             lost_streams: Vec::new(),
             journal_failing: false,
+            paused_since_ms: None,
         };
 
         *guard = Some(Active {
             session_id,
             title,
             dir,
-            capture,
+            capture: Some(capture),
+            clock,
+            part: 1,
+            recorded: Vec::new(),
+            tap: tap_tx,
+            pump_break,
+            paused_since_ms: None,
             journal,
             segments,
             live,
@@ -414,10 +460,13 @@ impl CaptureManager {
     pub fn scope(&self, points: usize) -> Option<Vec<StreamWave>> {
         let guard = self.active.lock().ok()?;
         let active = guard.as_ref()?;
+        // Nothing while paused: a scope still moving would say otherwise.
         Some(
             active
                 .capture
-                .scope(points)
+                .as_ref()
+                .map(|c| c.scope(points))
+                .unwrap_or_default()
                 .into_iter()
                 .map(|(source, samples)| StreamWave { source, samples })
                 .collect(),
@@ -432,10 +481,12 @@ impl CaptureManager {
         Some(CaptureStatus {
             session_id: active.session_id.clone(),
             title: active.title.clone(),
-            elapsed_ms: active.capture.elapsed_ms(),
+            elapsed_ms: active.elapsed_ms(),
             levels: active
                 .capture
-                .levels()
+                .as_ref()
+                .map(CaptureSession::levels)
+                .unwrap_or_default()
                 .into_iter()
                 .map(|(source, level)| StreamLevel { source, level })
                 .collect(),
@@ -473,7 +524,9 @@ impl CaptureManager {
             disk_minutes_left: active.disk_minutes_left(),
             lost_streams: active
                 .capture
-                .lost()
+                .as_ref()
+                .map(CaptureSession::lost)
+                .unwrap_or_default()
                 .into_iter()
                 .map(|(source, end)| LostStream {
                     source,
@@ -482,7 +535,79 @@ impl CaptureManager {
                 })
                 .collect(),
             journal_failing: active.health.journal_failing.load(Ordering::Relaxed),
+            paused_since_ms: active.paused_since_ms,
         })
+    }
+
+    /// Stop recording until `resume`, keeping the meeting open.
+    ///
+    /// The part recording ends as a meeting's last part would: its files are
+    /// finalised and its outcome journalled, so a crash while paused loses
+    /// nothing already recorded. The devices are let go — a paused recorder
+    /// still holding the microphone would not be paused in any sense the
+    /// user could check. Pausing a paused meeting does nothing.
+    pub fn pause(&self) -> Result<(), ManagerError> {
+        let mut guard = self.active.lock().map_err(|_| ManagerError::NotActive)?;
+        let active = guard.as_mut().ok_or(ManagerError::NotActive)?;
+        let Some(capture) = active.capture.take() else {
+            return Ok(());
+        };
+
+        let part = capture.stop();
+        log_streams(&part);
+        let at_ms = active.elapsed_ms();
+        diagnostics::log(format!("meeting paused {}s in", at_ms / 1000));
+
+        // Recorded as paused whatever the journal says: the devices are
+        // already let go, and a status claiming otherwise would be a lie.
+        active.recorded.extend(part.streams.iter().cloned());
+        active.paused_since_ms = Some(at_ms);
+        // After the capture threads have ended, so every block they sent is
+        // already queued ahead of it.
+        active.pump_break.store(at_ms, Ordering::Release);
+
+        if let Ok(mut journal) = active.journal.lock() {
+            for outcome in &part.streams {
+                let _ = journal.append(&JournalEvent::StreamFinished(Box::new(outcome.clone())));
+            }
+            if let Err(e) = journal.append(&JournalEvent::Paused { at_ms }) {
+                active.health.journal_failed(&e);
+            }
+        }
+        Ok(())
+    }
+
+    /// Carry on recording, into a new part. Resuming a meeting that is
+    /// recording does nothing.
+    pub fn resume(&self) -> Result<(), ManagerError> {
+        let mut guard = self.active.lock().map_err(|_| ManagerError::NotActive)?;
+        let active = guard.as_mut().ok_or(ManagerError::NotActive)?;
+        if active.capture.is_some() {
+            return Ok(());
+        }
+
+        // Resumed even when this cannot be written down: the parts' offsets
+        // place them correctly regardless, and only the note's line saying
+        // where the pause ended would be missing.
+        let at_ms = active.elapsed_ms();
+        if let Ok(mut journal) = active.journal.lock() {
+            if let Err(e) = journal.append(&JournalEvent::Resumed { at_ms }) {
+                active.health.journal_failed(&e);
+            }
+        }
+        diagnostics::log(format!("meeting resumed {}s in", at_ms / 1000));
+
+        active.part += 1;
+        active.capture = Some(CaptureSession::start_part(
+            &active.session_id,
+            &active.dir,
+            active.mic.clone(),
+            Some(active.tap.clone()),
+            active.clock,
+            active.part,
+        ));
+        active.paused_since_ms = None;
+        Ok(())
     }
 
     /// Persist the user's notes.
@@ -556,7 +681,9 @@ impl CaptureManager {
         // Same teardown order as `stop`: capture first so the tap closes and
         // the pump can drain, otherwise the join below waits on a thread that
         // is still being fed.
-        let _summary = active.capture.stop();
+        if let Some(capture) = active.capture {
+            capture.stop();
+        }
 
         active.pump_stop.store(true, Ordering::Relaxed);
         if let Some(pump) = active.pump {
@@ -582,9 +709,13 @@ impl CaptureManager {
         let active = self.take_active()?;
 
         // Stop capture first so the WAVs are finalised and the tap closes,
-        // which lets the pump drain and exit on its own.
-        let summary = active.capture.stop();
-        log_streams(&summary);
+        // which lets the pump drain and exit on its own. Stopped while
+        // paused, there is no part running: the last ended at the pause.
+        let last = active.capture.map(|capture| {
+            let part = capture.stop();
+            log_streams(&part);
+            part.streams
+        });
 
         active.pump_stop.store(true, Ordering::Relaxed);
         if let Some(pump) = active.pump {
@@ -608,11 +739,19 @@ impl CaptureManager {
         }
 
         let ended_at = chrono::Local::now().to_rfc3339();
-        for outcome in &summary.streams {
+        // Earlier parts were journalled as each ended, at its pause.
+        for outcome in last.iter().flatten() {
             if let Ok(mut journal) = active.journal.lock() {
                 let _ = journal.append(&JournalEvent::StreamFinished(Box::new(outcome.clone())));
             }
         }
+        let mut streams = active.recorded;
+        streams.extend(last.into_iter().flatten());
+        let summary = SessionSummary {
+            session_id: active.session_id,
+            directory: active.dir.clone(),
+            streams,
+        };
         if let Ok(mut journal) = active.journal.lock() {
             journal.append(&JournalEvent::SessionEnded {
                 ended_at: ended_at.clone(),
@@ -872,13 +1011,21 @@ pub fn dismiss_interrupted(session_dir: &std::path::Path) {
 /// nothing holds them, rather than leaving that to whoever opens them next.
 /// Then they go as the retention setting says, like any meeting's.
 pub fn finish_recovered(session_dir: &std::path::Path) {
-    for source in [StreamSource::Microphone, StreamSource::System] {
-        let path = session_dir.join(format!("{}.wav", source.file_stem()));
+    // Every WAV, not only the first part's: a meeting paused and resumed
+    // before TRACE stopped has one pair per stretch, and the last is the one
+    // left open.
+    let wavs = std::fs::read_dir(session_dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "wav"));
+    for path in wavs {
         if let Ok(crate::audio::wav::Repair::Repaired { frames }) = crate::audio::wav::repair(&path)
         {
             diagnostics::log(format!(
                 "recovered {} audio: {frames} frames",
-                source.file_stem()
+                path.file_stem().unwrap_or_default().to_string_lossy()
             ));
         }
     }
@@ -1217,13 +1364,13 @@ fn synthesize(
 }
 
 /// Reduce the session's WAVs to a loudness envelope and journal it.
-fn record_signal(session_dir: &std::path::Path) {
-    let paths = [
-        session_dir.join(format!("{}.wav", StreamSource::Microphone.file_stem())),
-        session_dir.join(format!("{}.wav", StreamSource::System.file_stem())),
-    ];
-    let refs: Vec<&std::path::Path> = paths.iter().map(PathBuf::as_path).collect();
-    let Some(levels) = crate::audio::envelope::of_wavs(&refs) else {
+fn record_signal(session_dir: &std::path::Path, summary: &SessionSummary) {
+    let parts: Vec<(&std::path::Path, u64)> = summary
+        .streams
+        .iter()
+        .map(|s| (s.path.as_path(), s.start_offset_ms))
+        .collect();
+    let Some(levels) = crate::audio::envelope::of_parts(&parts) else {
         return;
     };
     if let Ok(mut journal) = Journal::open(session_dir) {
@@ -1306,7 +1453,7 @@ fn spawn_repass(
             // rewrite from here — the re-pass, the summary, a regeneration
             // next year — carries it without reading a WAV again. Even when
             // stopped: the audio is about to go either way.
-            record_signal(&session_dir);
+            record_signal(&session_dir, &summary);
 
             let stopped = || job.as_ref().is_some_and(Tracked::stopping);
             if !stopped() {
@@ -1364,10 +1511,16 @@ fn repass(
         .map_err(|e| format!("the transcription model did not load ({e})"))?;
 
     let mut segments = Vec::new();
+    // Ids run on across a stream's parts, which are in the order recorded.
+    let mut next_id = (0usize, 0usize);
     for outcome in &summary.streams {
         if !outcome.is_usable() {
             continue;
         }
+        let next = match outcome.source {
+            StreamSource::Microphone => &mut next_id.0,
+            StreamSource::System => &mut next_id.1,
+        };
         // Abandon rather than half-replace: a transcript missing one whole
         // stream would be worse than the live one it would overwrite. Nothing
         // is journalled until every stream is done, so returning here leaves
@@ -1375,8 +1528,15 @@ fn repass(
         // why it is kept. Deleting it, as this once did, lost the one record
         // regenerating notes could start from.
         let mut produced = engine
-            .transcribe_stream(&outcome.path, outcome.source, outcome.start_offset_ms, stop)
+            .transcribe_stream(
+                &outcome.path,
+                outcome.source,
+                outcome.start_offset_ms,
+                *next,
+                stop,
+            )
             .map_err(|e| format!("the full-quality pass failed on {:?} ({e})", outcome.source))?;
+        *next += produced.len();
         segments.append(&mut produced);
     }
 
@@ -1430,6 +1590,7 @@ fn spawn_pump(
     journal: Arc<Mutex<Journal>>,
     segments: Arc<Mutex<Vec<Segment>>>,
     stop: Arc<AtomicBool>,
+    end_part: Arc<AtomicU64>,
     session_dir: PathBuf,
     health: Arc<Health>,
 ) -> JoinHandle<()> {
@@ -1448,6 +1609,11 @@ fn spawn_pump(
                 // Drain audio into the transcriber. When no engine is loaded
                 // the blocks are discarded, so the channel cannot back up and
                 // stall capture.
+                // Read before draining. It is raised only once the paused
+                // part's threads have ended, so seen here, every block they
+                // sent is already in the channel and goes ahead of the break.
+                let paused_at = end_part.swap(NOT_PAUSED, Ordering::AcqRel);
+
                 let mut got_audio = false;
                 while let Ok(block) = tap_rx.try_recv() {
                     got_audio = true;
@@ -1459,6 +1625,12 @@ fn spawn_pump(
                             leading_silence_frames: block.leading_silence_frames,
                             start_offset_ms: block.start_offset_ms,
                         });
+                    }
+                }
+
+                if paused_at != NOT_PAUSED {
+                    if let Some(live) = &live {
+                        live.end_part(paused_at);
                     }
                 }
 

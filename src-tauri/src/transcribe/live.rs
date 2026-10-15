@@ -44,6 +44,20 @@ pub struct AudioTap {
     pub start_offset_ms: u64,
 }
 
+/// What the worker is handed.
+enum Input {
+    Audio(AudioTap),
+    /// The meeting paused: what each stream has said so far is all it will
+    /// say until it resumes, so its last utterance is transcribed now rather
+    /// than held until the next part's audio arrives.
+    ///
+    /// Carries when, because a quick resume can put the next part's first
+    /// audio ahead of it in the queue, and that part must be left running.
+    Break {
+        paused_at_ms: u64,
+    },
+}
+
 /// Something the worker produced.
 #[derive(Debug, Clone)]
 pub enum LiveEvent {
@@ -86,7 +100,7 @@ pub struct Activity {
 
 /// A running live-transcription worker.
 pub struct LiveTranscriber {
-    tx: Sender<AudioTap>,
+    tx: Sender<Input>,
     events: Receiver<LiveEvent>,
     stop: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
@@ -100,7 +114,7 @@ impl LiveTranscriber {
     /// Loading is the caller's job because it takes about a second and should
     /// happen before capture starts, not during the first utterance.
     pub fn start(mut engine: Transcriber) -> Self {
-        let (tx, rx) = bounded::<AudioTap>(QUEUE_CAPACITY);
+        let (tx, rx) = bounded::<Input>(QUEUE_CAPACITY);
         let (event_tx, events) = bounded::<LiveEvent>(256);
         let stop = Arc::new(AtomicBool::new(false));
         let dropped = Arc::new(AtomicBool::new(false));
@@ -127,7 +141,7 @@ impl LiveTranscriber {
     ///
     /// Returns `false` if the queue was full and this audio was discarded.
     pub fn submit(&self, tap: AudioTap) -> bool {
-        match self.tx.try_send(tap) {
+        match self.tx.try_send(Input::Audio(tap)) {
             Ok(()) => true,
             Err(TrySendError::Full(_)) => {
                 self.dropped.store(true, Ordering::Relaxed);
@@ -135,6 +149,20 @@ impl LiveTranscriber {
             }
             Err(TrySendError::Disconnected(_)) => false,
         }
+    }
+
+    /// Close every stream's open utterance: the meeting paused at
+    /// `paused_at_ms`.
+    ///
+    /// Must follow the paused part's last audio into the queue, which is the
+    /// caller's to ensure. Waits for room rather than dropping, but not for
+    /// long; if it is dropped anyway the next part's new offset closes the
+    /// utterance instead, only later.
+    pub fn end_part(&self, paused_at_ms: u64) {
+        let _ = self.tx.send_timeout(
+            Input::Break { paused_at_ms },
+            std::time::Duration::from_secs(1),
+        );
     }
 
     /// Segments produced so far, without blocking.
@@ -167,42 +195,75 @@ impl LiveTranscriber {
 
 fn worker(
     engine: &mut Transcriber,
-    rx: Receiver<AudioTap>,
+    rx: Receiver<Input>,
     events: Sender<LiveEvent>,
     stop: Arc<AtomicBool>,
     activity: Arc<Activity>,
 ) {
     // One chunker per stream: the microphone and the system audio have
     // independent silence patterns and must be segmented separately.
-    let mut mic: Option<(StreamingChunker, u32, u64)> = None;
-    let mut system: Option<(StreamingChunker, u32, u64)> = None;
+    let mut mic: Option<Stream> = None;
+    let mut system: Option<Stream> = None;
 
+    // Across parts, so ids stay unique for the whole meeting.
     let mut counters = (0usize, 0usize);
 
-    while let Ok(tap) = rx.recv() {
+    while let Ok(input) = rx.recv() {
+        let tap = match input {
+            Input::Audio(tap) => tap,
+            Input::Break { paused_at_ms } => {
+                for (source, slot) in [
+                    (StreamSource::Microphone, &mut mic),
+                    (StreamSource::System, &mut system),
+                ] {
+                    // A part that began after the pause is the next one,
+                    // already under way.
+                    if slot.as_ref().is_some_and(|s| s.offset <= paused_at_ms) {
+                        if let Some(stream) = slot.take() {
+                            stream.flush(engine, &events, &mut counters, source);
+                        }
+                    }
+                }
+                activity.pending_speech_ms.store(0, Ordering::Relaxed);
+                continue;
+            }
+        };
+
         let slot = match tap.source {
             StreamSource::Microphone => &mut mic,
             StreamSource::System => &mut system,
         };
 
-        let (chunker, rate, offset) = slot.get_or_insert_with(|| {
-            (
-                StreamingChunker::new(ChunkConfig::live(tap.sample_rate)),
-                tap.sample_rate,
-                tap.start_offset_ms,
-            )
+        // A new offset is a new part: the meeting paused and resumed. Its
+        // samples continue a different file at a different moment, so the
+        // old chunker's utterance is closed and a new one starts from the new
+        // offset — carried on, it would splice the two parts together and
+        // place everything after the pause too early.
+        if slot
+            .as_ref()
+            .is_some_and(|s| s.offset != tap.start_offset_ms)
+        {
+            if let Some(stream) = slot.take() {
+                stream.flush(engine, &events, &mut counters, tap.source);
+            }
+        }
+
+        let stream = slot.get_or_insert_with(|| Stream {
+            chunker: StreamingChunker::new(ChunkConfig::live(tap.sample_rate)),
+            rate: tap.sample_rate,
+            offset: tap.start_offset_ms,
         });
-        let rate = *rate;
-        let offset = *offset;
+        let rate = stream.rate;
+        let offset = stream.offset;
 
         // Replay any skipped silence first, so the chunker sees the real
         // timeline and can split on gaps rather than only at its ceiling.
-        let mut produced = chunker.push_silence(tap.leading_silence_frames);
-        produced.extend(chunker.push(&tap.samples));
+        let mut produced = stream.chunker.push_silence(tap.leading_silence_frames);
+        produced.extend(stream.chunker.push(&tap.samples));
 
         // Report speech held back waiting for a boundary. Both streams
         // contribute, so take whichever is furthest behind.
-        let pending_samples = chunker.pending_speech_samples();
+        let pending_samples = stream.chunker.pending_speech_samples();
         let pending_ms = (pending_samples as u64 * 1000) / u64::from(rate.max(1));
         activity
             .pending_speech_ms
@@ -234,19 +295,40 @@ fn worker(
         (StreamSource::Microphone, &mut mic),
         (StreamSource::System, &mut system),
     ] {
-        if let Some((chunker, rate, offset)) = slot {
-            for chunk in chunker.flush() {
-                let chunk_start_ms = *offset + chunk.start_ms(*rate);
-                emit(
-                    engine,
-                    &events,
-                    &mut counters,
-                    source,
-                    &chunk.samples,
-                    *rate,
-                    chunk_start_ms,
-                );
-            }
+        if let Some(stream) = slot.take() {
+            stream.flush(engine, &events, &mut counters, source);
+        }
+    }
+}
+
+/// One stream's chunker within one part of the meeting.
+struct Stream {
+    chunker: StreamingChunker,
+    rate: u32,
+    /// Where this part's first sample sits on the meeting's timeline.
+    offset: u64,
+}
+
+impl Stream {
+    /// Transcribe whatever the chunker still holds.
+    fn flush(
+        mut self,
+        engine: &mut Transcriber,
+        events: &Sender<LiveEvent>,
+        counters: &mut (usize, usize),
+        source: StreamSource,
+    ) {
+        for chunk in self.chunker.flush() {
+            let chunk_start_ms = self.offset + chunk.start_ms(self.rate);
+            emit(
+                engine,
+                events,
+                counters,
+                source,
+                &chunk.samples,
+                self.rate,
+                chunk_start_ms,
+            );
         }
     }
 }

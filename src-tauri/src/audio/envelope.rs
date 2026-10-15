@@ -20,14 +20,25 @@ const LEVELS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█
 
 /// The envelope of every readable WAV given, loudest stream per column.
 ///
+/// Each file is placed on the meeting's timeline by its offset, so a paused
+/// meeting's parts sit where they happened and the pause between them is
+/// flat. Bucketed by each file's own length, as this once was, two parts of
+/// one stream were each drawn across the whole width, one over the other.
+///
 /// Streams read one at a time and sample by sample: an hour of 48 kHz audio
 /// is 170 million samples, and holding one in memory to draw 48 bars would be
 /// absurd. None when nothing readable had any sound in it.
-pub fn of_wavs(paths: &[&Path]) -> Option<String> {
+pub fn of_parts(parts: &[(&Path, u64)]) -> Option<String> {
+    let span_ms = parts
+        .iter()
+        .filter_map(|&(path, offset_ms)| Some(offset_ms + length_ms(path)?))
+        .max()
+        .filter(|&ms| ms > 0)?;
+
     let mut peaks = [0f32; BUCKETS];
     let mut any = false;
-    for path in paths {
-        if let Some(levels) = rms_buckets(path) {
+    for &(path, offset_ms) in parts {
+        if let Some(levels) = rms_buckets(path, offset_ms, span_ms) {
             any = true;
             for (peak, level) in peaks.iter_mut().zip(levels) {
                 *peak = peak.max(level);
@@ -38,6 +49,13 @@ pub fn of_wavs(paths: &[&Path]) -> Option<String> {
         return None;
     }
     render(&peaks)
+}
+
+/// How long a WAV runs, from its header.
+fn length_ms(path: &Path) -> Option<u64> {
+    let reader = super::wav::open_reader(path).ok()?;
+    let rate = u64::from(reader.spec().sample_rate.max(1));
+    Some(u64::from(reader.duration()) * 1000 / rate)
 }
 
 /// Blocks for per-column levels, scaled to the loudest column.
@@ -63,21 +81,25 @@ pub fn render(levels: &[f32]) -> Option<String> {
     )
 }
 
-/// RMS per column for one WAV, streamed.
-fn rms_buckets(path: &Path) -> Option<Vec<f32>> {
+/// RMS per column for one WAV, streamed, the columns spanning `span_ms` of
+/// the meeting and the file starting `offset_ms` into it.
+fn rms_buckets(path: &Path, offset_ms: u64, span_ms: u64) -> Option<Vec<f32>> {
     let mut reader = super::wav::open_reader(path).ok()?;
     let spec = reader.spec();
     let channels = usize::from(spec.channels.max(1));
-    let total = reader.duration() as usize * channels;
-    if total == 0 {
+    if reader.duration() == 0 {
         return None;
     }
-    let per_bucket = total.div_ceil(BUCKETS).max(1);
+    // Interleaved sample `i` is frame `i / channels`; frame `f` is at
+    // `offset + f / rate` on the meeting's clock.
+    let samples_per_ms = f64::from(spec.sample_rate.max(1)) * channels as f64 / 1000.0;
+    let ms_per_bucket = span_ms as f64 / BUCKETS as f64;
 
     let mut sums = vec![0f64; BUCKETS];
     let mut counts = vec![0usize; BUCKETS];
     let mut add = |i: usize, s: f32| {
-        let b = (i / per_bucket).min(BUCKETS - 1);
+        let at_ms = offset_ms as f64 + i as f64 / samples_per_ms;
+        let b = ((at_ms / ms_per_bucket) as usize).min(BUCKETS - 1);
         sums[b] += f64::from(s) * f64::from(s);
         counts[b] += 1;
     };
@@ -156,13 +178,46 @@ mod tests {
         }
         w.finalize().unwrap();
 
-        let env: Vec<char> = of_wavs(&[path.as_path()]).unwrap().chars().collect();
+        let env: Vec<char> = of_parts(&[(path.as_path(), 0)]).unwrap().chars().collect();
         assert!(env[..BUCKETS / 2].iter().all(|&c| c == '▁'), "{env:?}");
         assert!(env[BUCKETS / 2..].iter().all(|&c| c == '█'), "{env:?}");
     }
 
     #[test]
+    fn parts_sit_where_they_happened_and_the_pause_between_is_flat() {
+        let dir = std::env::temp_dir().join(format!("trace-envelope-parts-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 1000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        // Two 12s parts of tone, 0–12s and 36–48s, paused between.
+        let tone = |name: &str| {
+            let path = dir.join(name);
+            let mut w = hound::WavWriter::create(&path, spec).unwrap();
+            for i in 0..12_000 {
+                w.write_sample(((i as f32) * 0.3).sin() * 0.5).unwrap();
+            }
+            w.finalize().unwrap();
+            path
+        };
+        let first = tone("mic.wav");
+        let second = tone("mic-2.wav");
+
+        let env: Vec<char> = of_parts(&[(first.as_path(), 0), (second.as_path(), 36_000)])
+            .unwrap()
+            .chars()
+            .collect();
+        // A column is a second; the pause is columns 12 to 35.
+        assert!(env[..12].iter().all(|&c| c == '█'), "{env:?}");
+        assert!(env[12..36].iter().all(|&c| c == '▁'), "{env:?}");
+        assert!(env[36..].iter().all(|&c| c == '█'), "{env:?}");
+    }
+
+    #[test]
     fn unreadable_files_give_nothing() {
-        assert_eq!(of_wavs(&[Path::new("/nonexistent/mic.wav")]), None);
+        assert_eq!(of_parts(&[(Path::new("/nonexistent/mic.wav"), 0)]), None);
     }
 }

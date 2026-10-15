@@ -31,6 +31,16 @@
 //! 32s capture with two bursts of audio produced an 11s file, placing the
 //! second burst 13 seconds early.
 //!
+//! # Pausing
+//!
+//! A paused meeting is several sessions, one per unpaused stretch, each
+//! writing its own pair of files (`mic.wav`, then `mic-2.wav`, …) and each
+//! started on the *meeting's* clock. Its offsets are therefore meeting time,
+//! and the formula above holds within every part unchanged. The pause itself
+//! is no file at all — not silence written to one, which would read as a
+//! stretch in which nobody spoke, and would drag the adaptive VAD's noise
+//! floor to zero for the whole recording.
+//!
 //! # Partial failure
 //!
 //! One stream failing does not stop the other. If the microphone is missing
@@ -136,10 +146,22 @@ impl CaptureSession {
         mic_device: Option<String>,
         tap: Option<super::AudioTapSender>,
     ) -> Self {
+        Self::start_part(session_id, directory, mic_device, tap, Instant::now(), 1)
+    }
+
+    /// Start one unpaused stretch of a meeting: part `part`, its offsets
+    /// measured from `clock`, the moment the meeting began.
+    pub fn start_part(
+        session_id: impl Into<String>,
+        directory: impl AsRef<Path>,
+        mic_device: Option<String>,
+        tap: Option<super::AudioTapSender>,
+        clock: Instant,
+        part: u32,
+    ) -> Self {
         let session_id = session_id.into();
         let directory = directory.as_ref().to_path_buf();
         let stop = StopSignal::new();
-        let clock = Instant::now();
 
         // The microphone is the one stream every platform has. System audio is
         // appended per-platform; `mut` is unused where no backend exists yet.
@@ -147,6 +169,7 @@ impl CaptureSession {
         let mut threads = vec![spawn_stream(
             StreamSource::Microphone,
             &directory,
+            part,
             &stop,
             clock,
             {
@@ -161,6 +184,7 @@ impl CaptureSession {
         threads.push(spawn_stream(
             StreamSource::System,
             &directory,
+            part,
             &stop,
             clock,
             move |path, stats, stop, clock| {
@@ -280,6 +304,7 @@ impl CaptureSession {
 fn spawn_stream<F>(
     source: StreamSource,
     directory: &Path,
+    part: u32,
     stop: &StopSignal,
     clock: Instant,
     run: F,
@@ -289,7 +314,7 @@ where
         + Send
         + 'static,
 {
-    let path = directory.join(format!("{}.wav", source.file_stem()));
+    let path = directory.join(source.file_name(part));
     let stats = Arc::new(StreamStats::default());
 
     let thread_path = path.clone();
@@ -423,7 +448,7 @@ mod tests {
             + 'static,
     {
         let dir = std::env::temp_dir();
-        let thread = spawn_stream(StreamSource::Microphone, &dir, stop, Instant::now(), run);
+        let thread = spawn_stream(StreamSource::Microphone, &dir, 1, stop, Instant::now(), run);
         thread.handle.join().unwrap().ok();
         thread.stats
     }

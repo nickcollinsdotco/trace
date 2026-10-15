@@ -24,8 +24,18 @@ fn main() {
         std::process::exit(2);
     };
 
-    for name in ["mic.wav", "system.wav"] {
-        let path = dir.join(name);
+    // Every WAV: a paused meeting has a pair per stretch, `mic.wav`, then
+    // `mic-2.wav` and on.
+    let mut wavs: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "wav"))
+        .collect();
+    wavs.sort();
+    for path in wavs {
+        let name = path.file_name().unwrap_or_default().to_string_lossy();
         let Some((samples, rate)) = read(&path) else {
             continue;
         };

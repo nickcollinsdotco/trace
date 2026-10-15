@@ -136,9 +136,11 @@ participants: [you, Priya]
 
 **them** \`00:15\` — understood. We can hold the current rate if you commit to two years
 
-**you** \`00:24\` — I would need to take that to finance. Can you send it in writing?
+*Paused \`00:21\` to \`04:40\`: nothing was recorded.*
 
-**them** \`00:29\` — I will have the revised quote over by Thursday
+**you** \`04:42\` — I would need to take that to finance. Can you send it in writing?
+
+**them** \`04:48\` — I will have the revised quote over by Thursday
 `;
 
 /** A meeting where the model correctly found nothing to extract. */

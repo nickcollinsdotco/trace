@@ -26,6 +26,25 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.34.0",
+    date: "2026-10-15",
+    title: "Pause a meeting",
+    notes: [
+      "A meeting can be paused and resumed: Pause beside Stop on the recording screen, or the pause button left of Stop in the mini window. Paused, nothing is recorded and the microphone is let go.",
+      "The clock keeps running through a pause, because it is the meeting's clock and the transcript's times are on it. Everything said after a pause keeps the time it was really said.",
+      'The note marks each pause in the transcript — "paused, nothing recorded until 04:40" — and the summary is told about it too, so a pause is never read as a stretch where nobody spoke.',
+      "The sidebar and the mini window say Paused rather than Recording while it is.",
+    ],
+    screens: {
+      "capture-paused":
+        "New. Amber banner saying when it paused, a still dot, Resume where Pause was. Press Resume, then Pause again.",
+      "mini-paused": 'New. "paused" beside the time, and the play button left of Stop.',
+      "mini-live": "Has the pause button left of Stop; Stop has not moved.",
+      "note-transcript-only":
+        "Open the transcript: a pause row between 00:21 and 04:40, in the transcript's columns.",
+    },
+  },
+  {
     version: "0.33.0",
     date: "2026-10-14",
     title: "Stop notes part-way, and a wait for Ollama after a reboot",

@@ -190,7 +190,13 @@ export function Collapsible({
  * while genuinely capturing, so the motion always means the same thing.
  * ------------------------------------------------------------------ */
 
-export type CaptureState = "idle" | "capturing" | "transcribing" | "processing" | "error";
+export type CaptureState =
+  | "idle"
+  | "capturing"
+  | "paused"
+  | "transcribing"
+  | "processing"
+  | "error";
 
 /*
  * In sentence case: capitals are the case ladder's to give (type.css), and
@@ -200,6 +206,8 @@ export type CaptureState = "idle" | "capturing" | "transcribing" | "processing" 
 const STATUS: Record<CaptureState, { label: string; dot: string; text: string; live: boolean }> = {
   idle: { label: "Idle", dot: "bg-ink-faint", text: "text-ink-faint", live: false },
   capturing: { label: "Recording", dot: "bg-phosphor", text: "text-phosphor", live: true },
+  // Still, not pulsing: nothing is being heard.
+  paused: { label: "Paused", dot: "bg-warn", text: "text-warn", live: false },
   transcribing: { label: "Transcribing", dot: "bg-phosphor", text: "text-phosphor", live: true },
   processing: { label: "Saving", dot: "bg-warn", text: "text-warn", live: true },
   error: { label: "Signal lost", dot: "bg-error", text: "text-error", live: false },

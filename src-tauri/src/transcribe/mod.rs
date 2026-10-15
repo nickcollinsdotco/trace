@@ -101,11 +101,18 @@ impl Transcriber {
     ///
     /// `stop` is asked before every chunk, so an hour's pass can be given up
     /// within a chunk's time rather than run to the end.
+    ///
+    /// `first_id` is where this file's segment numbers start: zero for a
+    /// stream's first part, and after the last id of the part before for each
+    /// part a pause began. Numbered from zero every time, the parts of a
+    /// paused meeting gave two different lines the same id, and a citation
+    /// of either resolved to whichever came first.
     pub fn transcribe_stream(
         &mut self,
         wav_path: &Path,
         source: StreamSource,
         start_offset_ms: u64,
+        first_id: usize,
         stop: &dyn Fn() -> bool,
     ) -> Result<Vec<Segment>, TranscribeError> {
         let prefix = match source {
@@ -128,7 +135,7 @@ impl Transcriber {
                 out.push(Segment {
                     // Numbered across the whole stream, so ids stay unique and
                     // stable regardless of how the audio was chunked.
-                    id: format!("{prefix}_{:04}", out.len()),
+                    id: format!("{prefix}_{:04}", first_id + out.len()),
                     start_ms: chunk_offset_ms + secs_to_ms(seg.start),
                     end_ms: chunk_offset_ms + secs_to_ms(seg.end),
                     text: text.to_string(),

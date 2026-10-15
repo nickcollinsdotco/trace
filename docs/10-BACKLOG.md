@@ -506,16 +506,8 @@ the rest is recorded here rather than guessed at.
 
 ### Not built, in the order I would do them
 
-1. **Pause and resume a recording.** Now the largest thing left, and the one
-   with real correctness risk — it touches the timeline every evidence
-   citation depends on, so it deserves its own focused pass rather than being
-   squeezed alongside other work.
-
-   The hard part is not the button, it is the timeline: a paused stretch has to become a gap rather than a splice,
-   or every timestamp after it is wrong. The loopback path already pads gaps
-   with wall-clock time, so the machinery exists — but silence that is
-   *absence* and silence that is *nobody talking* must stay distinguishable,
-   because the second is evidence and the first is not.
+1. ~~**Pause and resume a recording.**~~ **Done 2026-10-15** (0.34.0), as
+   option 3 below. See "Pause: what was built".
 2. ~~**Search.**~~ **Done 2026-09-06**, and without the planned index — a
    direct scan answers in 106 ms across 1,200 notes. See `store::search`.
 3. ~~**Tags.**~~ **Done 2026-09-06**, immediately after search, which is what
@@ -563,6 +555,36 @@ Three options, none obviously right, and picking wrong is expensive:
 
 Option 1 looks cheapest and is the trap: it is the only one that silently
 damages the transcript.
+
+### Pause: what was built
+
+Option 3. Each unpaused stretch is its own `CaptureSession`, started on the
+meeting's clock, writing `mic.wav`/`system.wav` then `mic-2.wav`/`system-2.wav`
+and on. Its `start_offset_ms` is therefore meeting time and
+`session_time = offset + frame / rate` holds within every part unchanged.
+
+- **Pausing ends the part properly:** devices released, WAVs finalised,
+  `StreamFinished` journalled per stream, then `Paused { at_ms }`. Resume
+  journals `Resumed { at_ms }` and starts the next part. A crash while paused
+  loses nothing already recorded; recovery repairs every WAV in the folder.
+- **Absence is said, not left as a gap.** `Meeting.pauses` replays from the
+  journal; the note's transcript has a pause line where it happened, and the
+  prompt an uncitable `RECORDING PAUSED` line.
+- **Ids run on across parts.** `transcribe_stream` takes `first_id`; numbered
+  from zero per file, two lines shared an id and a citation resolved to the
+  wrong one. The live worker's counters were already per meeting.
+- **Live transcript:** the worker closes each stream's utterance at a pause,
+  and restarts a stream's chunker when its offset changes. The break carries
+  the pause time, so a quick resume whose audio is queued first is left alone.
+- **The clock runs through a pause.** The timer is the meeting's, and the
+  transcript's times are on it; a paused timer would disagree with them.
+- **The envelope** places each file by its offset, so parts no longer draw
+  over each other and a pause is flat.
+- Verified on real devices with `examples/pause_check.rs`: part 2 placed 43 ms
+  after resume on both streams, distinct ids, nothing from the pause.
+
+Not done: the library's length is still end minus start, pauses included.
+Worth changing only if it reads wrong in use.
 
 ## Appearance: families, more modern themes, the sidebar
 

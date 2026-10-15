@@ -136,6 +136,17 @@ export function MiniWindow({
   }
 
   const recording = phase.kind === "recording";
+  const paused = phase.kind === "recording" && phase.status.pausedSinceMs !== null;
+
+  async function togglePause() {
+    try {
+      await (paused ? ipc.resumeCapture() : ipc.pauseCapture());
+    } catch (e) {
+      setError(String(e));
+    }
+    refresh();
+  }
+
   // The worst thing going wrong, said in the few words the bar has room for.
   const trouble = phase.kind === "recording" ? troubles(phase.status)[0] : undefined;
 
@@ -307,11 +318,11 @@ export function MiniWindow({
                     {/* A click on Stop is answered here, under the name, where
                       the eye already is — not over the waveform. */}
                     <span
-                      className={`max-w-48 truncate font-mono text-2xs tabular-nums ${hint || trouble?.tone === "error" ? "text-error" : trouble ? "text-warn" : "text-ink-muted"}`}
+                      className={`max-w-48 truncate font-mono text-2xs tabular-nums ${hint || trouble?.tone === "error" ? "text-error" : trouble || paused ? "text-warn" : "text-ink-muted"}`}
                     >
                       {hint
                         ? "hold to stop"
-                        : `${formatElapsed(phase.status.elapsedMs)}${trouble ? ` · ${trouble.short}` : ""}`}
+                        : `${formatElapsed(phase.status.elapsedMs)}${paused ? " · paused" : trouble ? ` · ${trouble.short}` : ""}`}
                     </span>
                   </button>
                   {/* Faint, so it is life at the edge of the eye rather than
@@ -364,6 +375,18 @@ export function MiniWindow({
               >
                 <span aria-hidden className="size-3.5 rounded-full bg-surface-0" />
               </button>
+            )}
+            {/* Left of Stop, so Stop stays where it always is. One click,
+              unlike Stop: a pause loses nothing, and an aside nobody wants
+              recorded does not wait for a held button. */}
+            {recording && (
+              <IconButton
+                label={paused ? "Resume recording" : "Pause recording"}
+                active={paused}
+                onClick={() => void togglePause()}
+              >
+                {paused ? <path d="M4.5 2.75v8.5L11 7z" /> : <path d="M5 3v8M9 3v8" />}
+              </IconButton>
             )}
             {recording && <HoldToStop onStop={stop} onHint={setHint} />}
 

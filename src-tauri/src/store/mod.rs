@@ -9,6 +9,7 @@
 //! %LOCALAPPDATA%/TRACE/sessions/<session-id>/
 //!   session.jsonl                          <- crash journal
 //!   mic.wav, system.wav                    <- transient audio
+//!   mic-2.wav, system-2.wav, …             <- after each pause
 //! ```
 
 use std::path::PathBuf;

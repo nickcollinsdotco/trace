@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::audio::session::StreamOutcome;
-use crate::meeting::{GeneratedMeeting, Meeting, MeetingStatus, MeetingType};
+use crate::meeting::{GeneratedMeeting, Meeting, MeetingStatus, MeetingType, Pause};
 use crate::transcribe::Segment;
 
 use super::StoreError;
@@ -55,6 +55,15 @@ pub enum JournalEvent {
         meeting_type: MeetingType,
     },
     StreamFinished(Box<StreamOutcome>),
+    /// Recording paused, on the meeting's clock. Every stream's part ended
+    /// just before, and journalled its `StreamFinished`.
+    Paused {
+        at_ms: u64,
+    },
+    /// Recording resumed into a new part.
+    Resumed {
+        at_ms: u64,
+    },
     /// The meeting's loudness envelope, from the WAVs before they go. See
     /// `audio::envelope`.
     Signal {
@@ -260,6 +269,17 @@ fn apply(meeting: &mut Option<Meeting>, event: JournalEvent, was_finished: &mut 
         JournalEvent::TitleChanged { title } => m.title = title,
         JournalEvent::TypeChanged { meeting_type } => m.meeting_type = meeting_type,
         JournalEvent::StreamFinished(_) => {}
+        JournalEvent::Paused { at_ms } => m.pauses.push(Pause {
+            from_ms: at_ms,
+            to_ms: None,
+        }),
+        // A resume with no open pause is a journal written out of order;
+        // there is no gap to close.
+        JournalEvent::Resumed { at_ms } => {
+            if let Some(open) = m.pauses.last_mut().filter(|p| p.to_ms.is_none()) {
+                open.to_ms = Some(at_ms);
+            }
+        }
         JournalEvent::Signal { levels } => m.signal = Some(levels),
         JournalEvent::Generated(generated) => {
             m.generated = Some(*generated);
@@ -541,6 +561,39 @@ mod tests {
         })
         .unwrap();
         assert!(!replay(&dir).unwrap().notes_interrupted);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn pauses_replay_as_gaps_and_one_left_open_runs_to_the_end() {
+        let dir = temp_dir("pauses");
+        let mut j = Journal::open(&dir).unwrap();
+        j.append(&started()).unwrap();
+        j.append(&JournalEvent::Paused { at_ms: 60_000 }).unwrap();
+        j.append(&JournalEvent::Resumed { at_ms: 90_000 }).unwrap();
+        // Stopped while paused: nothing resumed it.
+        j.append(&JournalEvent::Paused { at_ms: 120_000 }).unwrap();
+        let r = replay(&dir).unwrap();
+        assert_eq!(
+            r.meeting.pauses,
+            vec![
+                Pause {
+                    from_ms: 60_000,
+                    to_ms: Some(90_000)
+                },
+                Pause {
+                    from_ms: 120_000,
+                    to_ms: None
+                },
+            ]
+        );
+
+        j.append(&JournalEvent::Resumed { at_ms: 150_000 }).unwrap();
+        // A second resume has no open gap to close, and must not move the
+        // end of the one already closed.
+        j.append(&JournalEvent::Resumed { at_ms: 160_000 }).unwrap();
+        let r = replay(&dir).unwrap();
+        assert_eq!(r.meeting.pauses[1].to_ms, Some(150_000));
         std::fs::remove_dir_all(&dir).ok();
     }
 

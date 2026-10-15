@@ -195,6 +195,20 @@ export function useCapture() {
     return ipc.captureNotes();
   }, []);
 
+  /**
+   * Pause or resume. The status is asked for again at once rather than at
+   * the next poll, so the button and the dot change with the click.
+   */
+  const setPaused = useCallback(async (paused: boolean) => {
+    try {
+      await (paused ? ipc.pauseCapture() : ipc.resumeCapture());
+      const status = await ipc.captureStatus();
+      setState((s) => (status ? { ...s, status, error: null } : s));
+    } catch (e) {
+      setState((s) => ({ ...s, error: String(e) }));
+    }
+  }, []);
+
   const stop = useCallback(async () => {
     setState((s) => ({ ...s, stopping: true }));
     try {
@@ -216,5 +230,5 @@ export function useCapture() {
     }
   }, [flushNotes]);
 
-  return { ...state, start, stop, setNotes, loadNotes };
+  return { ...state, start, stop, setPaused, setNotes, loadNotes };
 }

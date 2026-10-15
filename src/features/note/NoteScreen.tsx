@@ -875,6 +875,28 @@ function Block({ text, them, breaks }: { text: string; them: string | null; brea
     }
   }
 
+  // A pause in the transcript: *Paused `01:10` to `02:10`: nothing was recorded.*
+  // In the transcript's columns, so it reads as a gap in it, not a remark.
+  const pause = text.match(
+    /^\*Paused `(.+?)` (?:to `(.+?)`|until the end): nothing was recorded\.\*$/,
+  );
+  if (pause) {
+    const [, from, to] = pause;
+    return (
+      <p className="flex gap-3 font-mono text-xs">
+        <span className="shrink-0 tabular-nums text-ink-faint">{from}</span>
+        <span
+          className={`shrink-0 trace-caps-label tracking-system text-warn ${them ? "w-20" : "w-12"}`}
+        >
+          paused
+        </span>
+        <span className="text-ink-faint italic">
+          {to ? `nothing recorded until ${to}` : "nothing recorded after this"}
+        </span>
+      </p>
+    );
+  }
+
   if (text.startsWith("*") && text.endsWith("*")) {
     return <p className="text-xs italic text-ink-faint">{text.replace(/^\*|\*$/g, "")}</p>;
   }

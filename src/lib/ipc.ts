@@ -164,6 +164,12 @@ export interface CaptureStatus {
   lostStreams: LostStream[];
   /** The journal refused a write: the live transcript is not being kept. */
   journalFailing: boolean;
+  /**
+   * When recording paused, into the meeting; null while it records. The
+   * elapsed time runs on through a pause: it is the meeting's clock, and the
+   * transcript's times are on it.
+   */
+  pausedSinceMs: number | null;
 }
 
 /** One stream's latest waveform, oldest sample first, at about 12kHz. */
@@ -478,6 +484,9 @@ export const ipc = {
   captureNotes: () => call<string>("capture_notes"),
   setTitle: (title: string) => call<void>("set_title", { title }),
   stopCapture: () => call<FinishedMeeting>("stop_capture"),
+  /** Stop recording, keeping the meeting open. Does nothing when already paused. */
+  pauseCapture: () => call<void>("pause_capture"),
+  resumeCapture: () => call<void>("resume_capture"),
   /** The mic check. Stops itself unless `micPreviewLevel` keeps being polled. */
   startMicPreview: (micDevice: string | null) => call<void>("start_mic_preview", { micDevice }),
   stopMicPreview: () => call<void>("stop_mic_preview"),

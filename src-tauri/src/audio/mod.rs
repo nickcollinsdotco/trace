@@ -61,6 +61,16 @@ impl StreamSource {
             StreamSource::System => "system",
         }
     }
+
+    /// This stream's WAV for one unpaused stretch of a meeting: `mic.wav` for
+    /// the first, as every meeting before pausing existed had, then
+    /// `mic-2.wav` and on.
+    pub fn file_name(self, part: u32) -> String {
+        match part {
+            0 | 1 => format!("{}.wav", self.file_stem()),
+            n => format!("{}-{n}.wav", self.file_stem()),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -322,6 +332,14 @@ mod tests {
             stats.level() > 0.9,
             "an empty callback must not blank the meter"
         );
+    }
+
+    #[test]
+    fn the_first_part_keeps_the_name_meetings_always_had() {
+        assert_eq!(StreamSource::Microphone.file_name(1), "mic.wav");
+        assert_eq!(StreamSource::System.file_name(1), "system.wav");
+        assert_eq!(StreamSource::Microphone.file_name(2), "mic-2.wav");
+        assert_eq!(StreamSource::System.file_name(12), "system-12.wav");
     }
 
     #[test]

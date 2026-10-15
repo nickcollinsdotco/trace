@@ -270,8 +270,23 @@ pub async fn stop_capture(
     Ok(finished)
 }
 
-/// A meeting started or ended. Both windows can do either, so each needs to
-/// hear when the other did.
+/// Stop recording until resumed. The meeting stays open.
+#[tauri::command]
+pub fn pause_capture(app: AppHandle, manager: State<'_, CaptureManager>) -> CmdResult<()> {
+    manager.pause().map_err(err)?;
+    capture_changed(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn resume_capture(app: AppHandle, manager: State<'_, CaptureManager>) -> CmdResult<()> {
+    manager.resume().map_err(err)?;
+    capture_changed(&app);
+    Ok(())
+}
+
+/// A meeting started, ended, paused or resumed. Both windows can do any of
+/// those, so each needs to hear when the other did.
 pub const EVENT_CAPTURE_CHANGED: &str = "trace://capture-changed";
 
 fn capture_changed(app: &AppHandle) {

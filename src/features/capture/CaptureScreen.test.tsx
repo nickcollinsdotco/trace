@@ -140,3 +140,35 @@ describe("CaptureScreen notes", () => {
     await waitFor(() => expect(saved(invoke).at(-1)).toBe("written earlier\nfrom the scope"));
   });
 });
+
+/**
+ * A paused recorder that looks like a running one is the mistake that loses
+ * the end of a meeting, so the screen has to change with the click.
+ */
+describe("CaptureScreen pause", () => {
+  it("pauses and resumes, saying so each time", async () => {
+    const backend = makeBackend(scenarioById("capture-live")?.state);
+    const invoke = vi.spyOn(backend, "invoke");
+    installFakeBackend(backend);
+    render(<CaptureScreen onFinish={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Pause" }));
+    expect(await screen.findByText(/^Paused at/)).toBeTruthy();
+    expect(screen.getByText("Paused")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    await waitFor(() => expect(screen.queryByText(/^Paused at/)).toBeNull());
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+
+    const calls = invoke.mock.calls.map(([command]) => command);
+    expect(calls).toContain("pause_capture");
+    expect(calls).toContain("resume_capture");
+  });
+
+  it("opens paused on a meeting that already is", async () => {
+    installFakeBackend(makeBackend(scenarioById("capture-paused")?.state));
+    render(<CaptureScreen onFinish={vi.fn()} />);
+    expect(await screen.findByText(/^Paused at 23:15/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+  });
+});

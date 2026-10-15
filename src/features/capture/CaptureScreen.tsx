@@ -113,9 +113,17 @@ export function CaptureScreen({
   useEffect(() => {
     if (recording) notesRef.current?.focus();
   }, [recording]);
+  const pausedSince = capture.status?.pausedSinceMs ?? null;
+  const paused = pausedSince !== null;
   // The dot reports what the *recorder* is doing. Audio is being captured
   // whether or not a transcript is being produced alongside it.
-  const state: CaptureState = capture.stopping ? "processing" : recording ? "capturing" : "idle";
+  const state: CaptureState = capture.stopping
+    ? "processing"
+    : paused
+      ? "paused"
+      : recording
+        ? "capturing"
+        : "idle";
 
   async function handleDiscard() {
     // Confirmed, because it cannot be undone and the audio goes with it.
@@ -201,6 +209,14 @@ export function CaptureScreen({
         </button>
       </div>
 
+      {/* Said in words as well as by the dot: a paused recorder that looks
+          like a running one is the mistake that loses a meeting's end. */}
+      {pausedSince !== null && (
+        <Banner tone="warn">
+          Paused at {formatElapsed(pausedSince)}. Nothing is being recorded, and the microphone is
+          free. The note will show the gap.
+        </Banner>
+      )}
       {capture.status?.transcribing === false && (
         <Banner tone="warn">
           No speech model installed — audio is being recorded, but there will be no transcript.
@@ -301,6 +317,19 @@ export function CaptureScreen({
             className="trace-btn trace-btn-quiet trace-press hover:text-error disabled:opacity-50"
           >
             Discard
+          </button>
+          {/* Beside Stop and quieter than it: the common reason to reach
+              for Stop mid-meeting, an aside nobody wants recorded, is
+              this. */}
+          <button
+            type="button"
+            onClick={() => void capture.setPaused(!paused)}
+            disabled={capture.stopping}
+            className={`trace-btn trace-btn-secondary trace-press disabled:opacity-50 ${
+              paused ? "border-warn text-warn" : ""
+            }`}
+          >
+            {paused ? "Resume" : "Pause"}
           </button>
           <button
             type="button"

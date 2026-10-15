@@ -19,6 +19,7 @@ function status(overrides: Partial<CaptureStatus> = {}): CaptureStatus {
     diskMinutesLeft: null,
     lostStreams: [],
     journalFailing: false,
+    pausedSinceMs: null,
     ...overrides,
   };
 }

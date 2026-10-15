@@ -54,7 +54,7 @@ export function Shell({
   const jobs = useActivity();
   // Here rather than in the sidebar: when the sidebar is hidden, the strip
   // that replaces it has to keep showing a meeting is being recorded.
-  const recording = useRecordingElapsed();
+  const { elapsed: recording, paused } = useRecordingElapsed();
 
   const shell = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
@@ -107,6 +107,7 @@ export function Shell({
                 current={current}
                 onNavigate={go}
                 recording={recording}
+                paused={paused}
                 onHide={() => setHidden(true)}
               />
             )}
@@ -120,6 +121,7 @@ export function Shell({
                   onToggle={() => (narrow ? setOverlay((o) => !o) : setHidden(false))}
                   onHome={() => go("library")}
                   recording={recording}
+                  paused={paused}
                   onRecording={() => go("capture")}
                 />
               )}
@@ -165,6 +167,7 @@ export function Shell({
                     current={current}
                     onNavigate={go}
                     recording={recording}
+                    paused={paused}
                     onHide={closeOverlay}
                     overlay
                   />
@@ -202,6 +205,7 @@ function SidebarStrip({
   onToggle,
   onHome,
   recording,
+  paused,
   onRecording,
 }: {
   toggle: RefObject<HTMLButtonElement | null>;
@@ -209,6 +213,7 @@ function SidebarStrip({
   onToggle: () => void;
   onHome: () => void;
   recording: number | null;
+  paused: boolean;
   onRecording: () => void;
 }) {
   return (
@@ -229,8 +234,11 @@ function SidebarStrip({
           onClick={onRecording}
           className="ml-auto flex items-center gap-2 rounded-sm px-2 py-1 font-mono text-2xs text-ink-muted trace-press hover:text-ink"
         >
-          <span aria-hidden className="inline-block size-1.5 rounded-full bg-error" />
-          Recording
+          <span
+            aria-hidden
+            className={`inline-block size-1.5 rounded-full ${paused ? "bg-warn" : "bg-error"}`}
+          />
+          {paused ? "Paused" : "Recording"}
           <span className="tabular-nums text-ink-faint">{formatElapsed(recording)}</span>
         </button>
       )}
@@ -287,8 +295,9 @@ function useHidden(): [boolean, (hidden: boolean) => void] {
  * Polled, because the shell has to know about a recording started on a
  * screen it cannot see. Once a second is what the timer displays anyway.
  */
-function useRecordingElapsed(): number | null {
+function useRecordingElapsed(): { elapsed: number | null; paused: boolean } {
   const [elapsed, setElapsed] = useState<number | null>(null);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     if (!hasBackend()) return;
@@ -297,7 +306,9 @@ function useRecordingElapsed(): number | null {
       void ipc
         .captureStatus()
         .then((s) => {
-          if (!cancelled) setElapsed(s ? s.elapsedMs : null);
+          if (cancelled) return;
+          setElapsed(s ? s.elapsedMs : null);
+          setPaused(s?.pausedSinceMs != null);
         })
         .catch(() => {});
     };
@@ -309,5 +320,5 @@ function useRecordingElapsed(): number | null {
     };
   }, []);
 
-  return elapsed;
+  return { elapsed, paused };
 }

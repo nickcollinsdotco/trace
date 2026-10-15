@@ -291,6 +291,9 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
   const timers: number[] = [];
 
   let startedAt: number | null = state.recording ? Date.now() : null;
+  // Into the meeting, as the real backend reports it; null while recording.
+  // A scenario opens paused by overriding it.
+  let pausedSince: number | null = state.statusOverrides.pausedSinceMs ?? null;
   let segmentCount = 0;
   // Kept, so the recording screen opened again finds what was typed.
   let captureNotes = "";
@@ -508,13 +511,22 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
 
         case "start_capture": {
           startedAt = Date.now();
+          pausedSince = null;
           segmentCount = 0;
           captureNotes = "";
           startScriptOnce();
-          return status(state, startedAt, segmentCount, args?.title as string);
+          return status(state, startedAt, segmentCount, null, args?.title as string);
         }
         case "capture_status":
-          return startedAt === null ? null : status(state, startedAt, segmentCount);
+          return startedAt === null ? null : status(state, startedAt, segmentCount, pausedSince);
+        case "pause_capture":
+          if (startedAt !== null && pausedSince === null) {
+            pausedSince = status(state, startedAt, segmentCount, null).elapsedMs;
+          }
+          return null;
+        case "resume_capture":
+          pausedSince = null;
+          return null;
         // Window management: nothing to do in a gallery that has no windows.
         case "open_mini":
         case "fit_mini":
@@ -525,10 +537,12 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
         case "show_main":
         case "open_gallery":
           return null;
+        // Still while paused, as the real one is: nothing is being heard.
         case "scope_frame":
-          return startedAt === null
-            ? null
-            : waves(Date.now() - startedAt, Number(args?.points ?? 512));
+          if (startedAt === null) return null;
+          return pausedSince === null
+            ? waves(Date.now() - startedAt, Number(args?.points ?? 512))
+            : [];
         case "update_notes":
           captureNotes = String(args?.text ?? "");
           return null;
@@ -538,6 +552,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           return null;
         case "stop_capture": {
           startedAt = null;
+          pausedSince = null;
           const finished: FinishedMeeting = {
             meeting: { id: "fixture", title: "Fixture meeting", date: "2026-09-05" },
             notePath: state.notes[0]?.path ?? "",
@@ -762,6 +777,7 @@ function status(
   state: BackendState,
   startedAt: number,
   segmentCount: number,
+  pausedSinceMs: number | null,
   title?: string,
 ): CaptureStatus {
   const elapsedMs = state.startElapsedMs + (Date.now() - startedAt);
@@ -769,7 +785,8 @@ function status(
     sessionId: "20260905-1400-fixture",
     title: title ?? "Fixture meeting",
     elapsedMs,
-    levels: levels(elapsedMs),
+    // Nothing is heard while paused, so nothing moves.
+    levels: pausedSinceMs === null ? levels(elapsedMs) : [],
     segmentCount,
     droppedAudio: false,
     inFlight: 0,
@@ -782,6 +799,7 @@ function status(
     lostStreams: [],
     journalFailing: false,
     ...state.statusOverrides,
+    pausedSinceMs,
   };
 }
 

@@ -108,6 +108,8 @@ pub fn run() {
             commands::capture_notes,
             commands::set_title,
             commands::stop_capture,
+            commands::pause_capture,
+            commands::resume_capture,
             commands::list_notes,
             commands::read_note,
             commands::notes_root,

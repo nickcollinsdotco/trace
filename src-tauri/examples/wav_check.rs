@@ -1,6 +1,7 @@
 //! Verify a captured session without needing an audio editor.
 //!
-//! Reads the two WAVs a session produced and reports, per stream, whether it
+//! Reads the two WAVs a session produced — a pair per stretch, if the meeting
+//! was paused — and reports, per stream, whether it
 //! actually contains speech-like audio — and critically, whether the two
 //! streams are *distinct*. Distinctness is the whole premise of TRACE's
 //! speaker attribution: if the microphone has simply picked up the speakers,
@@ -11,6 +12,8 @@
 //! ```
 
 use std::path::{Path, PathBuf};
+
+use trace_lib::audio::StreamSource;
 
 struct Analysis {
     samples: usize,
@@ -38,23 +41,57 @@ fn main() {
     println!("  {}", dir.display());
     println!();
 
-    let mic = analyse(&dir.join("mic.wav"));
-    let system = analyse(&dir.join("system.wav"));
+    let mut problems: Vec<String> = Vec::new();
+    let mut part = 1;
+    loop {
+        let mic_path = dir.join(StreamSource::Microphone.file_name(part));
+        let system_path = dir.join(StreamSource::System.file_name(part));
+        if part > 1 && !mic_path.exists() && !system_path.exists() {
+            break;
+        }
+        if part == 2 {
+            println!("-- paused and resumed: one pair of files per stretch --\n");
+        }
+        if part > 1 {
+            println!("PART {part}\n");
+        }
+        check(&mic_path, &system_path, &mut problems);
+        part += 1;
+    }
+
+    println!("VERDICT");
+    if problems.is_empty() {
+        println!("  [ OK ] both streams captured usable, independent audio.");
+        println!();
+        println!("  Listen to confirm who is on each:");
+        println!("    start \"\" \"{}\"", dir.join("mic.wav").display());
+        println!("    start \"\" \"{}\"", dir.join("system.wav").display());
+    } else {
+        for p in &problems {
+            println!("  [FAIL] {p}");
+        }
+        std::process::exit(1);
+    }
+}
+
+/// One stretch's pair of files: each usable, and the two distinct.
+fn check(mic_path: &Path, system_path: &Path, problems: &mut Vec<String>) {
+    let mic = analyse(mic_path);
+    let system = analyse(system_path);
 
     report("MIC     (you)", &mic);
     report("SYSTEM  (them)", &system);
 
-    let mut problems: Vec<String> = Vec::new();
-
-    for (label, a) in [("mic", &mic), ("system", &system)] {
+    for (path, a) in [(mic_path, &mic), (system_path, &system)] {
+        let label = path.file_name().unwrap_or_default().to_string_lossy();
         match a {
-            None => problems.push(format!("{label}.wav is missing or unreadable")),
-            Some(a) if a.samples == 0 => problems.push(format!("{label}.wav contains no samples")),
+            None => problems.push(format!("{label} is missing or unreadable")),
+            Some(a) if a.samples == 0 => problems.push(format!("{label} contains no samples")),
             Some(a) if a.non_zero < 0.01 => problems.push(format!(
-                "{label}.wav is digital silence — wrong device, or a virtual device with no source"
+                "{label} is digital silence — wrong device, or a virtual device with no source"
             )),
             Some(a) if a.peak < 0.005 => problems.push(format!(
-                "{label}.wav is far too quiet to transcribe (peak {:.4})",
+                "{label} is far too quiet to transcribe (peak {:.4})",
                 a.peak
             )),
             _ => {}
@@ -80,20 +117,6 @@ fn main() {
             println!("  {verdict}");
             println!();
         }
-    }
-
-    println!("VERDICT");
-    if problems.is_empty() {
-        println!("  [ OK ] both streams captured usable, independent audio.");
-        println!();
-        println!("  Listen to confirm who is on each:");
-        println!("    start \"\" \"{}\"", dir.join("mic.wav").display());
-        println!("    start \"\" \"{}\"", dir.join("system.wav").display());
-    } else {
-        for p in &problems {
-            println!("  [FAIL] {p}");
-        }
-        std::process::exit(1);
     }
 }
 

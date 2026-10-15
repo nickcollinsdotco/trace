@@ -3,9 +3,10 @@ import { ConfirmProvider } from "../components/ui/Confirm";
 import { Grain } from "../components/ui/Grain";
 import { formatElapsed } from "../components/ui/terminal";
 import { ActivityToast } from "../features/activity/ActivityToast";
+import { isRunning, isWaitingForMemory } from "../features/activity/jobs";
 import { useActivity } from "../features/activity/useActivity";
 import { hasBackend, ipc } from "../lib/ipc";
-import { type Page, Sidebar, SidebarHead } from "./Sidebar";
+import { type NotesWork, type Page, Sidebar, SidebarHead } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
 import type { UpdateView } from "./UpdateEntry";
 
@@ -52,6 +53,11 @@ export function Shell({
   // Read once here and handed down, so the status bar and the toast cannot
   // disagree about what is running.
   const jobs = useActivity();
+  const notes: NotesWork = jobs.some(isWaitingForMemory)
+    ? "waiting"
+    : jobs.some(isRunning)
+      ? "writing"
+      : null;
   // Here rather than in the sidebar: when the sidebar is hidden, the strip
   // that replaces it has to keep showing a meeting is being recorded.
   const { elapsed: recording, paused } = useRecordingElapsed();
@@ -108,6 +114,7 @@ export function Shell({
                 onNavigate={go}
                 recording={recording}
                 paused={paused}
+                notes={notes}
                 onHide={() => setHidden(true)}
               />
             )}
@@ -168,6 +175,7 @@ export function Shell({
                     onNavigate={go}
                     recording={recording}
                     paused={paused}
+                    notes={notes}
                     onHide={closeOverlay}
                     overlay
                   />

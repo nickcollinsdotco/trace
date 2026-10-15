@@ -190,6 +190,8 @@ export const DEFAULT_STATE: BackendState = {
     ramAvailableBytes: 14.3 * 1024 ** 3,
     gpuFreeBytes: 12.7 * 1024 ** 3,
     hogs: [],
+    gpuTotalBytes: 16 * 1024 ** 3,
+    verdict: "on_gpu",
   },
   appInfo: { version: "0.1.0", devBuild: true, notesSyncedBy: null },
   latestVersion: null,

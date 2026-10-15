@@ -6,6 +6,7 @@ import {
   type LlmStatus,
   type ModelProgress,
   onModelProgress,
+  type SummaryRoom,
   type SystemReport,
 } from "../../lib/ipc";
 import { useLlmStatus } from "../llm/useLlmStatus";
@@ -200,7 +201,7 @@ function Summaries({ status }: { status: LlmStatus | null }) {
   if (status === null) return <span className="text-ink-faint">checking…</span>;
   switch (status.state) {
     case "ready":
-      return <span>Ollama · {status.model}</span>;
+      return <ReadySummaries model={status.model} />;
     case "no_model":
       return <span>Ollama · no model yet — choose one later, under models</span>;
     case "not_running":
@@ -220,6 +221,64 @@ function Summaries({ status }: { status: LlmStatus | null }) {
           >
             [ Get Ollama ↗ ]
           </button>
+        </span>
+      );
+  }
+}
+
+/**
+ * The chosen model, and whether it suits this computer: the same check every
+ * summary makes before it loads, asked now so a model too big for the
+ * machine is found here rather than by the first meeting's notes waiting
+ * for memory, or freezing it.
+ */
+function ReadySummaries({ model }: { model: string }) {
+  const [fit, setFit] = useState<SummaryRoom | null | undefined>(undefined);
+  useEffect(() => {
+    void ipc
+      .summaryRoom()
+      // The check is of the chosen model; one reported for another would
+      // describe a model this row does not name.
+      .then((room) => setFit(room?.model === model ? room : null))
+      .catch(() => setFit(null));
+  }, [model]);
+
+  return (
+    <span className="flex flex-col items-start gap-1 normal-case">
+      <span className="uppercase">Ollama · {model}</span>
+      {fit === undefined ? (
+        <span className="text-ink-faint">checking it fits…</span>
+      ) : fit === null ? null : (
+        <FitLine fit={fit} />
+      )}
+    </span>
+  );
+}
+
+function FitLine({ fit }: { fit: SummaryRoom }) {
+  const size = formatBytes(fit.neededBytes);
+  const card = fit.gpuTotalBytes === null ? "" : ` of ${formatBytes(fit.gpuTotalBytes)}`;
+  switch (fit.verdict) {
+    case "resident":
+      return <span className="text-phosphor">loaded already, and fits</span>;
+    case "on_gpu":
+      return (
+        <span className="text-phosphor">
+          fits on the graphics card — {size}
+          {card}
+        </span>
+      );
+    case "spills":
+      return (
+        <span className="text-ink-muted">
+          fits, with {formatBytes(fit.ramBytes)} of its {size} in system memory — notes take longer
+        </span>
+      );
+    case "no_room":
+      return (
+        <span className="font-sans text-2xs leading-relaxed text-warn">
+          Needs {size}, more than this computer has free. Notes would wait for memory after every
+          meeting; a smaller model, under Models, will fit.
         </span>
       );
   }

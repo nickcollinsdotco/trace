@@ -19,6 +19,7 @@ pub mod diagnostics;
 pub mod meeting;
 pub mod memory;
 pub mod models;
+pub mod notify;
 pub mod settings;
 pub mod store;
 pub mod synthesis;
@@ -41,6 +42,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()

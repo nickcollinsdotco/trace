@@ -26,6 +26,21 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.38.0",
+    date: "2026-10-16",
+    title: "A notification when notes are ready, and first run checks the summary model fits",
+    notes: [
+      "When notes finish while TRACE is minimised or behind another app, Windows shows a notification with the meeting's name — or why they could not be written. Nothing is shown while you are looking at TRACE, or for notes you stopped yourself.",
+      "First run says whether the summary model Ollama has will fit this computer: on the graphics card, partly in system memory (slower), or too big — with a smaller one suggested under Models.",
+    ],
+    screens: {
+      "first-run-report":
+        "The Summaries row now says where the model will run, and how much memory it needs.",
+      "first-run-model-too-big":
+        "New. A model too big for the machine, said in amber with what to do.",
+    },
+  },
+  {
     version: "0.37.0",
     date: "2026-10-16",
     title: "Notes without shutting everything down",

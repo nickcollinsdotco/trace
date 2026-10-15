@@ -149,6 +149,17 @@ describe("Gallery", () => {
     expect(screen.queryByText("transcribing")).toBeNull();
   });
 
+  it("says on first run whether the summary model fits this computer", async () => {
+    const user = userEvent.setup();
+    render(<Gallery />);
+    await openScenario(user, "Machine report");
+    expect(await screen.findByText(/fits on the graphics card/)).toBeInTheDocument();
+
+    await openScenario(user, "Machine report, model too big");
+    expect(await screen.findByText(/more than this computer has free/)).toBeInTheDocument();
+    expect(screen.queryByText(/fits on the graphics card/)).not.toBeInTheDocument();
+  });
+
   it("still offers the setup panel where that is the point", async () => {
     const user = userEvent.setup();
     render(<Gallery />);

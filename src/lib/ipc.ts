@@ -377,15 +377,22 @@ export interface Hog {
 }
 
 /** Whether the chosen summary model has room now, and if not, what holds it. */
-export interface SummaryRoom {
+export type SummaryRoom = {
   model: string;
   fits: boolean;
   neededBytes: number;
   ramAvailableBytes: number;
   gpuFreeBytes: number | null;
+  /** The graphics card's own memory, when it can be read. */
+  gpuTotalBytes: number | null;
   /** Empty when it fits. */
   hogs: Hog[];
-}
+} & (
+  | { verdict: "resident" }
+  | { verdict: "on_gpu" }
+  | { verdict: "spills"; ramBytes: number }
+  | { verdict: "no_room" }
+);
 
 /** An answer to a wait for memory. */
 export type WaitChoice = "anyway" | "later";

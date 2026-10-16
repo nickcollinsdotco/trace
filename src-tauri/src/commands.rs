@@ -838,6 +838,14 @@ pub struct SummaryRoom {
     pub needed_bytes: u64,
     pub ram_available_bytes: u64,
     pub gpu_free_bytes: Option<u64>,
+    /// The graphics card's own memory, for saying how much of it the model
+    /// would take.
+    pub gpu_total_bytes: Option<u64>,
+    /// Where it would load: on the card, partly in system memory, or not at
+    /// all. First run says which, so a model too big for the machine is
+    /// found there rather than by the first meeting's notes.
+    #[serde(flatten)]
+    pub verdict: crate::memory::Verdict,
     pub hogs: Vec<crate::memory::Hog>,
 }
 
@@ -858,6 +866,8 @@ pub async fn summary_room() -> Option<SummaryRoom> {
             needed_bytes: check.need.bytes,
             ram_available_bytes: check.machine.ram_available,
             gpu_free_bytes: check.machine.gpu.as_ref().map(crate::memory::Gpu::free),
+            gpu_total_bytes: check.machine.gpu.as_ref().map(|g| g.total),
+            verdict: check.verdict,
             hogs: if check.fits() {
                 Vec::new()
             } else {

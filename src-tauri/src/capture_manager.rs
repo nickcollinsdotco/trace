@@ -856,6 +856,13 @@ impl Tracked {
     }
 
     fn finish(&self, outcome: Outcome) {
+        let title = ACTIVITY
+            .snapshot()
+            .into_iter()
+            .find(|j| j.id == self.id)
+            .map(|j| j.title)
+            .unwrap_or_default();
+        crate::notify::notes_finished(&self.app, &title, &outcome);
         ACTIVITY.finish(self.id, outcome);
         self.publish();
     }

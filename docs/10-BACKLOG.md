@@ -766,8 +766,11 @@ What the audit found besides, worst first. Evidence is `file:line` as of
 
 ### Quality of life
 
-17. A system notification when notes are ready and TRACE is minimised.
-18. First run says whether the chosen summary model fits this machine;
+17. ~~A system notification when notes are ready and TRACE is minimised.~~
+    **Done in 0.38.0** (`notify.rs`): when the main window is minimised,
+    hidden or not focused; failures too, stops not.
+18. ~~First run says whether the chosen summary model fits this machine;~~
+    **Done in 0.38.0** (`summary_room` gained the verdict; the Summaries row).
     `memory::check` can answer it now.
 19. Honest time estimates: the re-pass is ~4.5 min an hour on the reference
     machine, and the parts are known once a meeting is split.

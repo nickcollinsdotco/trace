@@ -91,12 +91,16 @@ pub enum Outcome {
 /// something, write them anyway, or put them off.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct MemoryWait {
+    /// The smallest model that would do: the one "anyway" loads.
+    pub model: String,
     pub needed_bytes: u64,
     pub ram_available_bytes: u64,
     /// Absent when the GPU's memory cannot be read.
     pub gpu_free_bytes: Option<u64>,
     /// Unix milliseconds.
     pub since: u64,
+    /// The apps holding the most memory, so the user knows what to close.
+    pub hogs: Vec<crate::memory::Hog>,
 }
 
 /// What the user said to a wait for memory.
@@ -121,6 +125,9 @@ pub struct Job {
     /// Stop was pressed and the job is winding down. Shown, because the
     /// running request takes a moment to let go.
     pub stopping: bool,
+    /// Rewriting interim notes with the chosen model, unasked, while the
+    /// machine is idle. See `upgrade`.
+    pub upgrade: bool,
     /// Absent while the job is queued or running.
     pub outcome: Option<Outcome>,
     /// Kept for the rest of the job: someone who said "anyway" once should
@@ -200,6 +207,7 @@ impl Activity {
             steps,
             waiting: None,
             stopping: false,
+            upgrade: false,
             outcome: None,
             choice: None,
         });
@@ -294,6 +302,19 @@ impl Activity {
                 jobs.list.remove(i);
             }
         }
+    }
+
+    /// Mark the job as an idle-time upgrade of interim notes.
+    pub fn mark_upgrade(&self, id: u64) {
+        self.with(id, |job| job.upgrade = true);
+    }
+
+    /// Drop a job as if it had never been, for work the user did not ask
+    /// for and that has nothing to tell them: an upgrade that gave way when
+    /// the machine got busy again. The interim notes are still there, and so
+    /// is the offer to write them again.
+    pub fn forget(&self, id: u64) {
+        self.jobs().list.retain(|j| j.id != id);
     }
 
     /// Show the job as waiting for memory, or no longer waiting.
@@ -567,16 +588,29 @@ mod tests {
     }
 
     #[test]
+    fn a_forgotten_upgrade_leaves_no_trace_and_frees_the_note() {
+        let a = Activity::new();
+        let id = a.begin("a.md", "A", false).unwrap();
+        a.mark_upgrade(id);
+        assert!(a.snapshot()[0].upgrade);
+        a.forget(id);
+        assert!(a.snapshot().is_empty());
+        assert!(a.begin("a.md", "A", false).is_ok());
+    }
+
+    #[test]
     fn a_choice_reaches_the_running_job_and_stays_for_it() {
         let a = Activity::new();
         let id = a.begin("a.md", "A", false).unwrap();
         a.set_waiting(
             id,
             Some(MemoryWait {
+                model: "m".into(),
                 needed_bytes: 1,
                 ram_available_bytes: 2,
                 gpu_free_bytes: None,
                 since: 3,
+                hogs: Vec::new(),
             }),
         );
         assert!(a.snapshot()[0].waiting.is_some());

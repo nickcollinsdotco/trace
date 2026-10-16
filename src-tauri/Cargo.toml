@@ -1,6 +1,6 @@
 [package]
 name = "trace"
-version = "0.36.0"
+version = "0.37.0"
 description = "Local-first meeting capture and intelligence"
 authors = ["Nick"]
 license = "MIT"
@@ -84,5 +84,9 @@ windows = { version = "0.61", features = [
     # SetThreadExecutionState, so an idle sleep cannot end a meeting.
     "Win32_System_Power",
     "Win32_System_ProcessStatus",
+    # GetTickCount and GetLastInputInfo: how long since anyone touched the
+    # machine, so better notes are written while nobody is using it.
+    "Win32_System_SystemInformation",
     "Win32_System_Threading",
+    "Win32_UI_Input_KeyboardAndMouse",
 ] }

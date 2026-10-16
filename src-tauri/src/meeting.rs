@@ -103,6 +103,10 @@ pub struct GeneratedMeeting {
     /// Provenance, so a note can say honestly how it was produced.
     pub model: String,
     pub generated_at: String,
+    /// Written by a smaller model because the chosen one had no room, and to
+    /// be written again by it when the machine is free. See `upgrade`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub interim: bool,
 }
 
 /// Longest gist shown in the library, in characters.

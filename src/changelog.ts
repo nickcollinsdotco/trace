@@ -26,6 +26,28 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.37.0",
+    date: "2026-10-16",
+    title: "Notes without shutting everything down",
+    notes: [
+      "When the summary model has no room after a meeting, a smaller one writes interim notes straight away instead of waiting for you to close apps. The note says they are interim, and which model wrote them.",
+      "Interim notes are rewritten with the better model by themselves once nobody has touched the computer for five minutes and it fits on the graphics card. If the computer gets busy again part-way, the rewrite gives way and the interim notes stay. Notes edited in another editor are left alone.",
+      "“Write them now” on an interim note does it straight away. If the model has no room, it says what it needs, what is free and which apps hold the rest before anything loads.",
+      "Waiting for memory names the app to close — “close Figma” — and lists the apps using the most graphics memory and memory, instead of “close some apps”.",
+      "Only qwen3:8b stands in for now. Smaller models (qwen3:4b, granite4.2:3b, gemma3:4b) were tried on real meetings and wrote empty or unusable notes.",
+    ],
+    screens: {
+      "note-interim":
+        "New. A line under the title saying the notes are interim, by qwen3:8b, and write them now, which replaces them with the 14B's.",
+      "note-interim-no-room":
+        "New. The confirmation before writing with a model that has no room: what it needs, what is free, which apps hold the rest.",
+      "note-upgrading":
+        "New. “writing better notes, part 2 of 3” over the interim notes, with stop.",
+      "note-waiting-memory":
+        "Says close Figma, names the model it waits for, and lists the apps using the most.",
+    },
+  },
+  {
     version: "0.36.0",
     date: "2026-10-15",
     title: "A tray icon, and closing TRACE closes all of it",

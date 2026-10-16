@@ -911,6 +911,7 @@ pub fn regenerate(
     app: &AppHandle,
     session_dir: &std::path::Path,
     note_path: &std::path::Path,
+    quality: Quality,
 ) -> Result<(), crate::activity::Busy> {
     let title = crate::store::journal::replay(session_dir)
         .map(|r| r.meeting.title)
@@ -920,7 +921,15 @@ pub fn regenerate(
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_default()
         });
-    let id = ACTIVITY.begin(&note_path.display().to_string(), &title, false)?;
+    let key = note_path.display().to_string();
+    let id = ACTIVITY.begin(&key, &title, false)?;
+    match quality {
+        Quality::Best => {
+            ACTIVITY.choose(&key, WaitChoice::Anyway);
+        }
+        Quality::Upgrade => ACTIVITY.mark_upgrade(id),
+        Quality::BestThatFits => {}
+    }
     let job = Tracked::new(app.clone(), id);
     let _underway = Underway::begin(session_dir, note_path);
 
@@ -928,7 +937,7 @@ pub fn regenerate(
     if job.stopping() {
         job.stop();
     } else {
-        synthesize(app, &job, session_dir, note_path);
+        synthesize(app, &job, session_dir, note_path, quality);
     }
     Ok(())
 }
@@ -969,7 +978,8 @@ pub fn resume(
 
     if !repass {
         release_session_audio(session_dir);
-        return regenerate(app, session_dir, &note_path).map_err(|e| e.to_string());
+        return regenerate(app, session_dir, &note_path, Quality::BestThatFits)
+            .map_err(|e| e.to_string());
     }
 
     let id = ACTIVITY
@@ -1108,19 +1118,51 @@ const ROOM_RECHECK: Duration = Duration::from_secs(10);
 const PUT_OFF: &str = "put off until there is memory for the summary model. Close some apps, then \
                        write them from this note";
 
-/// Hold notes back until the summary model has room, or the user decides.
+/// Why an upgrade stopped: the room it started with went. Never shown —
+/// the job is forgotten — but logged.
+const ROOM_GONE: &str = "the machine got busy again";
+
+/// Apps named in a wait for memory.
+const HOGS_NAMED: usize = 3;
+
+/// Which model notes are written with, and how hard to try for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Quality {
+    /// The chosen model if it has room; if only a smaller one does, interim
+    /// notes from that, rewritten when the machine is free. After a meeting,
+    /// and ↻.
+    BestThatFits,
+    /// The chosen model or nothing: "write them with the 14B now". The user
+    /// has seen what it needs and said yes, so a wait is answered "anyway"
+    /// before it starts.
+    Best,
+    /// The chosen model, only while it fits on the graphics card, and given
+    /// up quietly if it stops fitting. Unasked, while nobody is using the
+    /// machine — so it must never be what slows it down. See `upgrade`.
+    Upgrade,
+}
+
+/// Hold notes back until one of `models` has room, or the user decides.
+/// Returns the model to use: the first in `models` that fits.
 ///
 /// Called before every request of a summary — the first, which loads the
-/// model, and each part after, in case the machine has filled up since.
-/// What it saw is logged the first time and whenever the answer changes, so
-/// a slow or stopped summary explains itself from the diagnostics. Returns
-/// the reason, in words for the note, when the user puts the notes off.
+/// model and picks between the chosen one and a smaller interim one, and
+/// each part after, with only the model already picked, in case the machine
+/// has filled up since. What it saw is logged the first time and whenever
+/// the answer changes, so a slow or stopped summary explains itself from the
+/// diagnostics. Returns the reason, in words for the note, when the user
+/// puts the notes off.
+///
+/// "Anyway" loads the last, smallest model: it does least harm to a machine
+/// with no room for any of them.
 fn wait_for_room(
     job: &Tracked,
-    model: &str,
+    models: &[String],
     when: &str,
-    said: &mut Option<bool>,
-) -> Result<(), String> {
+    quality: Quality,
+    said: &mut Option<Option<String>>,
+) -> Result<String, String> {
+    let smallest = models.last().cloned().unwrap_or_default();
     let mut since: Option<u64> = None;
     loop {
         if job.stopping() {
@@ -1133,7 +1175,7 @@ fn wait_for_room(
                     diagnostics::log("memory check overridden: writing notes anyway");
                     job.waiting(None);
                 }
-                return Ok(());
+                return Ok(smallest);
             }
             Some(WaitChoice::Later) => {
                 diagnostics::log("notes put off while waiting for memory");
@@ -1143,24 +1185,56 @@ fn wait_for_room(
             None => {}
         }
 
-        let check = crate::memory::check(model);
-        if *said != Some(check.fits()) {
-            diagnostics::log(check.describe(when));
-            *said = Some(check.fits());
+        // An upgrade takes only room on the card: spilling into system
+        // memory is a trade the user makes for notes they are waiting on,
+        // not one TRACE makes for them while they are away.
+        let room = |check: &crate::memory::Check| match quality {
+            Quality::Upgrade => matches!(
+                check.verdict,
+                crate::memory::Verdict::OnGpu | crate::memory::Verdict::Resident
+            ),
+            _ => check.fits(),
+        };
+        let mut refused = Vec::new();
+        let mut chosen = None;
+        for model in models {
+            let check = crate::memory::check(model);
+            if room(&check) {
+                chosen = Some(check);
+                break;
+            }
+            refused.push(check);
         }
-        if check.fits() {
+        let decided = chosen.as_ref().map(|c| c.model.clone());
+        if *said != Some(decided.clone()) {
+            // Every refusal is worth its line: it is why notes are interim,
+            // or why they wait.
+            for check in refused.iter().chain(chosen.as_ref()) {
+                diagnostics::log(check.describe(when));
+            }
+            *said = Some(decided);
+        }
+        if let Some(check) = chosen {
             if since.is_some() {
                 job.waiting(None);
             }
-            return Ok(());
+            return Ok(check.model);
+        }
+        if quality == Quality::Upgrade {
+            return Err(ROOM_GONE.into());
         }
 
+        let Some(check) = refused.pop() else {
+            return Err("no summary model to try".into());
+        };
         let started = *since.get_or_insert_with(crate::activity::now_ms);
         job.waiting(Some(MemoryWait {
+            model: check.model.clone(),
             needed_bytes: check.need.bytes,
             ram_available_bytes: check.machine.ram_available,
             gpu_free_bytes: check.machine.gpu.as_ref().map(crate::memory::Gpu::free),
             since: started,
+            hogs: crate::memory::hogs(HOGS_NAMED),
         }));
 
         // In short sleeps, so a choice is acted on at once rather than at
@@ -1217,6 +1291,21 @@ fn wait_for_ollama(job: &Tracked) -> Result<String, Option<String>> {
     }
 }
 
+/// End a summary that stopped before it was written: by Stop, by "later",
+/// or, for an upgrade, by its room going.
+fn give_up(job: &Tracked, quality: Quality, message: String) {
+    if job.stopping() {
+        // The user's own choice, logged as such; not a failure.
+        job.stop();
+    } else if quality == Quality::Upgrade {
+        diagnostics::log(format!("better notes put off: {message}"));
+        ACTIVITY.forget(job.id);
+        job.publish();
+    } else {
+        job.finish(Outcome::Failed { message });
+    }
+}
+
 /// Generate structured notes from the finished transcript.
 ///
 /// Best-effort and non-fatal. If no model is installed, or Ollama is not
@@ -1229,6 +1318,7 @@ fn synthesize(
     job: &Tracked,
     session_dir: &std::path::Path,
     note_path: &std::path::Path,
+    quality: Quality,
 ) {
     // Every early return says why. Returning quietly here once made a closed
     // Ollama indistinguishable from a feature that did not exist: the note
@@ -1239,7 +1329,7 @@ fn synthesize(
     // cold model to load is visibly this step rather than a stall.
     job.start(StepKind::Notes);
 
-    let model = match wait_for_ollama(job) {
+    let best = match wait_for_ollama(job) {
         Ok(model) => model,
         Err(Some(reason)) => {
             fail(reason);
@@ -1250,6 +1340,32 @@ fn synthesize(
             return;
         }
     };
+
+    // The chosen model, or a smaller one with room for it now. Asked once,
+    // here: every part of one meeting is written by the same model.
+    let models = match quality {
+        Quality::BestThatFits => crate::synthesis::ollama::ladder(
+            &best,
+            &crate::synthesis::ollama::OllamaProvider::list_models().unwrap_or_default(),
+            |m| crate::synthesis::ollama::footprint(m).bytes,
+        ),
+        Quality::Best | Quality::Upgrade => vec![best.clone()],
+    };
+    let mut said = None;
+    let model = match wait_for_room(job, &models, "before writing notes", quality, &mut said) {
+        Ok(model) => model,
+        Err(message) => {
+            give_up(job, quality, message);
+            return;
+        }
+    };
+    let interim = model != best;
+    if interim {
+        diagnostics::log(format!(
+            "no room for {best}: writing interim notes with {model}, to be rewritten when there is"
+        ));
+    }
+
     let id = job.id;
     let provider = crate::synthesis::ollama::OllamaProvider::new(model)
         .stop_when(std::sync::Arc::new(move || ACTIVITY.stopping(id)));
@@ -1275,7 +1391,7 @@ fn synthesize(
         store::context::apply_edits(&mut meeting, &text);
     }
 
-    let mut said = None;
+    let picked = [provider.model().to_string()];
     let result = crate::synthesis::generate(&provider, &meeting, |progress| {
         if job.stopping() {
             return Err(crate::synthesis::SynthesisError::Stopped("stopped".into()));
@@ -1295,19 +1411,15 @@ fn synthesize(
         } else {
             format!("before part {} of {}", progress.window, progress.total)
         };
-        wait_for_room(job, provider.model(), &when, &mut said)
+        wait_for_room(job, &picked, &when, quality, &mut said)
+            .map(|_| ())
             .map_err(crate::synthesis::SynthesisError::Stopped)
     });
 
-    let (generated, report) = match result {
+    let (mut generated, report) = match result {
         Ok(pair) => pair,
-        // The user's own choice, logged as such; not a failure.
-        Err(crate::synthesis::SynthesisError::Stopped(_)) if job.stopping() => {
-            job.stop();
-            return;
-        }
         Err(crate::synthesis::SynthesisError::Stopped(message)) => {
-            job.finish(Outcome::Failed { message });
+            give_up(job, quality, message);
             return;
         }
         Err(e) => {
@@ -1324,6 +1436,8 @@ fn synthesize(
         generated.action_items.len(),
         report.total_dropped()
     ));
+
+    generated.interim = interim;
 
     // Journal before rewriting, so a crash between the two replays to the
     // generated version rather than losing it.
@@ -1480,7 +1594,7 @@ fn spawn_repass(
             // beat none, and are what regenerating would give anyway.
             match &job {
                 Some(job) if job.stopping() => job.stop(),
-                Some(job) => synthesize(&app, job, &session_dir, &note_path),
+                Some(job) => synthesize(&app, job, &session_dir, &note_path, Quality::BestThatFits),
                 None => diagnostics::log("summary skipped: the note already had a job"),
             }
 

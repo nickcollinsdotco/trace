@@ -11,6 +11,7 @@ const running: Job = {
   steps: [{ kind: "notes", startedAt: 1, finishedAt: null, failed: false, error: null }],
   waiting: null,
   stopping: false,
+  upgrade: false,
   outcome: null,
 };
 const done: Job = {

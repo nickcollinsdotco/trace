@@ -778,10 +778,15 @@ title: Nobody
 /// version, or discarded manually, cannot be regenerated and the user should
 /// be told rather than shown a silent no-op.
 #[tauri::command]
+///
+/// `best` writes them with the chosen model only, never a smaller one — the
+/// note's offer to replace interim notes. The UI has already shown what that
+/// needs (`summary_room`) and had a yes, so it does not wait for memory.
 pub async fn regenerate_notes(
     app: AppHandle,
     manager: State<'_, CaptureManager>,
     note_path: String,
+    best: Option<bool>,
 ) -> CmdResult<()> {
     let sessions = manager.sessions_root().map_err(err)?;
     let path = PathBuf::from(&note_path);
@@ -790,7 +795,12 @@ pub async fn regenerate_notes(
     // Off the async runtime: synthesis on a long meeting is seconds to
     // minutes of blocking work.
     tauri::async_runtime::spawn_blocking(move || {
-        crate::capture_manager::regenerate(&app, &session_dir, &path)
+        let quality = if best == Some(true) {
+            crate::capture_manager::Quality::Best
+        } else {
+            crate::capture_manager::Quality::BestThatFits
+        };
+        crate::capture_manager::regenerate(&app, &session_dir, &path, quality)
     })
     .await
     .map_err(err)?
@@ -819,6 +829,48 @@ pub fn note_edited(note_path: String) -> bool {
         .unwrap_or(false)
 }
 
+/// Whether the chosen summary model has room now, and if not, what is short
+/// and what holds it.
+#[derive(Debug, serde::Serialize)]
+pub struct SummaryRoom {
+    pub model: String,
+    pub fits: bool,
+    pub needed_bytes: u64,
+    pub ram_available_bytes: u64,
+    pub gpu_free_bytes: Option<u64>,
+    pub hogs: Vec<crate::memory::Hog>,
+}
+
+/// Asked before writing notes with the chosen model on request, so the user
+/// sees what it needs before it loads rather than after the machine slows.
+/// `None` when there is no model to ask about.
+#[tauri::command]
+pub async fn summary_room() -> Option<SummaryRoom> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let crate::synthesis::ollama::Readiness::Ready { model } =
+            crate::synthesis::ollama::Readiness::check()
+        else {
+            return None;
+        };
+        let check = crate::memory::check(&model);
+        Some(SummaryRoom {
+            fits: check.fits(),
+            needed_bytes: check.need.bytes,
+            ram_available_bytes: check.machine.ram_available,
+            gpu_free_bytes: check.machine.gpu.as_ref().map(crate::memory::Gpu::free),
+            hogs: if check.fits() {
+                Vec::new()
+            } else {
+                crate::memory::hogs(3)
+            },
+            model,
+        })
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
 /// Whether this note's journal still exists, so regeneration would work.
 ///
 /// The UI asks before offering the control. Finding out that a button does
@@ -838,7 +890,7 @@ pub fn can_regenerate(manager: State<'_, CaptureManager>, note_path: String) -> 
 /// Fails clearly when the journal is gone: notes written before the journal
 /// survived finalisation, or discarded by hand, cannot be regenerated and the
 /// user should be told rather than shown a silent no-op.
-fn replayable_session(
+pub fn replayable_session(
     sessions: &std::path::Path,
     note: &std::path::Path,
 ) -> Result<PathBuf, String> {

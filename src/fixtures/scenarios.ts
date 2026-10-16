@@ -28,10 +28,12 @@ import type { BackendState, ScriptedEvent } from "./backend";
 import {
   NOTE_ENHANCED,
   NOTE_FRESH,
+  NOTE_INTERIM,
   NOTE_LONG,
   NOTE_NOTHING,
   NOTE_RAW,
   NOTE_TRANSCRIPT_ONLY,
+  NOTE_UPGRADED,
 } from "./notes";
 
 export type ScreenName =
@@ -305,6 +307,7 @@ function jobAt(
     })),
     waiting: waiting && { ...waiting, since: waiting.since - at },
     stopping: false,
+    upgrade: false,
     outcome,
   };
 }
@@ -330,14 +333,21 @@ const QUEUED: Job[] = [
 const GIB = 1024 ** 3;
 
 /**
- * What the machine that froze looked like: a 14B wanting ~10.6 GiB, with a
- * call, Figma and Broadcast holding most of the card and the memory.
+ * What the machine that froze looked like, with no room even for the 8B
+ * that would have written interim notes: Figma with old files open, a
+ * browser and Broadcast holding most of the card and the memory.
  */
 const SHORT_OF_MEMORY: MemoryWait = {
-  neededBytes: 10.6 * GIB,
+  model: "qwen3:8b",
+  neededBytes: 5.9 * GIB,
   ramAvailableBytes: 4.2 * GIB,
-  gpuFreeBytes: 5.1 * GIB,
+  gpuFreeBytes: 2.1 * GIB,
   since: -40_000,
+  hogs: [
+    { name: "Figma", gpuBytes: 7.0 * GIB, ramBytes: 3.4 * GIB },
+    { name: "chrome", gpuBytes: 3.1 * GIB, ramBytes: 2.7 * GIB },
+    { name: "NVIDIA Broadcast", gpuBytes: 0.8 * GIB, ramBytes: 0.1 * GIB },
+  ],
 };
 
 /** The full-quality pass done, and the notes held back for memory. */
@@ -1185,7 +1195,7 @@ export const SCENARIOS: Scenario[] = [
     id: "note-waiting-memory",
     name: "Waiting for memory",
     group: "Reading",
-    note: "Loading the summary model now could tip the machine over, so the notes wait. The numbers say why; Write notes anyway and Later both work here.",
+    note: "No room even for the 8B that would write interim notes, so the notes wait. The headline names the app holding most, and the apps using the most are listed; Write notes anyway and Later both work here.",
     screen: "note",
     notePath: PATHS.pricing,
     state: {
@@ -1233,6 +1243,71 @@ export const SCENARIOS: Scenario[] = [
               "put off until there is memory for the summary model. Close some apps, then write them from this note",
           },
         ),
+      ],
+    },
+  },
+  {
+    id: "note-interim",
+    name: "Interim notes",
+    group: "Reading",
+    note: "Written by the 8B because the 14B had no room when the meeting ended. The line under the title says so; write them now replaces them with the 14B's, which fits here.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: {
+      ...POPULATED,
+      bodies: { ...BODIES, [PATHS.pricing]: NOTE_INTERIM },
+      afterGenerate: { [PATHS.pricing]: NOTE_UPGRADED },
+    },
+  },
+  {
+    id: "note-interim-no-room",
+    name: "Interim notes, no room yet",
+    group: "Reading",
+    note: "Write them now with the 14B still short of memory: the confirmation says what it needs, what is free and which apps hold the rest, before anything loads.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    dialog: {
+      title: "Not enough free memory for qwen3:14b",
+      body: [
+        "It needs 10.1 GiB. Free now: 4.2 GiB of memory, 2.1 GiB on the graphics card.",
+        "Using the most: Figma 7.0 GiB graphics, 3.4 GiB memory · chrome 3.1 GiB graphics, 2.7 GiB memory.",
+        "Writing them now may slow this computer right down while the model loads. Left alone, TRACE writes them by itself when this computer is idle.",
+      ],
+      confirm: "Write them now",
+    },
+    state: {
+      ...POPULATED,
+      bodies: { ...BODIES, [PATHS.pricing]: NOTE_INTERIM },
+      summaryRoom: {
+        model: "qwen3:14b",
+        fits: false,
+        neededBytes: 10.1 * GIB,
+        ramAvailableBytes: 4.2 * GIB,
+        gpuFreeBytes: 2.1 * GIB,
+        hogs: SHORT_OF_MEMORY.hogs,
+      },
+    },
+  },
+  {
+    id: "note-upgrading",
+    name: "Better notes, while idle",
+    group: "Reading",
+    note: "Nobody has touched the machine for five minutes and the 14B fits on the card, so it is rewriting the interim notes by itself. The line says writing better notes; Stop leaves the interim ones.",
+    screen: "note",
+    notePath: PATHS.pricing,
+    state: {
+      ...POPULATED,
+      bodies: { ...BODIES, [PATHS.pricing]: NOTE_INTERIM },
+      activity: [
+        {
+          ...jobAt(0, PRICING_JOB, [
+            { step: PART(1), from: -38_000, to: -14_000 },
+            { step: PART(2), from: -14_000 },
+            { step: PART(3) },
+            { step: { kind: "combine" } },
+          ]),
+          upgrade: true,
+        },
       ],
     },
   },

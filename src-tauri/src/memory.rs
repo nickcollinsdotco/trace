@@ -299,7 +299,20 @@ fn largest_adapter() -> Option<(String, u64, String)> {
 /// Dedicated memory in use on one adapter, across every process.
 #[cfg(windows)]
 fn dedicated_usage(luid: &str) -> Option<u64> {
-    use windows::core::w;
+    let items = counter_items(windows::core::w!(
+        "\\GPU Adapter Memory(*)\\Dedicated Usage"
+    ))?;
+    let mine: Vec<u64> = items
+        .into_iter()
+        .filter(|(name, _)| name.starts_with(luid))
+        .map(|(_, bytes)| bytes)
+        .collect();
+    (!mine.is_empty()).then(|| mine.iter().sum())
+}
+
+/// Every instance of one performance counter, by lower-cased instance name.
+#[cfg(windows)]
+fn counter_items(path: windows::core::PCWSTR) -> Option<Vec<(String, u64)>> {
     use windows::Win32::System::Performance::{
         PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData, PdhGetFormattedCounterArrayW,
         PdhOpenQueryW, PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_LARGE, PDH_HCOUNTER, PDH_HQUERY,
@@ -319,13 +332,7 @@ fn dedicated_usage(luid: &str) -> Option<u64> {
         });
 
         let mut counter = PDH_HCOUNTER::default();
-        if PdhAddEnglishCounterW(
-            *close,
-            w!("\\GPU Adapter Memory(*)\\Dedicated Usage"),
-            0,
-            &mut counter,
-        ) != OK
-        {
+        if PdhAddEnglishCounterW(*close, path, 0, &mut counter) != OK {
             return None;
         }
         // A raw count, not a rate, so one sample is enough.
@@ -354,17 +361,149 @@ fn dedicated_usage(luid: &str) -> Option<u64> {
             return None;
         }
 
-        let mut used = 0u64;
-        let mut seen = false;
-        for item in &buffer[..count as usize] {
-            let name = item.szName.to_string().unwrap_or_default().to_lowercase();
-            if name.starts_with(luid) {
-                used += u64::try_from(item.FmtValue.Anonymous.largeValue).unwrap_or(0);
-                seen = true;
-            }
-        }
-        seen.then_some(used)
+        Some(
+            buffer[..count as usize]
+                .iter()
+                .map(|item| {
+                    (
+                        item.szName.to_string().unwrap_or_default().to_lowercase(),
+                        u64::try_from(item.FmtValue.Anonymous.largeValue).unwrap_or(0),
+                    )
+                })
+                .collect(),
+        )
     }
+}
+
+/// An app holding a share of the memory the summary model would need.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Hog {
+    /// The program's name as Windows has it, without `.exe`.
+    pub name: String,
+    /// Graphics memory, across all its processes. Zero where unreadable.
+    pub gpu_bytes: u64,
+    /// System memory it has resident now, across all its processes.
+    pub ram_bytes: u64,
+}
+
+/// Below this, an app is not worth naming: closing it would not make room.
+const HOG_MIN: u64 = GIB / 2;
+
+/// Windows itself, which nobody can close: the compositor alone holds a
+/// gigabyte of the card on a 4K screen, and naming it would be no help.
+const NOT_CLOSABLE: &[&str] = &[
+    "dwm",
+    "csrss",
+    "System",
+    "Registry",
+    "Memory Compression",
+    "explorer",
+    "svchost",
+    "MsMpEng",
+];
+
+/// The apps holding the most memory now, largest first, at most `count`.
+///
+/// "Close some apps" asks the user to guess, and the guess is usually wrong:
+/// the app that filled the machine on 2026-10-15 was a design tool with old
+/// files open — 7 GB of the graphics card and most of the RAM — not the
+/// call. Naming it turns a vague chore into one obvious thing to close.
+///
+/// Resident memory rather than committed: an app with most of its memory
+/// paged out is not what is short, and would be named for nothing. TRACE
+/// itself and Ollama are left out — they are what the room is for — and so
+/// is Windows.
+pub fn hogs(count: usize) -> Vec<Hog> {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+
+    let mut sys = System::new();
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_memory(),
+    );
+    let gpu = gpu_by_process();
+    let own = std::process::id();
+
+    let mut by_name: Vec<Hog> = Vec::new();
+    for (pid, process) in sys.processes() {
+        if pid.as_u32() == own {
+            continue;
+        }
+        let name = process.name().to_string_lossy();
+        let name = name.strip_suffix(".exe").unwrap_or(&name).to_string();
+        if name.to_lowercase().starts_with("ollama")
+            || NOT_CLOSABLE.iter().any(|n| n.eq_ignore_ascii_case(&name))
+        {
+            continue;
+        }
+        let gpu_bytes = gpu
+            .iter()
+            .find(|(p, _)| *p == pid.as_u32())
+            .map_or(0, |(_, b)| *b);
+        match by_name
+            .iter_mut()
+            .find(|h| h.name.eq_ignore_ascii_case(&name))
+        {
+            Some(hog) => {
+                hog.gpu_bytes += gpu_bytes;
+                hog.ram_bytes += process.memory();
+            }
+            None => by_name.push(Hog {
+                name,
+                gpu_bytes,
+                ram_bytes: process.memory(),
+            }),
+        }
+    }
+    rank_hogs(by_name, count)
+}
+
+/// Biggest first by what they hold of either kind; the small ones dropped.
+fn rank_hogs(mut hogs: Vec<Hog>, count: usize) -> Vec<Hog> {
+    hogs.retain(|h| h.gpu_bytes + h.ram_bytes >= HOG_MIN);
+    hogs.sort_by_key(|h| std::cmp::Reverse(h.gpu_bytes + h.ram_bytes));
+    hogs.truncate(count);
+    hogs
+}
+
+/// Dedicated graphics memory per process id, on the card Ollama would use.
+#[cfg(windows)]
+fn gpu_by_process() -> Vec<(u32, u64)> {
+    let Some((_, _, luid)) = largest_adapter() else {
+        return Vec::new();
+    };
+    let Some(items) = counter_items(windows::core::w!(
+        "\\GPU Process Memory(*)\\Dedicated Usage"
+    )) else {
+        return Vec::new();
+    };
+    let mut out: Vec<(u32, u64)> = Vec::new();
+    for (name, bytes) in items {
+        // `pid_1234_luid_0x…_0x…_phys_0`
+        let Some(rest) = name.strip_prefix("pid_") else {
+            continue;
+        };
+        let Some((pid, adapter)) = rest.split_once('_') else {
+            continue;
+        };
+        let Ok(pid) = pid.parse::<u32>() else {
+            continue;
+        };
+        if !adapter.starts_with(&luid) {
+            continue;
+        }
+        match out.iter_mut().find(|(p, _)| *p == pid) {
+            Some((_, b)) => *b += bytes,
+            None => out.push((pid, bytes)),
+        }
+    }
+    out
+}
+
+#[cfg(not(windows))]
+fn gpu_by_process() -> Vec<(u32, u64)> {
+    Vec::new()
 }
 
 #[cfg(test)]
@@ -501,6 +640,49 @@ mod tests {
         assert!(m.ram_total > 0 && m.ram_available <= m.ram_total);
         if let Some(g) = &m.gpu {
             assert!(g.total >= GIB, "{g:?}");
+        }
+    }
+
+    fn hog(name: &str, gpu: u64, ram: u64) -> Hog {
+        Hog {
+            name: name.into(),
+            gpu_bytes: gpu,
+            ram_bytes: ram,
+        }
+    }
+
+    #[test]
+    fn hogs_are_ranked_by_all_they_hold_and_small_ones_left_out() {
+        let ranked = rank_hogs(
+            vec![
+                hog("chrome", 4 * GIB, 3 * GIB),
+                hog("Figma", 7 * GIB, 3 * GIB),
+                hog("notepad", 0, GIB / 8),
+                hog("Teams", 0, GIB),
+            ],
+            3,
+        );
+        let names: Vec<&str> = ranked.iter().map(|h| h.name.as_str()).collect();
+        assert_eq!(names, ["Figma", "chrome", "Teams"]);
+        assert_eq!(rank_hogs(vec![hog("notepad", 0, GIB / 8)], 3), vec![]);
+    }
+
+    #[test]
+    fn the_apps_on_this_machine_can_be_named() {
+        // Smoke test against the real machine. Not that something is named:
+        // a bare CI runner has nothing holding half a gigabyte. But nothing
+        // is named twice, nothing small, and never Windows itself.
+        let hogs = super::hogs(5);
+        assert!(hogs.len() <= 5);
+        for (i, h) in hogs.iter().enumerate() {
+            assert!(!hogs[..i]
+                .iter()
+                .any(|o| o.name.eq_ignore_ascii_case(&h.name)));
+            assert!(
+                !NOT_CLOSABLE.iter().any(|n| n.eq_ignore_ascii_case(&h.name)),
+                "{h:?}"
+            );
+            assert!(h.gpu_bytes + h.ram_bytes >= HOG_MIN, "{h:?}");
         }
     }
 }

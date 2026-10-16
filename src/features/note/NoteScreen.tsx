@@ -10,11 +10,12 @@ import {
 } from "../../components/ui/Suggestions";
 import { TopBar, useScrolledPast } from "../../components/ui/TopBar";
 import { Collapsible, Prompt, SectionHead } from "../../components/ui/terminal";
+import { formatBytes } from "../../lib/format";
 import { hasBackend, ipc, type LlmStatus, type NoteContext } from "../../lib/ipc";
 import { tagCounts } from "../library/query";
 import { LlmNotice } from "../llm/LlmNotice";
 import { useLlmStatus } from "../llm/useLlmStatus";
-import { RefinementNotice } from "./RefinementNotice";
+import { hogList, RefinementNotice } from "./RefinementNotice";
 import { parseProvenance, splitParts, splitSections, splitTitle } from "./sections";
 import { useNoteRefinement } from "./useNoteRefinement";
 
@@ -129,10 +130,39 @@ export function NoteScreen({
     if (busy && !picked) setView("enhanced");
   }, [busy, picked]);
 
-  async function regenerate() {
+  /**
+   * `best`: with the chosen model only, replacing interim notes. When it has
+   * no room now, the user is told what it needs and what holds the memory
+   * before anything loads — the freeze the memory check exists to prevent
+   * is one press away otherwise.
+   */
+  async function regenerate(best = false) {
     // Busy from the press, so a second one cannot slip in while asking.
     setRequesting(true);
     setError(null);
+    if (best && hasBackend()) {
+      const room = await ipc.summaryRoom().catch(() => null);
+      if (
+        room &&
+        !room.fits &&
+        !(await confirm({
+          title: `Not enough free memory for ${room.model}`,
+          body: [
+            `It needs ${formatBytes(room.neededBytes)}. Free now: ${formatBytes(room.ramAvailableBytes)} of memory${
+              room.gpuFreeBytes === null
+                ? ""
+                : `, ${formatBytes(room.gpuFreeBytes)} on the graphics card`
+            }.`,
+            ...(room.hogs.length > 0 ? [`Using the most: ${hogList(room.hogs)}.`] : []),
+            "Writing them now may slow this computer right down while the model loads. Left alone, TRACE writes them by itself when this computer is idle.",
+          ],
+          confirm: "Write them now",
+        }))
+      ) {
+        setRequesting(false);
+        return;
+      }
+    }
     // The body is written afresh, so prose changed in another editor would
     // go. A copy is kept regardless; asking first is for the edits' sake.
     const edited = hasBackend() && (await ipc.noteEdited(path).catch(() => false));
@@ -151,7 +181,7 @@ export function NoteScreen({
       return;
     }
     try {
-      await ipc.regenerateNotes(path);
+      await ipc.regenerateNotes(path, best);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -203,7 +233,7 @@ export function NoteScreen({
                 setPicked(true);
                 setView(v);
               }}
-              onRegenerate={regenerate}
+              onRegenerate={() => void regenerate()}
               regenerating={busy}
               replayable={replayable}
             />
@@ -291,6 +321,15 @@ export function NoteScreen({
 
       <RefinementNotice job={job} />
 
+      {sections?.hasEnhanced && !busy && isInterim(text) && (
+        <InterimNotice
+          written={parseProvenance(sections.footer)?.model ?? null}
+          best={llm.status?.state === "ready" ? llm.status.model : null}
+          replayable={replayable}
+          onWrite={() => void regenerate(true)}
+        />
+      )}
+
       {sections && <Tags path={path} onSearchTag={onSearchTag} />}
 
       {hasBackend() && sections && (
@@ -322,7 +361,7 @@ export function NoteScreen({
               <NotEnhancedYet
                 llm={llm.status}
                 onRecheck={llm.recheck}
-                onRegenerate={regenerate}
+                onRegenerate={() => void regenerate()}
                 regenerating={busy}
                 replayable={replayable}
               />
@@ -1076,6 +1115,54 @@ function NoteFoot({ footer, path }: { footer: string; path: string }) {
         <p data-selectable className="break-all">
           {path}
         </p>
+      )}
+    </div>
+  );
+}
+
+/** Whether the note says its generated half is interim. */
+function isInterim(markdown: string | null): boolean {
+  if (markdown === null) return false;
+  return /^interim:\s*["']?true["']?\s*$/m.test(splitFrontmatter(markdown).frontmatter);
+}
+
+/**
+ * Notes written by a smaller model because the chosen one had no room when
+ * the meeting ended.
+ *
+ * Said, rather than left for the footer to reveal: on real meetings the 8B
+ * padded the decisions with things nobody decided and lost track of who
+ * said what, and the reader should weigh it accordingly. The better version
+ * comes by itself when the machine is idle; the button is for someone who
+ * wants it now.
+ */
+function InterimNotice({
+  written,
+  best,
+  replayable,
+  onWrite,
+}: {
+  written: string | null;
+  best: string | null;
+  replayable: boolean;
+  onWrite: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-2xs text-ink-muted">
+      <span>
+        <span aria-hidden>✦ </span>
+        interim notes{written && `, by ${written}`} — there was no room for{" "}
+        {best ?? "the chosen model"} when the meeting ended. Better ones are written when this
+        computer is idle.
+      </span>
+      {best && hasBackend() && replayable && (
+        <button
+          type="button"
+          onClick={onWrite}
+          className="trace-control shrink-0 text-ink-muted trace-press hover:text-ink"
+        >
+          write them now
+        </button>
       )}
     </div>
   );

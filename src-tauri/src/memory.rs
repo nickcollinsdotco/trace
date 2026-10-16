@@ -669,14 +669,20 @@ mod tests {
 
     #[test]
     fn the_apps_on_this_machine_can_be_named() {
-        // Smoke test: on any machine running these tests, something holds
-        // half a gigabyte, and nothing is named twice.
+        // Smoke test against the real machine. Not that something is named:
+        // a bare CI runner has nothing holding half a gigabyte. But nothing
+        // is named twice, nothing small, and never Windows itself.
         let hogs = super::hogs(5);
-        assert!(!hogs.is_empty());
+        assert!(hogs.len() <= 5);
         for (i, h) in hogs.iter().enumerate() {
             assert!(!hogs[..i]
                 .iter()
                 .any(|o| o.name.eq_ignore_ascii_case(&h.name)));
+            assert!(
+                !NOT_CLOSABLE.iter().any(|n| n.eq_ignore_ascii_case(&h.name)),
+                "{h:?}"
+            );
+            assert!(h.gpu_bytes + h.ram_bytes >= HOG_MIN, "{h:?}");
         }
     }
 }

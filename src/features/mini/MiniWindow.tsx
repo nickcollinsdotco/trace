@@ -310,7 +310,7 @@ export function MiniWindow({
                     type="button"
                     onClick={() => void ipc.showMain(null, false)}
                     title="Back to TRACE"
-                    className="flex min-w-0 shrink flex-col items-start text-left trace-press"
+                    className="flex min-w-0 shrink flex-col items-start text-left trace-press-text"
                   >
                     <span className="max-w-40 truncate text-sm text-ink">
                       {phase.status.title || "Untitled meeting"}
@@ -359,7 +359,7 @@ export function MiniWindow({
                     // Its own font-mono, so the theme's letter case reaches it:
                     // buttons reset text-transform, and "open" stayed lowercase
                     // in an all-capitals line.
-                    className="rounded-xs px-1.5 font-mono text-phosphor trace-press hover:underline"
+                    className="rounded-xs px-1.5 font-mono text-phosphor trace-press-text hover:underline"
                   >
                     open
                   </button>
@@ -454,7 +454,7 @@ function Offer({ onDone }: { onDone: () => void }) {
         <button
           type="button"
           onClick={onDone}
-          className="rounded-sm px-2.5 py-1 font-mono text-2xs text-ink-faint trace-press hover:text-ink"
+          className="rounded-sm px-2.5 py-1 font-mono text-2xs text-ink-faint trace-press-text hover:text-ink"
         >
           Not now
         </button>
@@ -526,7 +526,7 @@ function OptionsMenu({
             onClose();
             void ipc.showMain(null, false);
           }}
-          className="flex w-full items-center px-3 py-1.5 text-left text-xs text-ink-muted trace-press hover:bg-surface-3 hover:text-ink"
+          className="flex w-full items-center px-3 py-1.5 text-left text-xs text-ink-muted trace-press-row hover:bg-surface-3 hover:text-ink"
         >
           Open TRACE
         </button>
@@ -563,7 +563,7 @@ function MenuSwitch({
       role="menuitemcheckbox"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-center justify-between gap-6 px-3 py-2 text-left text-xs text-ink-muted trace-press hover:bg-surface-3 hover:text-ink"
+      className="flex w-full items-center justify-between gap-6 px-3 py-2 text-left text-xs text-ink-muted trace-press-row hover:bg-surface-3 hover:text-ink"
     >
       {children}
       <SwitchLook on={checked} />

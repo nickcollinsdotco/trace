@@ -228,7 +228,7 @@ export function SearchBar({
                 aria-label={`${SORT_LABEL[sort]} first — reverse`}
                 title={`${SORT_LABEL[reverseSort(sort)]} first`}
                 onClick={() => onChange(setSort(query, reverseSort(sort)))}
-                className="trace-control flex items-center gap-2 rounded-pill pr-2 pl-3 trace-press hover:text-ink"
+                className="trace-control flex items-center gap-2 rounded-pill pr-2 pl-3 trace-press-text hover:text-ink"
               >
                 <span aria-hidden>⇅</span>
                 {SORT_LABEL[sort]}

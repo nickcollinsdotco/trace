@@ -122,7 +122,7 @@ export function UpdateEntry({
             type="button"
             onClick={() => install(view.version)}
             title={`Download TRACE ${view.version} and install it. TRACE restarts to finish.`}
-            className="rounded-xs px-1 text-phosphor trace-press hover:underline"
+            className="rounded-xs px-1 text-phosphor trace-press-text hover:underline"
           >
             update available · v{view.version}
           </button>
@@ -149,7 +149,7 @@ export function UpdateEntry({
             type="button"
             onClick={() => view.version && install(view.version)}
             title={view.message}
-            className="rounded-xs px-1 text-warn trace-press hover:underline"
+            className="rounded-xs px-1 text-warn trace-press-text hover:underline"
           >
             download failed · retry
           </button>
@@ -163,7 +163,7 @@ export function UpdateEntry({
         onClick={check}
         disabled={busy}
         title="Check for updates"
-        className="rounded-xs trace-press enabled:hover:text-ink"
+        className="rounded-xs trace-press-text enabled:hover:text-ink"
       >
         v{version}
       </button>

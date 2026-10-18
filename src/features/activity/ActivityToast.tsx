@@ -108,7 +108,7 @@ export function ActivityToast({
             dismiss();
             onOpenNote(shown.notePath);
           }}
-          className="trace-control shrink-0 tracking-system text-phosphor trace-press hover:text-ink"
+          className="trace-control shrink-0 tracking-system text-phosphor trace-press-text hover:text-ink"
         >
           Open
         </button>
@@ -117,7 +117,7 @@ export function ActivityToast({
         type="button"
         aria-label="Dismiss"
         onClick={dismiss}
-        className="shrink-0 text-ink-faint trace-press hover:text-ink"
+        className="shrink-0 text-ink-faint trace-press-text hover:text-ink"
       >
         ×
       </button>

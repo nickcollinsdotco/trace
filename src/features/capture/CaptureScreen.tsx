@@ -472,7 +472,7 @@ function SetupPanel({
             type="button"
             onClick={onStart}
             disabled={starting}
-            className="flex w-full items-center justify-between gap-4 rounded-md border border-phosphor bg-phosphor-dim px-5 py-4 font-mono text-sm trace-control tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
+            className="flex w-full items-center justify-between gap-4 rounded-md border border-phosphor bg-phosphor-dim px-5 py-4 font-mono text-sm trace-control tracking-system text-phosphor trace-press trace-press-wide hover:bg-phosphor hover:text-surface-0 disabled:opacity-50"
           >
             <span className="flex items-center gap-3">
               <span aria-hidden className="inline-block size-2 rounded-full bg-current" />

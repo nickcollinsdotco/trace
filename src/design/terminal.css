@@ -569,49 +569,100 @@
 }
 
 /* ---------------------------------------------------------------------
- * Pressable controls.
+ * Pressing.
  *
- * Replaces `transition-colors duration-120` on every real button, and does
- * two things that class could not.
+ * Replaces `transition-colors duration-120` on every real button. It uses
+ * the project's own easing: Tailwind's transition utilities resolve to an
+ * ease-IN-out, which delays movement at the exact moment the user is
+ * watching, so a 120ms transition reads slower than it is.
  *
- * It uses the project's own easing. Tailwind's transition utilities resolve
- * to `--default-transition-timing-function`, which is an ease-IN-out — it
- * delays movement at the exact moment the user is watching, so a 120ms
- * transition reads slower than it is. `--ease-out` was defined at M0, is
- * emitted, and was read by three rules in the whole codebase; every button
- * used Tailwind's default instead.
+ * And it confirms the press — but not the same way for everything. One
+ * scale on every pressable was tried and was wrong three ways: a card or a
+ * menu row 700px wide shrinks by 20px and wobbles; a text link shrinking
+ * reads as the text glitching; and scaled type blurs on Windows, worst of
+ * all in the pixel faces. So a press says it was heard in the way that
+ * suits what was pressed:
  *
- * And it confirms the press. A control that does not move when pressed feels
- * like it did not hear you, which is the one motion detail people notice
- * consciously rather than in aggregate.
+ *   .trace-press        a control — a button, a pill, an icon. Modern: a
+ *                       small scale. Retro: the key bottoms out, a pixel
+ *                       down and never scaled, as hardware did.
+ *   .trace-press-wide   with .trace-press, on a control wide enough that
+ *                       the usual scale would lurch.
+ *   .trace-press-row    a card, a list row, a menu item, a nav entry. Does
+ *                       not move; the ground under it deepens at once.
+ *   .trace-press-text   words alone. Dim for the moment it is held.
+ *
+ * Asymmetric: the press lands at once, because the finger is already down
+ * and any delay reads as lag; the release eases back, because by then the
+ * user is watching what the press did, not the control.
  * ------------------------------------------------------------------ */
-.trace-press {
+.trace-press,
+.trace-press-row,
+.trace-press-text {
   transition:
     color var(--duration-fast) var(--ease-out),
     background-color var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out),
     opacity var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
+    box-shadow var(--duration-fast) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
 }
 
-/* Subtle — 0.97, not a bounce. Never on a disabled control, which by
-   definition did not hear you. */
-.trace-press:active:not(:disabled) {
-  transform: scale(0.97);
+/* Never on a disabled control, which by definition did not hear you. The
+   modern scale takes 80ms rather than none: a jump straight to 0.96 reads
+   as a flicker, not a press. */
+:is(.trace-press, .trace-press-row, .trace-press-text):active:not(:disabled) {
+  transition-duration: 0ms, 0ms, 0ms, 0ms, 0ms, 80ms;
+}
+
+[data-family="modern"] .trace-press:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+[data-family="modern"] .trace-press-wide:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+/* A key travels instantly; nothing about a 1987 keyboard eased. */
+[data-family="retro"] .trace-press:active:not(:disabled) {
+  transform: translateY(1px);
+  transition-duration: 0ms;
+}
+
+/* Unlayered, so it beats a row's own hover:bg-* utility while held. Not
+   when the press is on a control inside the row — a tag on a meeting card —
+   which answers for itself; :active reaches every ancestor. */
+.trace-press-row:active:not(:disabled):not(
+  :has(:is(.trace-press, .trace-press-text, .trace-press-row):active)
+) {
+  background-color: var(--color-surface-3);
+}
+
+/* Retro rows light up as a terminal selection does. */
+[data-family="retro"]
+.trace-press-row:active:not(:disabled):not(
+  :has(:is(.trace-press, .trace-press-text, .trace-press-row):active)
+) {
+  background-color: var(--color-phosphor-dim);
+}
+
+.trace-press-text:active:not(:disabled) {
+  opacity: 0.6;
 }
 
 /*
- * The press scale is movement, so reduced motion drops it.
+ * Movement goes under reduced motion, so a control dims instead, like text.
  *
  * This override lives here rather than beside the other reduced-motion rules
- * in tokens.css, and the reason is worth stating: both selectors have equal
- * specificity, so the later one wins, and tokens.css is imported first. Put
- * there, this rule was emitted BEFORE the scale it was meant to cancel and
- * did nothing at all. Found by reading the built CSS, not the source.
+ * in tokens.css, and the reason is worth stating: tokens.css is imported
+ * first, and at equal specificity the later rule wins. Put there, the old
+ * version of this rule was emitted BEFORE the scale it was meant to cancel
+ * and did nothing at all. Found by reading the built CSS, not the source.
  */
 @media (prefers-reduced-motion: reduce) {
-  .trace-press:active:not(:disabled) {
+  [data-family] .trace-press:active:not(:disabled) {
     transform: none;
+    opacity: 0.75;
   }
 }
 

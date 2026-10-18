@@ -65,7 +65,7 @@ export function RefinementNotice({ job }: { job: Job | null }) {
           type="button"
           aria-expanded={open}
           onClick={() => setOpen((o) => !o)}
-          className={`flex w-fit max-w-full items-baseline gap-2 rounded-xs text-left font-mono text-2xs trace-press ${
+          className={`flex w-fit max-w-full items-baseline gap-2 rounded-xs text-left font-mono text-2xs trace-press-text ${
             warn ? "text-warn" : "text-phosphor"
           }`}
         >
@@ -215,7 +215,7 @@ function StopButton({ job }: { job: Job }) {
         setSent(true);
         void ipc.stopNotes(job.notePath).catch(() => setSent(false));
       }}
-      className="trace-control shrink-0 font-mono text-2xs tracking-system text-ink-muted trace-press hover:text-ink disabled:opacity-60"
+      className="trace-control shrink-0 font-mono text-2xs tracking-system text-ink-muted trace-press-text hover:text-ink disabled:opacity-60"
     >
       {stopping ? "stopping…" : "stop"}
     </button>

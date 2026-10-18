@@ -315,7 +315,7 @@ export function Specimen() {
         actions={
           <button
             type="button"
-            className="trace-control font-mono text-2xs tracking-system text-ink-faint trace-press hover:text-ink"
+            className="trace-control font-mono text-2xs tracking-system text-ink-faint trace-press-text hover:text-ink"
           >
             Reset
           </button>

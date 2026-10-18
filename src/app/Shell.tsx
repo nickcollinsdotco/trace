@@ -240,7 +240,7 @@ function SidebarStrip({
         <button
           type="button"
           onClick={onRecording}
-          className="ml-auto flex items-center gap-2 rounded-sm px-2 py-1 font-mono text-2xs text-ink-muted trace-press hover:text-ink"
+          className="ml-auto flex items-center gap-2 rounded-sm px-2 py-1 font-mono text-2xs text-ink-muted trace-press-text hover:text-ink"
         >
           <span
             aria-hidden

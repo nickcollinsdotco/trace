@@ -133,7 +133,7 @@ export function SectionHead({
             aria-expanded={toggle.open}
             // Only while the body exists; closed, it is not in the DOM.
             aria-controls={toggle.open ? toggle.controls : undefined}
-            className="flex items-center gap-1.5 rounded-xs trace-press hover:[&_.trace-system-label]:text-ink"
+            className="flex items-center gap-1.5 rounded-xs trace-press-text hover:[&_.trace-system-label]:text-ink"
           >
             <span aria-hidden className="w-2.5 font-mono text-2xs text-ink-faint">
               {toggle.open ? "▾" : "▸"}

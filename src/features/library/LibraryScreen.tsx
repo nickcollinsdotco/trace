@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConfirm } from "../../components/ui/Confirm";
+import { type MenuEntry, useContextMenu } from "../../components/ui/ContextMenu";
 import { Page } from "../../components/ui/Page";
 import { Popover, PopoverItem } from "../../components/ui/Popover";
 import { RenameInput } from "../../components/ui/RenameInput";
@@ -620,8 +621,26 @@ function NoteRow({
   const list = view === "list";
   const waiting = job !== null && isWaitingForMemory(job);
 
+  // The ⋯ menu's actions and more, under the right button too: where people
+  // reach first for "do something to this one" on Windows.
+  const menu = useContextMenu(`Actions for ${note.title}`, () => [
+    { label: "Open", onSelect: () => onOpen(note.path) },
+    ...(hasBackend()
+      ? ([
+          { label: "Rename", hint: "F2", disabled: busy, onSelect: () => setRenaming(true) },
+          {
+            label: "Show in File Explorer",
+            onSelect: () => void ipc.revealNote(note.path).catch(() => {}),
+          },
+          "divider",
+          { label: "Delete", danger: true, disabled: busy, onSelect: () => void remove() },
+        ] satisfies MenuEntry[])
+      : []),
+  ]);
+
   return (
     <div
+      {...menu}
       data-note-row
       className={`group flex items-start gap-4 rounded-md border border-dashed px-3 trace-press-row hover:bg-surface-2 focus-within:bg-surface-2 ${
         job === null ? "border-transparent" : waiting ? "border-warn/60" : "border-phosphor/40"
@@ -804,35 +823,53 @@ function SearchResults({
     // many there are, and saying it twice read as two different numbers.
     <section aria-label="Search results" className="flex flex-col gap-1">
       {hits.map((hit) => (
-        <button
-          key={hit.path}
-          type="button"
-          onClick={() => onOpen(hit.path)}
-          className="group flex flex-col gap-1 rounded-sm px-2 py-2 text-left trace-press-row hover:bg-surface-2"
-        >
-          <span className="flex items-baseline gap-3">
-            <span className="trace-title min-w-0 flex-1 truncate text-base text-ink group-hover:text-phosphor">
-              {hit.title}
-            </span>
-            <span className="flex shrink-0 items-baseline gap-2 font-mono text-2xs tracking-system text-ink-faint">
-              {hit.tags.map((t) => (
-                <span
-                  key={t}
-                  className="trace-tag rounded-sm bg-phosphor-dim px-1.5 py-0.5 text-phosphor"
-                >
-                  {t}
-                </span>
-              ))}
-              {hit.type !== "general" && <span className="trace-caps-label">{hit.type}</span>}
-            </span>
-          </span>
-          {hit.snippet && (
-            <span className="line-clamp-2 font-mono text-2xs leading-relaxed text-ink-muted">
-              {hit.snippet}
-            </span>
-          )}
-        </button>
+        <SearchHitRow key={hit.path} hit={hit} onOpen={onOpen} />
       ))}
     </section>
+  );
+}
+
+function SearchHitRow({ hit, onOpen }: { hit: SearchHit; onOpen: (path: string) => void }) {
+  const menu = useContextMenu(`Actions for ${hit.title}`, () => [
+    { label: "Open", onSelect: () => onOpen(hit.path) },
+    ...(hasBackend()
+      ? [
+          {
+            label: "Show in File Explorer",
+            onSelect: () => void ipc.revealNote(hit.path).catch(() => {}),
+          },
+        ]
+      : []),
+  ]);
+
+  return (
+    <button
+      {...menu}
+      type="button"
+      onClick={() => onOpen(hit.path)}
+      className="group flex flex-col gap-1 rounded-sm px-2 py-2 text-left trace-press-row hover:bg-surface-2"
+    >
+      <span className="flex items-baseline gap-3">
+        <span className="trace-title min-w-0 flex-1 truncate text-base text-ink group-hover:text-phosphor">
+          {hit.title}
+        </span>
+        <span className="flex shrink-0 items-baseline gap-2 font-mono text-2xs tracking-system text-ink-faint">
+          {hit.tags.map((t) => (
+            <span
+              key={t}
+              className="trace-tag rounded-sm bg-phosphor-dim px-1.5 py-0.5 text-phosphor"
+            >
+              {t}
+            </span>
+          ))}
+          {hit.type !== "general" && <span className="trace-caps-label">{hit.type}</span>}
+        </span>
+      </span>
+      {hit.snippet && (
+        <span className="line-clamp-2 font-mono text-2xs leading-relaxed text-ink-muted">
+          {hit.snippet}
+        </span>
+      )}
+    </button>
   );
 }

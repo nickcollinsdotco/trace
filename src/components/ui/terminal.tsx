@@ -10,6 +10,7 @@
  */
 
 import { type ReactNode, useEffect, useId, useState } from "react";
+import { type MenuEntry, useContextMenu } from "./ContextMenu";
 
 /* ------------------------------------------------------------------ *
  * SystemLabel — uppercase, tracked, monospace. The workhorse.
@@ -163,17 +164,24 @@ export function SectionHead({
 export function Collapsible({
   title,
   defaultOpen = true,
+  menu: extra = [],
   children,
 }: {
   title: string;
   defaultOpen?: boolean;
+  /** Right-click actions of its own, above the open and close every one has. */
+  menu?: MenuEntry[];
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const id = useId();
+  const menu = useContextMenu(title, () => [
+    ...extra,
+    { label: open ? "Collapse" : "Expand", onSelect: () => setOpen((o) => !o) },
+  ]);
 
   return (
-    <section className="trace-section" data-open={open}>
+    <section {...menu} className="trace-section" data-open={open}>
       <SectionHead
         title={title}
         toggle={{ open, onToggle: () => setOpen((o) => !o), controls: id }}

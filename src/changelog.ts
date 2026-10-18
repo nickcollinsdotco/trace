@@ -26,6 +26,21 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.41.0",
+    date: "2026-10-18",
+    title: "Right-click menus",
+    notes: [
+      "Right-click a meeting in the library for Open, Rename, Show in File Explorer and Delete; a search result for Open and Show in File Explorer; a tag on a note to find the others or remove it; a section of a note to copy it or fold it away; Mini window in the sidebar to bring it back to its corner.",
+      "The menu key and Shift+F10 open the same menus, and the arrow keys move through them.",
+      "The browser's own menu — Back, Refresh, Print — is gone, except in text fields and over selected text, where Copy and Paste still are.",
+    ],
+    screens: {
+      library: "Right-click a meeting. Try a retro theme too: the menu wears it.",
+      "note-enhanced":
+        "Right-click a section to copy it or collapse it, and a tag to find or remove it.",
+    },
+  },
+  {
     version: "0.40.0",
     date: "2026-10-18",
     title: "Presses that suit what was pressed",

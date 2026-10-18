@@ -85,7 +85,7 @@ export function Popover({
           if (!open) onOpen?.();
           setOpen((o) => !o);
         }}
-        className="flex min-w-0 items-center gap-2 rounded-xs trace-press hover:text-ink"
+        className="flex min-w-0 items-center gap-2 rounded-xs trace-press-text hover:text-ink"
       >
         {trigger}
       </button>
@@ -131,7 +131,7 @@ export function PopoverItem({
       aria-current={current ? "true" : undefined}
       disabled={disabled}
       onClick={onSelect}
-      className={`flex items-baseline gap-2 px-3 py-2 text-left font-mono text-2xs trace-press hover:bg-surface-2 disabled:opacity-50 disabled:hover:bg-transparent ${
+      className={`flex items-baseline gap-2 px-3 py-2 text-left font-mono text-2xs trace-press-row hover:bg-surface-2 disabled:opacity-50 disabled:hover:bg-transparent ${
         current ? "text-phosphor" : "text-ink hover:text-phosphor"
       }`}
     >

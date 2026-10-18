@@ -126,7 +126,7 @@ export function AppearanceScreen() {
             <button
               type="button"
               onClick={reset}
-              className="trace-control font-mono text-2xs tracking-system text-ink-faint trace-press hover:text-ink"
+              className="trace-control font-mono text-2xs tracking-system text-ink-faint trace-press-text hover:text-ink"
             >
               Reset {appearance.theme}
             </button>
@@ -330,7 +330,7 @@ function ThemeRow({
       onClick={onChoose}
       onMouseEnter={onPoint}
       onFocus={onPoint}
-      className={`flex items-center gap-3 rounded-sm px-2 py-1.5 text-left trace-press ${
+      className={`flex items-center gap-3 rounded-sm px-2 py-1.5 text-left trace-press-row ${
         selected
           ? "bg-phosphor-dim text-phosphor"
           : "text-ink-muted hover:bg-surface-2 hover:text-ink"

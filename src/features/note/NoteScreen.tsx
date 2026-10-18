@@ -532,7 +532,7 @@ function AboutMeeting({
         type="button"
         onClick={open}
         title="Edit what TRACE knows about this meeting"
-        className="group flex flex-col gap-1 self-stretch rounded-sm border border-line px-3 py-2 text-left trace-press hover:border-phosphor"
+        className="group flex flex-col gap-1 self-stretch rounded-sm border border-line px-3 py-2 text-left trace-press-row hover:border-phosphor"
       >
         {about.participants.length > 0 && (
           <span className="flex items-baseline gap-2">
@@ -693,7 +693,7 @@ function ViewToggle({
                 ? "Notes for this meeting are being written"
                 : "Generate the notes again from the transcript"
           }
-          className="ml-1 rounded-sm px-2 py-1 font-mono text-2xs text-ink-faint trace-press hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-ink-faint"
+          className="ml-1 rounded-sm px-2 py-1 font-mono text-2xs text-ink-faint trace-press-text hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-ink-faint"
         >
           ↻
         </button>
@@ -1124,7 +1124,7 @@ function NoteFoot({ footer, path }: { footer: string; path: string }) {
           type="button"
           onClick={() => void ipc.revealNote(path).catch(() => {})}
           title="Show in folder"
-          className="self-start break-all text-left trace-press hover:text-ink"
+          className="self-start break-all text-left trace-press-text hover:text-ink"
         >
           {path}
         </button>
@@ -1176,7 +1176,7 @@ function InterimNotice({
         <button
           type="button"
           onClick={onWrite}
-          className="trace-control shrink-0 text-ink-muted trace-press hover:text-ink"
+          className="trace-control shrink-0 text-ink-muted trace-press-text hover:text-ink"
         >
           write them now
         </button>

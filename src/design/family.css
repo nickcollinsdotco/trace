@@ -98,11 +98,9 @@
 }
 
 /*
- * A retro button pressed seats like a key bottoming out: down a pixel, a
- * line of shadow along its top edge. The modern family keeps the soft
- * scale every press has (.trace-press).
+ * A retro button bottoming out (.trace-press moves it down a pixel) also
+ * takes a line of shadow along its top edge, as a key seated in its well.
  */
 [data-family="retro"] .trace-btn:active:not(:disabled) {
-  transform: translateY(1px);
   box-shadow: inset 0 2px 0 rgb(0 0 0 / 45%);
 }

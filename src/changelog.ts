@@ -26,6 +26,18 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.40.0",
+    date: "2026-10-18",
+    title: "Presses that suit what was pressed",
+    notes: [
+      "Pressing no longer shrinks everything. Cards, list rows, menu items and the sidebar stay still and darken under the press; text links dim. Buttons in modern themes still give a little, quicker; in retro themes they go down a pixel like a key, and are never scaled, so pixel type stays sharp.",
+    ],
+    screens: {
+      library:
+        "Press a meeting: the card darkens rather than shrinking. Switch to a retro theme and press a button — it moves down a pixel.",
+    },
+  },
+  {
     version: "0.39.0",
     date: "2026-10-18",
     title: "Things arrive rather than appear",

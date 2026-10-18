@@ -53,7 +53,7 @@ function Changelog() {
         <button
           type="button"
           onClick={() => setAll(!all)}
-          className="self-start rounded-sm px-1 text-ink-faint trace-press hover:text-ink"
+          className="self-start rounded-sm px-1 text-ink-faint trace-press-text hover:text-ink"
         >
           {all ? "fewer" : `all ${CHANGELOG.length} versions`}
         </button>
@@ -78,7 +78,7 @@ function Entry({ change, current, fresh }: { change: Change; current: boolean; f
           type="button"
           onClick={() => setOpen(!open)}
           aria-expanded={open}
-          className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-xs text-left trace-press hover:[&_.trace-entry-title]:text-phosphor"
+          className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-xs text-left trace-press-row hover:[&_.trace-entry-title]:text-phosphor"
         >
           <span aria-hidden className="w-2.5 text-2xs text-ink-faint">
             {open ? "▾" : "▸"}

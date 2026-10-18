@@ -511,7 +511,7 @@ function EmptyState({ root, onNewMeeting }: { root: string; onNewMeeting: () => 
       <button
         type="button"
         onClick={onNewMeeting}
-        className="flex items-center gap-3 rounded-md border border-phosphor bg-phosphor-dim px-5 py-3 font-mono text-sm trace-control tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0"
+        className="flex items-center gap-3 rounded-md border border-phosphor bg-phosphor-dim px-5 py-3 font-mono text-sm trace-control tracking-system text-phosphor trace-press trace-press-wide hover:bg-phosphor hover:text-surface-0"
       >
         <span aria-hidden className="inline-block size-2 rounded-full bg-current" />
         Start a meeting
@@ -623,7 +623,7 @@ function NoteRow({
   return (
     <div
       data-note-row
-      className={`group flex items-start gap-4 rounded-md border border-dashed px-3 trace-press hover:bg-surface-2 focus-within:bg-surface-2 ${
+      className={`group flex items-start gap-4 rounded-md border border-dashed px-3 trace-press-row hover:bg-surface-2 focus-within:bg-surface-2 ${
         job === null ? "border-transparent" : waiting ? "border-warn/60" : "border-phosphor/40"
       } ${list ? "py-3" : "py-2"} ${busy ? "opacity-50" : ""}`}
     >
@@ -808,7 +808,7 @@ function SearchResults({
           key={hit.path}
           type="button"
           onClick={() => onOpen(hit.path)}
-          className="group flex flex-col gap-1 rounded-sm px-2 py-2 text-left trace-press hover:bg-surface-2"
+          className="group flex flex-col gap-1 rounded-sm px-2 py-2 text-left trace-press-row hover:bg-surface-2"
         >
           <span className="flex items-baseline gap-3">
             <span className="trace-title min-w-0 flex-1 truncate text-base text-ink group-hover:text-phosphor">

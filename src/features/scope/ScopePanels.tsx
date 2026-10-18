@@ -94,7 +94,7 @@ export function ScopeStrip({
             type="button"
             onClick={onExpand}
             title="Full screen, with a line for notes"
-            className="rounded-xs px-2 py-0.5 font-mono text-2xs text-ink-faint trace-press hover:text-ink"
+            className="rounded-xs px-2 py-0.5 font-mono text-2xs text-ink-faint trace-press-text hover:text-ink"
           >
             ⤢ scope view
           </button>
@@ -167,7 +167,7 @@ export function ScopeView({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xs px-2 py-0.5 font-mono text-2xs text-ink-faint trace-press hover:text-ink"
+            className="rounded-xs px-2 py-0.5 font-mono text-2xs text-ink-faint trace-press-text hover:text-ink"
           >
             back to notes · esc
           </button>

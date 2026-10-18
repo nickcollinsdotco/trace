@@ -121,7 +121,7 @@ export function StatusBar({
           <button
             type="button"
             onClick={onWhatsNew}
-            className="rounded-xs px-1 text-phosphor trace-press hover:underline"
+            className="rounded-xs px-1 text-phosphor trace-press-text hover:underline"
           >
             updated · what's new
           </button>

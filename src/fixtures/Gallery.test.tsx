@@ -1543,7 +1543,8 @@ describe("Gallery", () => {
     expect(screen.getByRole("button", { name: /Start meeting/ })).toBeInTheDocument();
 
     await openScenario(user, "Mini window, saved");
-    expect(await screen.findByText("✓ saved")).toBeInTheDocument();
+    // The tick is its own element, so it can settle in; the line still reads as one.
+    expect(await screen.findByText((_, el) => el?.textContent === "✓ saved")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "open" })).toBeInTheDocument();
   });
 

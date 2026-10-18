@@ -95,7 +95,12 @@ export function Popover({
           id={panelId}
           role="dialog"
           aria-label={label}
-          className={`trace-panel absolute ${align === "end" ? "right-0" : "left-0"} z-30 flex max-h-[min(28rem,60vh)] ${wide ? "w-80" : "w-72"} flex-col overflow-y-auto rounded-md border border-line-strong bg-surface-1 py-1 ${
+          // Grows from the corner nearest the trigger, so it reads as coming
+          // out of the button rather than appearing beside it.
+          style={{
+            transformOrigin: `${placement === "above" ? "bottom" : "top"} ${align === "end" ? "right" : "left"}`,
+          }}
+          className={`trace-panel trace-pop absolute ${align === "end" ? "right-0" : "left-0"} z-30 flex max-h-[min(28rem,60vh)] ${wide ? "w-80" : "w-72"} flex-col overflow-y-auto rounded-md border border-line-strong bg-surface-1 py-1 ${
             placement === "above" ? "bottom-full mb-2" : "top-full mt-2"
           }`}
         >

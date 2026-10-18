@@ -166,3 +166,6 @@ vite.config.ts.timestamp-*
 /.claude/skills/web-design-guidelines
 /.claude/skills/prototype
 /.claude/skills/emil-design-eng
+/.claude/skills/animate
+/.claude/skills/find-animation-opportunities
+/.claude/skills/review-animations

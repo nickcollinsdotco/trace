@@ -107,6 +107,20 @@ export function NoteScreen({
   const busy = requesting || (job !== null && job.outcome === null);
   const llm = useLlmStatus();
 
+  // Notes written while the user watches are brought in; notes opened from
+  // the library are simply there. Only writing turning into written on this
+  // same note counts — moving from a busy note to another is not an arrival.
+  // And only notes actually written: after a failed or stopped rewrite the
+  // previous notes stay, and bringing them in would look like lost and found.
+  const [landed, setLanded] = useState<string | null>(null);
+  const was = useRef({ path, busy });
+  const generated = job?.outcome?.state === "generated";
+  useEffect(() => {
+    if (busy) setLanded(null);
+    else if (was.current.path === path && was.current.busy && generated) setLanded(path);
+    was.current = { path, busy };
+  }, [path, busy, generated]);
+
   const sections = useMemo(() => (text === null ? null : splitSections(text)), [text]);
 
   /*
@@ -353,7 +367,7 @@ export function NoteScreen({
                   <Parts markdown={sections.enhanced} them={them} />
                 </Rewriting>
               ) : (
-                <Parts markdown={sections.enhanced} them={them} />
+                <Parts markdown={sections.enhanced} them={them} landed={landed === path} />
               )
             ) : busy ? (
               <NotesPending />
@@ -402,6 +416,7 @@ function Parts({
   them,
   closed = [],
   breaks = false,
+  landed = false,
 }: {
   markdown: string;
   them: string | null;
@@ -409,9 +424,11 @@ function Parts({
   closed?: string[];
   /** Keep single line breaks: the user's own notes, typed a line at a time. */
   breaks?: boolean;
+  /** Just written, with the user watching: the sections arrive in turn. */
+  landed?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-10">
+    <div className={`flex flex-col gap-10 ${landed ? "trace-land" : ""}`}>
       {splitParts(markdown).map((part, i) =>
         part.heading === null ? (
           // biome-ignore lint/suspicious/noArrayIndexKey: static document render

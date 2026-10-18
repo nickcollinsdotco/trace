@@ -152,6 +152,112 @@
   animation: trace-fade-in 180ms var(--ease-out);
 }
 
+/*
+ * Surfaces that open over the page: popovers, and the confirmation dialog.
+ * They grow a little as they fade in, never from nothing, and close at once —
+ * the user has already moved on. Popover.tsx sets the transform-origin to
+ * the corner by its trigger; the dialog stays centred, belonging to no
+ * button. Under reduced motion the scale snaps and only the fade is left
+ * (tokens.css), which still softens the arrival.
+ */
+.trace-pop {
+  transition:
+    opacity 150ms var(--ease-out),
+    transform 150ms var(--ease-out);
+}
+
+/* In step with its backdrop. */
+.trace-dialog.trace-pop {
+  transition-duration: 180ms;
+}
+
+@starting-style {
+  .trace-pop {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/*
+ * The activity toast rises from the bottom edge and leaves the way it came.
+ * Transitions, not keyframes, so news arriving mid-exit turns it round from
+ * wherever it is. The leaving time is LEAVE_MS in ActivityToast.tsx.
+ */
+.trace-toast {
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+}
+
+.trace-toast[data-leaving] {
+  opacity: 0;
+  transform: translateY(100%);
+  transition-duration: 150ms;
+  pointer-events: none;
+}
+
+@starting-style {
+  .trace-toast {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+/*
+ * Notes arriving while the user watched them being written (NoteScreen):
+ * the sections come in turn, top down. Only then — a note opened from the
+ * library is simply there. Stagger capped at five; a long note's tail
+ * arrives with the fifth rather than keeping the user waiting.
+ */
+@keyframes trace-land {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.trace-land > * {
+  animation: trace-land 300ms var(--ease-out) backwards;
+}
+
+.trace-land > :nth-child(2) {
+  animation-delay: 60ms;
+}
+.trace-land > :nth-child(3) {
+  animation-delay: 120ms;
+}
+.trace-land > :nth-child(4) {
+  animation-delay: 180ms;
+}
+.trace-land > :nth-child(n + 5) {
+  animation-delay: 240ms;
+}
+
+/* Gentler, not none: the arrival is news, so it keeps a fade without the
+   rise. Outranks the blanket cut in tokens.css by specificity. */
+@media (prefers-reduced-motion: reduce) {
+  .trace-land > * {
+    animation-name: trace-fade-in;
+    animation-duration: 300ms !important;
+  }
+}
+
+/* The mini window's tick on "saved": once a meeting, so it is allowed to
+   settle into place. Inline-block, as a transform does nothing inline. */
+.trace-tick {
+  display: inline-block;
+  transition:
+    opacity 250ms var(--ease-out),
+    transform 250ms var(--ease-out);
+}
+
+@starting-style {
+  .trace-tick {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
 /* The mini window's Stop: a ring that fills as it is held (MiniWindow.tsx).
    The stroke is drawn on a path of length 1, so a dash offset from 1 to 0
    is the whole circle whatever its size. Reduced motion skips the fill; the

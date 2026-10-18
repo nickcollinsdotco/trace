@@ -26,6 +26,24 @@ export interface Change {
 
 export const CHANGELOG: Change[] = [
   {
+    version: "0.39.0",
+    date: "2026-10-18",
+    title: "Things arrive rather than appear",
+    notes: [
+      "When notes finish while you are watching, the sections come in one after another instead of replacing the placeholders all at once. Opening a note from the library is unchanged.",
+      "Menus and the confirmation box grow in slightly as they open, from the button that opened them.",
+      "The notes-ready message slides away the way it came instead of vanishing, and the mini window's ✓ settles into place on saved.",
+    ],
+    screens: {
+      "note-synthesising":
+        "Let it run to the end: the sections rise in turn as the placeholders go.",
+      "library-confirm-delete": "The confirmation box fades and grows in with its shade.",
+      "library-working":
+        "When the work finishes, the toast rises from the corner; dismiss it and it sinks back.",
+      "mini-saved": "The ✓ settles in.",
+    },
+  },
+  {
     version: "0.38.0",
     date: "2026-10-16",
     title: "A notification when notes are ready, and first run checks the summary model fits",

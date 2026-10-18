@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Prompt } from "../../components/ui/terminal";
 import type { Job } from "../../lib/ipc";
 
 /** Long enough to notice from the corner of an eye, short enough to not nag. */
 const SHOWN_MS = 12_000;
+
+/** How long it takes to leave; matches the exit in layout.css. */
+const LEAVE_MS = 150;
 
 /**
  * Says a note has finished, when the user is somewhere else.
@@ -29,6 +32,10 @@ export function ActivityToast({
   onOpenNote?: ((path: string) => void) | undefined;
 }) {
   const [shown, setShown] = useState<Job | null>(null);
+  // Leaving the way it came, rather than vanishing: held for the length of
+  // the exit, then gone. Fresh news while it leaves turns it back round.
+  const [leaving, setLeaving] = useState(false);
+  const dismiss = useCallback(() => setLeaving(true), []);
   const seen = useRef<Map<number, boolean>>(new Map());
   const box = useRef<HTMLDivElement>(null);
 
@@ -45,6 +52,7 @@ export function ActivityToast({
       const news = done && job.outcome?.state !== "stopped";
       if (news && previous.get(job.id) === false && job.notePath !== openNote) {
         setShown(job);
+        setLeaving(false);
       }
     }
     seen.current = next;
@@ -52,8 +60,17 @@ export function ActivityToast({
 
   // Opening the note answers it.
   useEffect(() => {
-    if (shown && shown.notePath === openNote) setShown(null);
-  }, [shown, openNote]);
+    if (shown && shown.notePath === openNote) dismiss();
+  }, [shown, openNote, dismiss]);
+
+  useEffect(() => {
+    if (!leaving) return;
+    const id = window.setTimeout(() => {
+      setShown(null);
+      setLeaving(false);
+    }, LEAVE_MS);
+    return () => window.clearTimeout(id);
+  }, [leaving]);
 
   // Holds while pointed at or focused, so it cannot vanish under someone
   // reaching for Open. Asked at the moment it would close rather than
@@ -63,11 +80,11 @@ export function ActivityToast({
     let id = 0;
     const expire = () => {
       if (box.current?.matches(":hover, :focus-within")) id = window.setTimeout(expire, 2_000);
-      else setShown(null);
+      else dismiss();
     };
     id = window.setTimeout(expire, SHOWN_MS);
     return () => window.clearTimeout(id);
-  }, [shown]);
+  }, [shown, dismiss]);
 
   if (!shown) return null;
   const failed = shown.outcome?.state === "failed";
@@ -76,7 +93,8 @@ export function ActivityToast({
   return (
     <div
       ref={box}
-      className="trace-overlay trace-segment-in pointer-events-auto flex max-w-sm items-baseline gap-3 rounded-md border border-line-strong bg-surface-1 px-3 py-2 font-mono text-2xs"
+      data-leaving={leaving || undefined}
+      className="trace-overlay trace-toast pointer-events-auto flex max-w-sm items-baseline gap-3 rounded-md border border-line-strong bg-surface-1 px-3 py-2 font-mono text-2xs"
     >
       <span className={`min-w-0 ${failed ? "text-warn" : "text-phosphor"}`}>
         <Prompt />
@@ -87,7 +105,7 @@ export function ActivityToast({
         <button
           type="button"
           onClick={() => {
-            setShown(null);
+            dismiss();
             onOpenNote(shown.notePath);
           }}
           className="trace-control shrink-0 tracking-system text-phosphor trace-press hover:text-ink"
@@ -98,7 +116,7 @@ export function ActivityToast({
       <button
         type="button"
         aria-label="Dismiss"
-        onClick={() => setShown(null)}
+        onClick={dismiss}
         className="shrink-0 text-ink-faint trace-press hover:text-ink"
       >
         ×

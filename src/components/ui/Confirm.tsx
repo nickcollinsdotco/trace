@@ -105,7 +105,7 @@ function ConfirmDialog({
         e.preventDefault();
         onSettle(false);
       }}
-      className="trace-dialog m-auto w-[min(28rem,calc(100vw-2rem))] rounded-md border border-line-strong bg-surface-1 p-0 text-ink shadow-(--elevation-overlay)"
+      className="trace-dialog trace-pop m-auto w-[min(28rem,calc(100vw-2rem))] rounded-md border border-line-strong bg-surface-1 p-0 text-ink shadow-(--elevation-overlay)"
     >
       <div className="flex flex-col gap-4 p-5">
         <SystemLabel tone={options.danger ? "error" : "muted"}>Confirm</SystemLabel>

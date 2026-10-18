@@ -346,7 +346,10 @@ export function MiniWindow({
 
               {phase.kind === "saved" && (
                 <p className="flex shrink-0 items-center gap-2 whitespace-nowrap font-mono text-xs text-ink-muted">
-                  <span className="text-phosphor">✓ saved</span>· writing notes…
+                  <span className="text-phosphor">
+                    <span className="trace-tick">✓</span> saved
+                  </span>
+                  · writing notes…
                   <button
                     type="button"
                     onClick={() => {

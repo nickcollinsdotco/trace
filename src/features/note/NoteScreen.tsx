@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useConfirm } from "../../components/ui/Confirm";
+import { useContextMenu } from "../../components/ui/ContextMenu";
 import { Page } from "../../components/ui/Page";
 import { Popover, PopoverDivider, PopoverItem } from "../../components/ui/Popover";
 import { RenameInput } from "../../components/ui/RenameInput";
@@ -438,6 +439,19 @@ function Parts({
             // biome-ignore lint/suspicious/noArrayIndexKey: headings can repeat in a hand-edited note
             key={`${i}-${part.heading}`}
             title={part.heading}
+            menu={[
+              {
+                label: "Copy section",
+                onSelect: () =>
+                  void navigator.clipboard
+                    ?.writeText(
+                      `## ${part.heading}
+
+${part.body}`.trim(),
+                    )
+                    .catch(() => {}),
+              },
+            ]}
             defaultOpen={!closed.includes(part.heading.toLowerCase())}
           >
             {/* TRACE leaves an empty section out, but a hand-edited note can
@@ -1199,6 +1213,43 @@ function splitFrontmatter(markdown: string): { frontmatter: string; body: string
   };
 }
 
+/** A tag on the note: find the others, or take it off — by right-click too. */
+function TagChip({
+  tag,
+  onSearch,
+  onRemove,
+}: {
+  tag: string;
+  onSearch: (() => void) | undefined;
+  onRemove: () => void;
+}) {
+  const menu = useContextMenu(`Tag ${tag}`, () => [
+    ...(onSearch ? [{ label: `Find meetings tagged ${tag}`, onSelect: onSearch }] : []),
+    { label: "Remove tag", danger: true, onSelect: onRemove },
+  ]);
+  return (
+    <span {...menu} className="flex items-center overflow-hidden rounded-sm bg-phosphor-dim">
+      <button
+        type="button"
+        onClick={onSearch}
+        disabled={!onSearch}
+        title={onSearch ? `Find meetings tagged ${tag}` : undefined}
+        className="trace-tag px-2 py-1 font-mono text-2xs tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:cursor-default"
+      >
+        {tag}
+      </button>
+      <button
+        type="button"
+        aria-label={`Remove tag ${tag}`}
+        onClick={onRemove}
+        className="px-1.5 py-1 font-mono text-2xs text-phosphor-muted trace-press hover:bg-error hover:text-surface-0"
+      >
+        ×
+      </button>
+    </span>
+  );
+}
+
 /**
  * A note's tags, editable in place.
  *
@@ -1273,25 +1324,12 @@ function Tags({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {tags.map((tag) => (
-        <span key={tag} className="flex items-center overflow-hidden rounded-sm bg-phosphor-dim">
-          <button
-            type="button"
-            onClick={() => onSearchTag?.(tag)}
-            disabled={!onSearchTag}
-            title={onSearchTag ? `Find meetings tagged ${tag}` : undefined}
-            className="trace-tag px-2 py-1 font-mono text-2xs tracking-system text-phosphor trace-press hover:bg-phosphor hover:text-surface-0 disabled:cursor-default"
-          >
-            {tag}
-          </button>
-          <button
-            type="button"
-            aria-label={`Remove tag ${tag}`}
-            onClick={() => save(tags.filter((t) => t !== tag))}
-            className="px-1.5 py-1 font-mono text-2xs text-phosphor-muted trace-press hover:bg-error hover:text-surface-0"
-          >
-            ×
-          </button>
-        </span>
+        <TagChip
+          key={tag}
+          tag={tag}
+          onSearch={onSearchTag && (() => onSearchTag(tag))}
+          onRemove={() => save(tags.filter((t) => t !== tag))}
+        />
       ))}
 
       {adding ? (

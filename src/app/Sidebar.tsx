@@ -1,4 +1,5 @@
 import { type ReactNode, type RefObject, useEffect, useRef } from "react";
+import { useContextMenu } from "../components/ui/ContextMenu";
 import { formatElapsed, Spinner, SystemLabel } from "../components/ui/terminal";
 import { MiniIcon } from "../features/mini/MiniIcon";
 import { shortcutLabel, useMiniShortcut } from "../features/mini/shortcut";
@@ -123,9 +124,18 @@ export function Sidebar({
  */
 function MiniFoot() {
   const shortcut = useMiniShortcut();
+  const menu = useContextMenu("Mini window", () => [
+    {
+      label: "Open",
+      ...(shortcut ? { hint: shortcutLabel(shortcut) } : {}),
+      onSelect: () => void ipc.openMini().catch(() => {}),
+    },
+    { label: "Bring back to its corner", onSelect: () => void ipc.resetMini().catch(() => {}) },
+  ]);
   return (
     <div className="group/mini mx-3 mt-auto mb-3 flex items-center gap-1">
       <button
+        {...menu}
         type="button"
         onClick={() => void ipc.openMini().catch(() => {})}
         title={`Mini window — floats over everything${shortcut ? ` (${shortcutLabel(shortcut)})` : ""}`}

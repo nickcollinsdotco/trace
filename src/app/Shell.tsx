@@ -1,5 +1,6 @@
 import { type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmProvider } from "../components/ui/Confirm";
+import { ContextMenuProvider } from "../components/ui/ContextMenu";
 import { Grain } from "../components/ui/Grain";
 import { formatElapsed } from "../components/ui/terminal";
 import { ActivityToast } from "../features/activity/ActivityToast";
@@ -103,96 +104,98 @@ export function Shell({
 
   return (
     <div ref={shell} className="trace-shell flex h-full flex-col bg-surface-0">
-      {/* Inside the shell, so the dialog inherits whichever theme the shell
+      {/* Inside the shell, so the dialog and menus inherit whichever theme the shell
           is wearing — the app's, or a gallery preview's. */}
       <ConfirmProvider>
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="relative flex min-h-0 flex-1">
-            {docked && (
-              <Sidebar
-                current={current}
-                onNavigate={go}
-                recording={recording}
-                paused={paused}
-                notes={notes}
-                onHide={() => setHidden(true)}
-              />
-            )}
-            <div className="flex min-w-0 flex-1 flex-col">
-              {!docked && (
-                <SidebarStrip
-                  toggle={toggle}
-                  open={overlay}
-                  // Hidden by hand on a wide window: the toggle brings it back
-                  // for good. Too narrow to dock: it can only ever overlay.
-                  onToggle={() => (narrow ? setOverlay((o) => !o) : setHidden(false))}
-                  onHome={() => go("library")}
+        <ContextMenuProvider>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="relative flex min-h-0 flex-1">
+              {docked && (
+                <Sidebar
+                  current={current}
+                  onNavigate={go}
                   recording={recording}
                   paused={paused}
-                  onRecording={() => go("capture")}
+                  notes={notes}
+                  onHide={() => setHidden(true)}
                 />
               )}
-              {/* The canvas: the one part of the window the screen effects
+              <div className="flex min-w-0 flex-1 flex-col">
+                {!docked && (
+                  <SidebarStrip
+                    toggle={toggle}
+                    open={overlay}
+                    // Hidden by hand on a wide window: the toggle brings it back
+                    // for good. Too narrow to dock: it can only ever overlay.
+                    onToggle={() => (narrow ? setOverlay((o) => !o) : setHidden(false))}
+                    onHome={() => go("library")}
+                    recording={recording}
+                    paused={paused}
+                    onRecording={() => go("capture")}
+                  />
+                )}
+                {/* The canvas: the one part of the window the screen effects
                   are drawn on. The sidebar, its strip and the status bar are
                   the instrument's chrome and sit above the glass, untouched —
                   so the canvas is its own stacking context, and effects
                   inside it can never reach them. */}
-              <main className="trace-canvas relative min-h-0 min-w-0 flex-1 bg-surface-0">
-                {children}
-                {/* The screen effects' layers (screen.css), in painting order.
+                <main className="trace-canvas relative min-h-0 min-w-0 flex-1 bg-surface-0">
+                  {children}
+                  {/* The screen effects' layers (screen.css), in painting order.
                     Always rendered, drawn only when their effect is on, so
                     changing the screen changes attributes, not the tree. */}
-                <span aria-hidden className="trace-fx trace-fx-dots" />
-                <span aria-hidden className="trace-fx trace-fx-scanlines" />
-                <Grain />
-                <span aria-hidden className="trace-fx trace-fx-vignette" />
-                <span aria-hidden className="trace-fx trace-fx-glass" />
-                <span aria-hidden className="trace-fx trace-fx-roll" />
-                {/* Always present, so a toast appearing inside it is announced:
+                  <span aria-hidden className="trace-fx trace-fx-dots" />
+                  <span aria-hidden className="trace-fx trace-fx-scanlines" />
+                  <Grain />
+                  <span aria-hidden className="trace-fx trace-fx-vignette" />
+                  <span aria-hidden className="trace-fx trace-fx-glass" />
+                  <span aria-hidden className="trace-fx trace-fx-roll" />
+                  {/* Always present, so a toast appearing inside it is announced:
                 a live region created with its content often is not. Above the
                 effects: news should be read, not seen through the glass. */}
-                <div
-                  aria-live="polite"
-                  className="pointer-events-none absolute right-4 bottom-3 z-60 flex justify-end"
-                >
-                  <ActivityToast jobs={jobs} openNote={openNote} onOpenNote={onOpenNote} />
-                </div>
-              </main>
-            </div>
+                  <div
+                    aria-live="polite"
+                    className="pointer-events-none absolute right-4 bottom-3 z-60 flex justify-end"
+                  >
+                    <ActivityToast jobs={jobs} openNote={openNote} onOpenNote={onOpenNote} />
+                  </div>
+                </main>
+              </div>
 
-            {!docked && overlay && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Close sidebar"
-                  tabIndex={-1}
-                  onClick={closeOverlay}
-                  className="trace-scrim absolute inset-0 z-40 cursor-default bg-black/50"
-                />
-                <div className="trace-slide-in absolute inset-y-0 left-0 z-40 flex shadow-(--elevation-overlay)">
-                  <Sidebar
-                    current={current}
-                    onNavigate={go}
-                    recording={recording}
-                    paused={paused}
-                    notes={notes}
-                    onHide={closeOverlay}
-                    overlay
+              {!docked && overlay && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close sidebar"
+                    tabIndex={-1}
+                    onClick={closeOverlay}
+                    className="trace-scrim absolute inset-0 z-40 cursor-default bg-black/50"
                   />
-                </div>
-              </>
-            )}
+                  <div className="trace-slide-in absolute inset-y-0 left-0 z-40 flex shadow-(--elevation-overlay)">
+                    <Sidebar
+                      current={current}
+                      onNavigate={go}
+                      recording={recording}
+                      paused={paused}
+                      notes={notes}
+                      onHide={closeOverlay}
+                      overlay
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            <StatusBar
+              page={current}
+              jobs={jobs}
+              onManageModels={() => onNavigate("models")}
+              onOpenNote={onOpenNote}
+              onWhatsNew={onWhatsNew}
+              recording={recording !== null}
+              initialUpdate={initialUpdate}
+            />
           </div>
-          <StatusBar
-            page={current}
-            jobs={jobs}
-            onManageModels={() => onNavigate("models")}
-            onOpenNote={onOpenNote}
-            onWhatsNew={onWhatsNew}
-            recording={recording !== null}
-            initialUpdate={initialUpdate}
-          />
-        </div>
+        </ContextMenuProvider>
       </ConfirmProvider>
     </div>
   );

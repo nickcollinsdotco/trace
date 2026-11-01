@@ -1,0 +1,11 @@
+{
+  "runs": 19,
+  "failed": 1,
+  "calls": 29,
+  "extract": 24,
+  "combine": 5,
+  "total_seconds": 296.94249410000003,
+  "invalid_decision_ids": 0,
+  "out_of_window_ids": 0,
+  "validation_drops": 0.0
+}

@@ -1,0 +1,115 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 4.4963256,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [],
+        "raw_decision_count": 0
+      },
+      "prompt": "MEETING: Decisions: choose annual billing\nDATE: 2026-11-01\n\nCONTEXT FROM THE USER\nWritten after the meeting to explain it. Use it to understand what kind of meeting this was and who was in it, and write the notes for that. It is not part of the meeting: never cite it, and never report it as something that was said.\n\nThis was an exploratory billing conversation. My preference afterwards is annual billing.\n\nNOTES TYPED BY THE USER DURING THE MEETING\nThese are citable and carry high signal — the user chose to write them down.\n\n[note_0000] DECISIONS\n[note_0001] Annual billing?\n[note_0002] To discuss: remove the free tier\n\nTRANSCRIPT\n\n[sys_0000] (00:00) them: Annual billing is one possibility. Monthly might suit people better.\n[mic_0001] (00:01) you: The heading in my notes is a template, not an outcome. We have chosen neither and have not agreed to remove the free tier.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [],
+        "decisions": [],
+        "key_points": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["note_0000", "note_0001", "note_0002"],
+            "text": "The meeting focused on evaluating billing options, with annual billing being a key consideration and the potential removal of the free tier under discussion."
+          }
+        ],
+        "open_questions": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["note_0001"],
+            "text": "Whether to adopt annual billing as the primary billing model."
+          },
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["note_0002"],
+            "text": "Whether to remove the free tier."
+          }
+        ],
+        "summary": "The meeting explored billing options, with annual billing being considered and the potential removal of the free tier under discussion. No decisions were made, and no action items were committed to."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 11.8 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "held_misleading_notes",
+  "elapsed_seconds": 4.541364,
+  "error": null,
+  "expected": {
+    "decisions": [],
+    "forbidden": "Annual billing chosen or free tier removed, supported only by title, question-shaped note, or after-meeting context.",
+    "other": "Monthly versus annual and the free tier remain open. Context has no citable id."
+  },
+  "meeting": {
+    "context": "This was an exploratory billing conversation. My preference afterwards is annual billing.",
+    "date": "2026-11-01",
+    "id": "held_misleading_notes",
+    "notes": "DECISIONS\nAnnual billing?\nTo discuss: remove the free tier",
+    "participants": [],
+    "started_at": "2026-11-01T04:33:53.139248100+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Decisions: choose annual billing",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "sys_0000",
+        "source": "system",
+        "start_ms": 0,
+        "text": "Annual billing is one possibility. Monthly might suit people better."
+      },
+      {
+        "end_ms": 1900,
+        "id": "mic_0001",
+        "source": "microphone",
+        "start_ms": 1000,
+        "text": "The heading in my notes is a template, not an outcome. We have chosen neither and have not agreed to remove the free tier."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "held_out",
+  "validated": {
+    "action_items": [],
+    "decisions": [],
+    "generated_at": "2026-11-01T04:33:57.680591200+01:00",
+    "key_points": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["note_0000", "note_0001", "note_0002"]
+        },
+        "text": "The meeting focused on evaluating billing options, with annual billing being a key consideration and the potential removal of the free tier under discussion."
+      }
+    ],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["note_0001"]
+        },
+        "text": "Whether to adopt annual billing as the primary billing model."
+      },
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["note_0002"]
+        },
+        "text": "Whether to remove the free tier."
+      }
+    ],
+    "summary": "The meeting explored billing options, with annual billing being considered and the potential removal of the free tier under discussion. No decisions were made, and no action items were committed to."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

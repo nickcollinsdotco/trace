@@ -1,0 +1,11 @@
+{
+  "owned_pid": 59428,
+  "owned_start": "2026-11-01T04:25:40.1153153+01:00",
+  "stopped_at": "2026-11-01T04:37:07.5098632+01:00",
+  "service_scope": "Only the loopback Ollama process launched for this evaluation",
+  "remaining_ollama_processes": 1,
+  "remaining_trace_processes": 0,
+  "verified_at": "2026-11-01T04:37:42.4368313+01:00",
+  "verified_remaining_ollama_processes": 0,
+  "verified_loopback_listeners": 0
+}

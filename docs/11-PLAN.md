@@ -293,7 +293,7 @@ rather than remembered.
 
 | Item | Status |
 |---|---|
-| **Decision vs deferred conversation** | Prompt rule tightened 2026-09-05 with the exact failure as a counter-example. **Untested against a real conversation** — the fixture that produced it is not a regression test. The only real meeting recorded as checked (the offline run, 2026-09-05) had no decisions in it, so the rule had nothing to get wrong. Whether later meetings exercised it is not recorded. |
+| **Decision vs deferred conversation** | **Still unvalidated on real conversations.** A pre-labelled [synthetic production-path evaluation](research/decision-evaluation.md) on 2026-11-01 exercised Qwen3 8B with thinking, 14 cases and a fixed repeat subset. Future discussion often stayed out of decisions, but action-only material and superseded choices survived as decisions; cross-window combine did not reconcile them. A typed-note positive exhausted its output budget. No production prompt change made; final-state reconciliation and real-meeting validation remain open. |
 | ~~Regenerate on pre-2026-09-05 notes~~ | **Fixed 2026-09-05.** `can_regenerate` is asked up front and the control is disabled with a reason. |
 | ~~VAD threshold drift~~ | **Observed and fixed 2026-09-06** (`7ecac6c`). The fixed 0.012 RMS muted about half of a quieter speaker's speech. The threshold now comes from each recording's own noise floor and speech level, and 0.012 survives only as the upper clamp (`transcribe/chunker.rs`). Detail in `10-BACKLOG.md`. |
 | **Uncertainty affordances** | Squiggly underlines for low-confidence words. Needs `transcribe-rs` to expose logits it already computes — an upstream PR. Detail in `10-BACKLOG.md`. |

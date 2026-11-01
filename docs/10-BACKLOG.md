@@ -3,6 +3,24 @@
 Ideas captured with enough technical detail to act on later, and an honest
 note on what is actually feasible.
 
+## Current decisions after reversals
+
+The [2026-11-01 synthetic synthesis evaluation](research/decision-evaluation.md)
+found that Qwen3 8B could summarise a reversal correctly while leaving the old
+choice in the decisions list. It happened inside one window and across a real
+production window boundary. A later withdrawal with no replacement also left
+the old selection in place. All cited ids existed, so validation retained them.
+The final combine pass sees summaries and key points, not decisions; it cannot
+reconcile the latter. Earlier open questions also survived later closure.
+
+**Follow-up, not shipped:** design reconciliation with original cited evidence
+and explicit supersession/closure. Compare it against the frozen development
+examples, then a fresh holdout. Keep conditional policies distinct from tentative
+proposals, and check that unassigned discussion does not become an action. The
+report includes a token-budget failure that needs a separate diagnosis rather
+than a speculative default change. This is labelled synthetic evidence from one
+installed model, not validation on real conversations or the preferred 14B.
+
 ## Uncertainty affordances in the transcript
 
 **Idea.** Mark words the model is unsure about with a squiggly underline, like

@@ -1,0 +1,115 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 6.0186223,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [
+          {
+            "all_ids_in_this_prompt": true,
+            "all_ids_resolve": true,
+            "evidence": ["mic_0000"],
+            "semantic_support": "NOT AUTOMATICALLY ASSESSED",
+            "text": "Deploy on Friday only if security signs off. Otherwise keep the current version."
+          }
+        ],
+        "raw_decision_count": 1
+      },
+      "prompt": "MEETING: Gate for deployment\nDATE: 2026-11-01\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: We are deciding a policy now: deploy on Friday only if security signs off. Otherwise keep the current version.\n[sys_0001] (00:01) them: Agreed to that exact conditional policy. Security has not signed off yet, so deployment itself is not authorised today.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [],
+        "decisions": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["mic_0000"],
+            "text": "Deploy on Friday only if security signs off. Otherwise keep the current version."
+          }
+        ],
+        "key_points": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "text": "Security has not signed off yet, so deployment itself is not authorised today."
+          }
+        ],
+        "open_questions": [],
+        "summary": "The team decided to deploy on Friday only if security signs off. Security has not signed off yet, so deployment is not authorised today."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 11.3 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "held_conditional_policy",
+  "elapsed_seconds": 6.055184,
+  "error": null,
+  "expected": {
+    "decisions": [
+      {
+        "evidence": [["mic_0000", "sys_0001"]],
+        "meaning": "A conditional policy was agreed: deploy Friday only after security sign-off; otherwise retain the current version."
+      }
+    ],
+    "forbidden": "Unconditional Friday deployment or a claim that security approval already exists.",
+    "other": "A closed conditional policy is distinct from a tentative conditional proposal; preserve the condition and fallback."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "held_conditional_policy",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:33:57.681101600+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Gate for deployment",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "We are deciding a policy now: deploy on Friday only if security signs off. Otherwise keep the current version."
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "Agreed to that exact conditional policy. Security has not signed off yet, so deployment itself is not authorised today."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "held_out",
+  "validated": {
+    "action_items": [],
+    "decisions": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["mic_0000"]
+        },
+        "text": "Deploy on Friday only if security signs off. Otherwise keep the current version."
+      }
+    ],
+    "generated_at": "2026-11-01T04:34:03.736260600+01:00",
+    "key_points": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "Security has not signed off yet, so deployment itself is not authorised today."
+      }
+    ],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [],
+    "summary": "The team decided to deploy on Friday only if security signs off. Security has not signed off yet, so deployment is not authorised today."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

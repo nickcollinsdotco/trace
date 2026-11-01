@@ -1,0 +1,119 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 4.061229,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [],
+        "raw_decision_count": 0
+      },
+      "prompt": "MEETING: Migration\nDATE: 2026-11-01\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: If the load test passes, perhaps we could migrate on Friday.\n[sys_0001] (00:01) them: It has not run. Even if it passes we still need to decide. I will run it tomorrow.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "owner": null,
+            "text": "Run the load test tomorrow"
+          }
+        ],
+        "decisions": [],
+        "key_points": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["mic_0000"],
+            "text": "Proposed migration on Friday if load test passes"
+          }
+        ],
+        "open_questions": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "text": "Whether to proceed with migration after load test results"
+          }
+        ],
+        "summary": "Discussed migration timing contingent on load test results. No decision made yet. Action item: run load test tomorrow."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 13.9 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "dev_conditional",
+  "elapsed_seconds": 4.0962137,
+  "error": null,
+  "expected": {
+    "decisions": [],
+    "forbidden": "Friday migration committed, even with a condition; the proposal was explicitly still undecided.",
+    "other": "Running the load test is an action supported by sys_0001."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "dev_conditional",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:32:29.097532+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Migration",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "If the load test passes, perhaps we could migrate on Friday."
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "It has not run. Even if it passes we still need to decide. I will run it tomorrow."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "development",
+  "validated": {
+    "action_items": [
+      {
+        "completed": false,
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "id": "act_000",
+        "text": "Run the load test tomorrow"
+      }
+    ],
+    "decisions": [],
+    "generated_at": "2026-11-01T04:32:33.193725600+01:00",
+    "key_points": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["mic_0000"]
+        },
+        "text": "Proposed migration on Friday if load test passes"
+      }
+    ],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "Whether to proceed with migration after load test results"
+      }
+    ],
+    "summary": "Discussed migration timing contingent on load test results. No decision made yet. Action item: run load test tomorrow."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

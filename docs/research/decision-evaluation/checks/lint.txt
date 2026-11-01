@@ -1,0 +1,5 @@
+
+> trace@0.41.0 lint C:\Users\nfbco\Documents\GITHUB\TRACE\t3-a34fa253
+> biome check .
+
+Checked 160 files in 135ms. No fixes applied.

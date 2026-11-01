@@ -1,0 +1,172 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 4.9276215,
+      "error": null,
+      "kind": "extract",
+      "label": "part 1 of 2",
+      "mechanical": {
+        "decisions": [],
+        "raw_decision_count": 0
+      },
+      "prompt": "MEETING: Warehouse choice\nDATE: 2026-11-01\n\nThis is part 1 of 2 of a longer meeting. Extract only what is present in this part.\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: Could we choose the west warehouse? It is only a proposal while the inspection is pending.\n[sys_9000] (00:01) them: Synthetic inventory readout, unrelated to the choice. Shelf 0 contained a labelled cardboard box. Shelf 1 contained a labelled cardboard box. Shelf 2 contained a labelled cardboard box. Shelf 3 contained a labelled cardboard box. Shelf 4 contained a labelled cardboard box. Shelf 5 contained a labelled cardboard box. Shelf 6 contained a labelled cardboard box. Shelf 7 contained a labelled cardboard box. Shelf 8 contained a labelled cardboard box. Shelf 9 contained a labelled cardboard box. Shelf 10 contained a labelled cardboard box. Shelf 11 contained a labelled cardboard box. Shelf 12 contained a labelled cardboard box. Shelf 13 contained a labelled cardboard box. Shelf 14 contained a labelled cardboard box. Shelf 15 contained a labelled cardboard box. Shelf 16 contained a labelled cardboard box. Shelf 17 contained a labelled cardboard box. Shelf 18 contained a labelled cardboard box. Shelf 19 contained a labelled cardboard box. Shelf 20 contained a labelled cardboard box. Shelf 21 contained a labelled cardboard box. Shelf 22 contained a labelled cardboard box. Shelf 23 contained a labelled cardboard box. Shelf 24 contained a labelled cardboard box. Shelf 25 contained a labelled cardboard box. Shelf 26 contained a labelled cardboard box. Shelf 27 contained a labelled cardboard box. Shelf 28 contained a labelled cardboard box. Shelf 29 contained a labelled cardboard box. Shelf 30 contained a labelled cardboard box. Shelf 31 contained a labelled cardboard box. Shelf 32 contained a labelled cardboard box. Shelf 33 contained a labelled cardboard box. Shelf 34 contained a labelled cardboard box. Shelf 35 contained a labelled cardboard box. Shelf 36 contained a labelled cardboard box. Shelf 37 contained a labelled cardboard box. Shelf 38 contained a labelled cardboard box. Shelf 39 contained a labelled cardboard box. Shelf 40 contained a labelled cardboard box. Shelf 41 contained a labelled cardboard box. Shelf 42 contained a labelled cardboard box. Shelf 43 contained a labelled cardboard box. Shelf 44 contained a labelled cardboard box. Shelf 45 contained a labelled cardboard box. Shelf 46 contained a labelled cardboard box. Shelf 47 contained a labelled cardboard box. Shelf 48 contained a labelled cardboard box. Shelf 49 contained a labelled cardboard box. Shelf 50 contained a labelled cardboard box. Shelf 51 contained a labelled cardboard box. Shelf 52 contained a labelled cardboard box. Shelf 53 contained a labelled cardboard box. Shelf 54 contained a labelled cardboard box. Shelf 55 contained a labelled cardboard box. Shelf 56 contained a labelled cardboard box. Shelf 57 contained a labelled cardboard box. Shelf 58 contained a labelled cardboard box. Shelf 59 contained a labelled cardboard box. Shelf 60 contained a labelled cardboard box. Shelf 61 contained a labelled cardboard box. Shelf 62 contained a labelled cardboard box. Shelf 63 contained a labelled cardboard box. Shelf 64 contained a labelled cardboard box. Shelf 65 contained a labelled cardboard box. Shelf 66 contained a labelled cardboard box. Shelf 67 contained a labelled cardboard box. Shelf 68 contained a labelled cardboard box. Shelf 69 contained a labelled cardboard box. Shelf 70 contained a labelled cardboard box. Shelf 71 contained a labelled cardboard box. Shelf 72 contained a labelled cardboard box. Shelf 73 contained a labelled cardboard box. Shelf 74 contained a labelled cardboard box. Shelf 75 contained a labelled cardboard box. Shelf 76 contained a labelled cardboard box. Shelf 77 contained a labelled cardboard box. Shelf 78 contained a labelled cardboard box. Shelf 79 contained a labelled cardboard box. Shelf 80 contained a labelled cardboard box. Shelf 81 contained a labelled cardboard box. Shelf 82 contained a labelled cardboard box. Shelf 83 contained a labelled cardboard box. Shelf 84 contained a labelled cardboard box. Shelf 85 contained a labelled cardboard box. Shelf 86 contained a labelled cardboard box. Shelf 87 contained a labelled cardboard box. Shelf 88 contained a labelled cardboard box. Shelf 89 contained a labelled cardboard box. Shelf 90 contained a labelled cardboard box. Shelf 91 contained a labelled cardboard box. Shelf 92 contained a labelled cardboard box. Shelf 93 contained a labelled cardboard box. Shelf 94 contained a labelled cardboard box. Shelf 95 contained a labelled cardboard box. Shelf 96 contained a labelled cardboard box. Shelf 97 contained a labelled cardboard box. Shelf 98 contained a labelled cardboard box. Shelf 99 contained a labelled cardboard box. Shelf 100 contained a labelled cardboard box. Shelf 101 contained a labelled cardboard box. Shelf 102 contained a labelled cardboard box. Shelf 103 contained a labelled cardboard box. Shelf 104 contained a labelled cardboard box. Shelf 105 contained a labelled cardboard box. Shelf 106 contained a labelled cardboard box. Shelf 107 contained a labelled cardboard box. Shelf 108 contained a labelled cardboard box. Shelf 109 contained a labelled cardboard box. Shelf 110 contained a labelled cardboard box. Shelf 111 contained a labelled cardboard box. Shelf 112 contained a labelled cardboard box. Shelf 113 contained a labelled cardboard box. Shelf 114 contained a labelled cardboard box. Shelf 115 contained a labelled cardboard box. Shelf 116 contained a labelled cardboard box. Shelf 117 contained a labelled cardboard box. Shelf 118 contained a labelled cardboard box. Shelf 119 contained a labelled cardboard box. Shelf 120 contained a labelled cardboard box. Shelf 121 contained a labelled cardboard box. Shelf 122 contained a labelled cardboard box. Shelf 123 contained a labelled cardboard box. Shelf 124 contained a labelled cardboard box. Shelf 125 contained a labelled cardboard box. Shelf 126 contained a labelled cardboard box. Shelf 127 contained a labelled cardboard box. Shelf 128 contained a labelled cardboard box. Shelf 129 contained a labelled cardboard box. Shelf 130 contained a labelled cardboard box. Shelf 131 contained a labelled cardboard box. Shelf 132 contained a labelled cardboard box. Shelf 133 contained a labelled cardboard box. Shelf 134 contained a labelled cardboard box. Shelf 135 contained a labelled cardboard box. Shelf 136 contained a labelled cardboard box. Shelf 137 contained a labelled cardboard box. Shelf 138 contained a labelled cardboard box. Shelf 139 contained a labelled cardboard box. Shelf 140 contained a labelled cardboard box. Shelf 141 contained a labelled cardboard box. Shelf 142 contained a labelled cardboard box. Shelf 143 contained a labelled cardboard box. Shelf 144 contained a labelled cardboard box. Shelf 145 contained a labelled cardboard box. Shelf 146 contained a labelled cardboard box. Shelf 147 contained a labelled cardboard box. Shelf 148 contained a labelled cardboard box. Shelf 149 contained a labelled cardboard box. Shelf 150 contained a labelled cardboard box. Shelf 151 contained a labelled cardboard box. Shelf 152 contained a labelled cardboard box. Shelf 153 contained a labelled cardboard box. Shelf 154 contained a labelled cardboard box. Shelf 155 contained a labelled cardboard box. Shelf 156 contained a labelled cardboard box. Shelf 157 contained a labelled cardboard box. Shelf 158 contained a labelled cardboard box. Shelf 159 contained a labelled cardboard box. Shelf 160 contained a labelled cardboard box. Shelf 161 contained a labelled cardboard box. Shelf 162 contained a labelled cardboard box. Shelf 163 contained a labelled cardboard box. Shelf 164 contained a labelled cardboard box. Shelf 165 contained a labelled cardboard box. Shelf 166 contained a labelled cardboard box. Shelf 167 contained a labelled cardboard box. Shelf 168 contained a labelled cardboard box. Shelf 169 contained a labelled cardboard box. Shelf 170 contained a labelled cardboard box. Shelf 171 contained a labelled cardboard box. Shelf 172 contained a labelled cardboard box. Shelf 173 contained a labelled cardboard box. Shelf 174 contained a labelled cardboard box. Shelf 175 contained a labelled cardboard box. Shelf 176 contained a labelled cardboard box. Shelf 177 contained a labelled cardboard box. Shelf 178 contained a labelled cardboard box. Shelf 179 contained a labelled cardboard box. Shelf 180 contained a labelled cardboard box. Shelf 181 contained a labelled cardboard box. Shelf 182 contained a labelled cardboard box. Shelf 183 contained a labelled cardboard box. Shelf 184 contained a labelled cardboard box. Shelf 185 contained a labelled cardboard box. Shelf 186 contained a labelled cardboard box. Shelf 187 contained a labelled cardboard box. Shelf 188 contained a labelled cardboard box. Shelf 189 contained a labelled cardboard box. Shelf 190 contained a labelled cardboard box. Shelf 191 contained a labelled cardboard box. Shelf 192 contained a labelled cardboard box. Shelf 193 contained a labelled cardboard box. Shelf 194 contained a labelled cardboard box. Shelf 195 contained a labelled cardboard box. Shelf 196 contained a labelled cardboard box. Shelf 197 contained a labelled cardboard box. Shelf 198 contained a labelled cardboard box. Shelf 199 contained a labelled cardboard box. Shelf 200 contained a labelled cardboard box. Shelf 201 contained a labelled cardboard box. Shelf 202 contained a labelled cardboard box. Shelf 203 contained a labelled cardboard box. Shelf 204 contained a labelled cardboard box. Shelf 205 contained a labelled cardboard box. Shelf 206 contained a labelled cardboard box. Shelf 207 contained a labelled cardboard box. Shelf 208 contained a labelled cardboard box. Shelf 209 contained a labelled cardboard box. Shelf 210 contained a labelled cardboard box. Shelf 211 contained a labelled cardboard box. Shelf 212 contained a labelled cardboard box. Shelf 213 contained a labelled cardboard box. item item item… x\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [],
+        "decisions": [],
+        "key_points": [],
+        "open_questions": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["mic_0000"],
+            "text": "Proposal to choose the west warehouse while inspection is pending."
+          }
+        ],
+        "summary": "The user proposed choosing the west warehouse as a temporary decision pending inspection. The system provided inventory data about shelves with labelled cardboard boxes, but no decision was made on warehouse choice."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 10.4 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    },
+    {
+      "elapsed_seconds": 6.4157736,
+      "error": null,
+      "kind": "extract",
+      "label": "part 2 of 2",
+      "mechanical": {
+        "decisions": [
+          {
+            "all_ids_in_this_prompt": true,
+            "all_ids_resolve": true,
+            "evidence": ["sys_0001"],
+            "semantic_support": "NOT AUTOMATICALLY ASSESSED",
+            "text": "The west warehouse was chosen; the east warehouse is ruled out."
+          }
+        ],
+        "raw_decision_count": 1
+      },
+      "prompt": "MEETING: Warehouse choice\nDATE: 2026-11-01\n\nThis is part 2 of 2 of a longer meeting. Extract only what is present in this part.\n\nTRANSCRIPT\n\n[sys_0001] (00:02) them: The inspection has now passed. We choose the west warehouse; the east warehouse is ruled out.\n[mic_0002] (00:03) you: Agreed. West is the settled warehouse choice.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [],
+        "decisions": [
+          {
+            "confidence": 0.949999988079071,
+            "evidence": ["sys_0001"],
+            "text": "The west warehouse was chosen; the east warehouse is ruled out."
+          }
+        ],
+        "key_points": [],
+        "open_questions": [],
+        "summary": "The west warehouse was selected as the decision, with the east warehouse ruled out."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 9.6 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    },
+    {
+      "elapsed_seconds": 4.3406979,
+      "error": null,
+      "key_points": [],
+      "kind": "combine",
+      "raw_parsed_output": {
+        "key_points": [
+          {
+            "from": [1, 2],
+            "text": "The user proposed selecting the west warehouse as a temporary decision while awaiting inspection, and the system provided inventory data about shelves with labelled cardboard boxes."
+          },
+          {
+            "from": [3],
+            "text": "The west warehouse was officially selected as the decision, with the east warehouse ruled out."
+          }
+        ],
+        "summary": "The user proposed selecting the west warehouse as a temporary decision pending inspection, with the system providing inventory data about shelves with labelled cardboard boxes. The west warehouse was ultimately chosen, and the east warehouse was ruled out."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 9.2 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it",
+      "summaries": [
+        "The user proposed choosing the west warehouse as a temporary decision pending inspection. The system provided inventory data about shelves with labelled cardboard boxes, but no decision was made on warehouse choice.",
+        "The west warehouse was selected as the decision, with the east warehouse ruled out."
+      ]
+    }
+  ],
+  "case": "held_cross_closure",
+  "elapsed_seconds": 15.7961549,
+  "error": null,
+  "expected": {
+    "decisions": [
+      {
+        "evidence": [["sys_0001"], ["sys_0001", "mic_0002"]],
+        "meaning": "The west warehouse was chosen after the inspection passed."
+      }
+    ],
+    "forbidden": "West selected on the basis of the earlier proposal alone; east chosen.",
+    "other": "Earlier uncertainty should not erase a later explicit closure."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "held_cross_closure",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:34:50.129868300+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Warehouse choice",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "Could we choose the west warehouse? It is only a proposal while the inspection is pending."
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_9000",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "Synthetic inventory readout, unrelated to the choice. Shelf 0 contained a labelled cardboard box. Shelf 1 contained a labelled cardboard box. Shelf 2 contained a labelled cardboard box. Shelf 3 contained a labelled cardboard box. Shelf 4 contained a labelled cardboard box. Shelf 5 contained a labelled cardboard box. Shelf 6 contained a labelled cardboard box. Shelf 7 contained a labelled cardboard box. Shelf 8 contained a labelled cardboard box. Shelf 9 contained a labelled cardboard box. Shelf 10 contained a labelled cardboard box. Shelf 11 contained a labelled cardboard box. Shelf 12 contained a labelled cardboard box. Shelf 13 contained a labelled cardboard box. Shelf 14 contained a labelled cardboard box. Shelf 15 contained a labelled cardboard box. Shelf 16 contained a labelled cardboard box. Shelf 17 contained a labelled cardboard box. Shelf 18 contained a labelled cardboard box. Shelf 19 contained a labelled cardboard box. Shelf 20 contained a labelled cardboard box. Shelf 21 contained a labelled cardboard box. Shelf 22 contained a labelled cardboard box. Shelf 23 contained a labelled cardboard box. Shelf 24 contained a labelled cardboard box. Shelf 25 contained a labelled cardboard box. Shelf 26 contained a labelled cardboard box. Shelf 27 contained a labelled cardboard box. Shelf 28 contained a labelled cardboard box. Shelf 29 contained a labelled cardboard box. Shelf 30 contained a labelled cardboard box. Shelf 31 contained a labelled cardboard box. Shelf 32 contained a labelled cardboard box. Shelf 33 contained a labelled cardboard box. Shelf 34 contained a labelled cardboard box. Shelf 35 contained a labelled cardboard box. Shelf 36 contained a labelled cardboard box. Shelf 37 contained a labelled cardboard box. Shelf 38 contained a labelled cardboard box. Shelf 39 contained a labelled cardboard box. Shelf 40 contained a labelled cardboard box. Shelf 41 contained a labelled cardboard box. Shelf 42 contained a labelled cardboard box. Shelf 43 contained a labelled cardboard box. Shelf 44 contained a labelled cardboard box. Shelf 45 contained a labelled cardboard box. Shelf 46 contained a labelled cardboard box. Shelf 47 contained a labelled cardboard box. Shelf 48 contained a labelled cardboard box. Shelf 49 contained a labelled cardboard box. Shelf 50 contained a labelled cardboard box. Shelf 51 contained a labelled cardboard box. Shelf 52 contained a labelled cardboard box. Shelf 53 contained a labelled cardboard box. Shelf 54 contained a labelled cardboard box. Shelf 55 contained a labelled cardboard box. Shelf 56 contained a labelled cardboard box. Shelf 57 contained a labelled cardboard box. Shelf 58 contained a labelled cardboard box. Shelf 59 contained a labelled cardboard box. Shelf 60 contained a labelled cardboard box. Shelf 61 contained a labelled cardboard box. Shelf 62 contained a labelled cardboard box. Shelf 63 contained a labelled cardboard box. Shelf 64 contained a labelled cardboard box. Shelf 65 contained a labelled cardboard box. Shelf 66 contained a labelled cardboard box. Shelf 67 contained a labelled cardboard box. Shelf 68 contained a labelled cardboard box. Shelf 69 contained a labelled cardboard box. Shelf 70 contained a labelled cardboard box. Shelf 71 contained a labelled cardboard box. Shelf 72 contained a labelled cardboard box. Shelf 73 contained a labelled cardboard box. Shelf 74 contained a labelled cardboard box. Shelf 75 contained a labelled cardboard box. Shelf 76 contained a labelled cardboard box. Shelf 77 contained a labelled cardboard box. Shelf 78 contained a labelled cardboard box. Shelf 79 contained a labelled cardboard box. Shelf 80 contained a labelled cardboard box. Shelf 81 contained a labelled cardboard box. Shelf 82 contained a labelled cardboard box. Shelf 83 contained a labelled cardboard box. Shelf 84 contained a labelled cardboard box. Shelf 85 contained a labelled cardboard box. Shelf 86 contained a labelled cardboard box. Shelf 87 contained a labelled cardboard box. Shelf 88 contained a labelled cardboard box. Shelf 89 contained a labelled cardboard box. Shelf 90 contained a labelled cardboard box. Shelf 91 contained a labelled cardboard box. Shelf 92 contained a labelled cardboard box. Shelf 93 contained a labelled cardboard box. Shelf 94 contained a labelled cardboard box. Shelf 95 contained a labelled cardboard box. Shelf 96 contained a labelled cardboard box. Shelf 97 contained a labelled cardboard box. Shelf 98 contained a labelled cardboard box. Shelf 99 contained a labelled cardboard box. Shelf 100 contained a labelled cardboard box. Shelf 101 contained a labelled cardboard box. Shelf 102 contained a labelled cardboard box. Shelf 103 contained a labelled cardboard box. Shelf 104 contained a labelled cardboard box. Shelf 105 contained a labelled cardboard box. Shelf 106 contained a labelled cardboard box. Shelf 107 contained a labelled cardboard box. Shelf 108 contained a labelled cardboard box. Shelf 109 contained a labelled cardboard box. Shelf 110 contained a labelled cardboard box. Shelf 111 contained a labelled cardboard box. Shelf 112 contained a labelled cardboard box. Shelf 113 contained a labelled cardboard box. Shelf 114 contained a labelled cardboard box. Shelf 115 contained a labelled cardboard box. Shelf 116 contained a labelled cardboard box. Shelf 117 contained a labelled cardboard box. Shelf 118 contained a labelled cardboard box. Shelf 119 contained a labelled cardboard box. Shelf 120 contained a labelled cardboard box. Shelf 121 contained a labelled cardboard box. Shelf 122 contained a labelled cardboard box. Shelf 123 contained a labelled cardboard box. Shelf 124 contained a labelled cardboard box. Shelf 125 contained a labelled cardboard box. Shelf 126 contained a labelled cardboard box. Shelf 127 contained a labelled cardboard box. Shelf 128 contained a labelled cardboard box. Shelf 129 contained a labelled cardboard box. Shelf 130 contained a labelled cardboard box. Shelf 131 contained a labelled cardboard box. Shelf 132 contained a labelled cardboard box. Shelf 133 contained a labelled cardboard box. Shelf 134 contained a labelled cardboard box. Shelf 135 contained a labelled cardboard box. Shelf 136 contained a labelled cardboard box. Shelf 137 contained a labelled cardboard box. Shelf 138 contained a labelled cardboard box. Shelf 139 contained a labelled cardboard box. Shelf 140 contained a labelled cardboard box. Shelf 141 contained a labelled cardboard box. Shelf 142 contained a labelled cardboard box. Shelf 143 contained a labelled cardboard box. Shelf 144 contained a labelled cardboard box. Shelf 145 contained a labelled cardboard box. Shelf 146 contained a labelled cardboard box. Shelf 147 contained a labelled cardboard box. Shelf 148 contained a labelled cardboard box. Shelf 149 contained a labelled cardboard box. Shelf 150 contained a labelled cardboard box. Shelf 151 contained a labelled cardboard box. Shelf 152 contained a labelled cardboard box. Shelf 153 contained a labelled cardboard box. Shelf 154 contained a labelled cardboard box. Shelf 155 contained a labelled cardboard box. Shelf 156 contained a labelled cardboard box. Shelf 157 contained a labelled cardboard box. Shelf 158 contained a labelled cardboard box. Shelf 159 contained a labelled cardboard box. Shelf 160 contained a labelled cardboard box. Shelf 161 contained a labelled cardboard box. Shelf 162 contained a labelled cardboard box. Shelf 163 contained a labelled cardboard box. Shelf 164 contained a labelled cardboard box. Shelf 165 contained a labelled cardboard box. Shelf 166 contained a labelled cardboard box. Shelf 167 contained a labelled cardboard box. Shelf 168 contained a labelled cardboard box. Shelf 169 contained a labelled cardboard box. Shelf 170 contained a labelled cardboard box. Shelf 171 contained a labelled cardboard box. Shelf 172 contained a labelled cardboard box. Shelf 173 contained a labelled cardboard box. Shelf 174 contained a labelled cardboard box. Shelf 175 contained a labelled cardboard box. Shelf 176 contained a labelled cardboard box. Shelf 177 contained a labelled cardboard box. Shelf 178 contained a labelled cardboard box. Shelf 179 contained a labelled cardboard box. Shelf 180 contained a labelled cardboard box. Shelf 181 contained a labelled cardboard box. Shelf 182 contained a labelled cardboard box. Shelf 183 contained a labelled cardboard box. Shelf 184 contained a labelled cardboard box. Shelf 185 contained a labelled cardboard box. Shelf 186 contained a labelled cardboard box. Shelf 187 contained a labelled cardboard box. Shelf 188 contained a labelled cardboard box. Shelf 189 contained a labelled cardboard box. Shelf 190 contained a labelled cardboard box. Shelf 191 contained a labelled cardboard box. Shelf 192 contained a labelled cardboard box. Shelf 193 contained a labelled cardboard box. Shelf 194 contained a labelled cardboard box. Shelf 195 contained a labelled cardboard box. Shelf 196 contained a labelled cardboard box. Shelf 197 contained a labelled cardboard box. Shelf 198 contained a labelled cardboard box. Shelf 199 contained a labelled cardboard box. Shelf 200 contained a labelled cardboard box. Shelf 201 contained a labelled cardboard box. Shelf 202 contained a labelled cardboard box. Shelf 203 contained a labelled cardboard box. Shelf 204 contained a labelled cardboard box. Shelf 205 contained a labelled cardboard box. Shelf 206 contained a labelled cardboard box. Shelf 207 contained a labelled cardboard box. Shelf 208 contained a labelled cardboard box. Shelf 209 contained a labelled cardboard box. Shelf 210 contained a labelled cardboard box. Shelf 211 contained a labelled cardboard box. Shelf 212 contained a labelled cardboard box. Shelf 213 contained a labelled cardboard box. item item item item x"
+      },
+      {
+        "end_ms": 2900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 2000,
+        "text": "The inspection has now passed. We choose the west warehouse; the east warehouse is ruled out."
+      },
+      {
+        "end_ms": 3900,
+        "id": "mic_0002",
+        "source": "microphone",
+        "start_ms": 3000,
+        "text": "Agreed. West is the settled warehouse choice."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "held_out",
+  "validated": {
+    "action_items": [],
+    "decisions": [
+      {
+        "confidence": 0.949999988079071,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "The west warehouse was chosen; the east warehouse is ruled out."
+      }
+    ],
+    "generated_at": "2026-11-01T04:35:05.926054100+01:00",
+    "key_points": [],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["mic_0000"]
+        },
+        "text": "Proposal to choose the west warehouse while inspection is pending."
+      }
+    ],
+    "summary": "The user proposed selecting the west warehouse as a temporary decision pending inspection, with the system providing inventory data about shelves with labelled cardboard boxes. The west warehouse was ultimately chosen, and the east warehouse was ruled out."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

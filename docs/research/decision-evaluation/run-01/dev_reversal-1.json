@@ -1,0 +1,141 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 6.5806482,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [
+          {
+            "all_ids_in_this_prompt": true,
+            "all_ids_resolve": true,
+            "evidence": ["mic_0000"],
+            "semantic_support": "NOT AUTOMATICALLY ASSESSED",
+            "text": "Launch on Monday"
+          },
+          {
+            "all_ids_in_this_prompt": true,
+            "all_ids_resolve": true,
+            "evidence": ["sys_0001", "mic_0002"],
+            "semantic_support": "NOT AUTOMATICALLY ASSESSED",
+            "text": "Launch on Wednesday"
+          }
+        ],
+        "raw_decision_count": 2
+      },
+      "prompt": "MEETING: Rollout\nDATE: 2026-11-01\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: We agree to launch on Monday.\n[sys_0001] (00:01) them: A blocker has just come in. Cancel that Monday decision. Launch on Wednesday instead.\n[mic_0002] (00:02) you: Agreed. Wednesday replaces Monday; Monday is no longer the plan.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [],
+        "decisions": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["mic_0000"],
+            "text": "Launch on Monday"
+          },
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001", "mic_0002"],
+            "text": "Launch on Wednesday"
+          }
+        ],
+        "key_points": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "text": "A blocker has been identified that requires postponing the launch"
+          }
+        ],
+        "open_questions": [],
+        "summary": "The team initially planned to launch on Monday, but a blocker was identified. The user agreed to postpone the launch to Wednesday."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 13.7 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "dev_reversal",
+  "elapsed_seconds": 6.6208153,
+  "error": null,
+  "expected": {
+    "decisions": [
+      {
+        "evidence": [["sys_0001"], ["mic_0002"], ["sys_0001", "mic_0002"]],
+        "meaning": "Wednesday replaced Monday as the launch date."
+      }
+    ],
+    "forbidden": "Monday retained as a current decision. Historical reversal wording is acceptable only if explicitly superseded.",
+    "other": "One current outcome, possibly a separate explicitly historical cancellation."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "dev_reversal",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:32:47.972795400+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Rollout",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "We agree to launch on Monday."
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "A blocker has just come in. Cancel that Monday decision. Launch on Wednesday instead."
+      },
+      {
+        "end_ms": 2900,
+        "id": "mic_0002",
+        "source": "microphone",
+        "start_ms": 2000,
+        "text": "Agreed. Wednesday replaces Monday; Monday is no longer the plan."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "development",
+  "validated": {
+    "action_items": [],
+    "decisions": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["mic_0000"]
+        },
+        "text": "Launch on Monday"
+      },
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001", "mic_0002"]
+        },
+        "text": "Launch on Wednesday"
+      }
+    ],
+    "generated_at": "2026-11-01T04:32:54.593596500+01:00",
+    "key_points": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "A blocker has been identified that requires postponing the launch"
+      }
+    ],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [],
+    "summary": "The team initially planned to launch on Monday, but a blocker was identified. The user agreed to postpone the launch to Wednesday."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

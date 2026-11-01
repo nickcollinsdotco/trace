@@ -1,0 +1,52 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.49s
+     Running `src-tauri\target\debug\examples\decision_eval.exe qwen3:8b docs/research/decision-evaluation/run-01`
+CASE dev_closed repeat 1
+trace: notes: 390 tokens in, 619 out, generated in 4.6s, 133 tokens/s, prompt read in 6.1s, model loaded in 13.4s, thinking: yes, 1908 characters
+CASE dev_pricing_discussion repeat 1
+trace: notes: 389 tokens in, 2095 out, generated in 15.6s, 134 tokens/s, prompt read in 0.0s, thinking: yes, 8178 characters
+CASE dev_action_only repeat 1
+trace: notes: 393 tokens in, 589 out, generated in 4.3s, 136 tokens/s, prompt read in 0.0s, thinking: yes, 1905 characters
+CASE dev_tentative_objection repeat 1
+trace: notes: 414 tokens in, 540 out, generated in 4.0s, 135 tokens/s, prompt read in 0.0s, thinking: yes, 2076 characters
+CASE dev_conditional repeat 1
+trace: notes: 394 tokens in, 537 out, generated in 4.0s, 134 tokens/s, prompt read in 0.0s, thinking: yes, 1479 characters
+CASE dev_rejection repeat 1
+trace: notes: 408 tokens in, 1968 out, generated in 14.7s, 134 tokens/s, prompt read in 0.0s, thinking: yes, 7604 characters
+CASE dev_reversal repeat 1
+trace: notes: 416 tokens in, 874 out, generated in 6.5s, 135 tokens/s, prompt read in 0.0s, thinking: yes, 2999 characters
+CASE dev_cross_reversal repeat 1
+trace: part 1 of 2: 2661 tokens in, 531 out, generated in 4.2s, 127 tokens/s, prompt read in 0.3s, thinking: yes, 2074 characters
+trace: part 2 of 2: 417 tokens in, 476 out, generated in 3.5s, 135 tokens/s, prompt read in 0.0s, thinking: yes, 1536 characters
+trace: final pass: 199 tokens in, 1104 out, generated in 8.1s, 137 tokens/s, prompt read in 0.0s, thinking: yes, 4328 characters
+CASE held_decide_later repeat 1
+trace: notes: 397 tokens in, 3072 out, generated in 23.1s, 133 tokens/s, prompt read in 0.0s, thinking: yes, 13781 characters
+trace: notes: 397 tokens in, 2500 out, generated in 18.8s, 133 tokens/s, prompt read in 0.0s, thinking: yes, 10079 characters
+CASE held_misleading_notes repeat 1
+trace: notes: 547 tokens in, 586 out, generated in 4.4s, 134 tokens/s, prompt read in 0.0s, thinking: yes, 1629 characters
+CASE held_conditional_policy repeat 1
+trace: notes: 407 tokens in, 808 out, generated in 5.9s, 136 tokens/s, prompt read in 0.0s, thinking: yes, 2891 characters
+CASE held_typed_decision repeat 1
+trace: notes: 434 tokens in, 3072 out, generated in 23.1s, 133 tokens/s, prompt read in 0.0s, thinking: yes, 10888 characters
+trace: notes: 434 tokens in, 3072 out, generated in 23.1s, 133 tokens/s, prompt read in 0.0s, thinking: yes, 11899 characters
+CASE held_cross_closure repeat 1
+trace: part 1 of 2: 2661 tokens in, 560 out, generated in 4.4s, 126 tokens/s, prompt read in 0.3s, thinking: yes, 2018 characters
+trace: part 2 of 2: 412 tokens in, 850 out, generated in 6.3s, 135 tokens/s, prompt read in 0.0s, thinking: yes, 3233 characters
+trace: final pass: 227 tokens in, 580 out, generated in 4.3s, 136 tokens/s, prompt read in 0.0s, thinking: yes, 1886 characters
+CASE held_cross_reopen repeat 1
+trace: part 1 of 2: 2657 tokens in, 645 out, generated in 5.5s, 117 tokens/s, prompt read in 0.3s, thinking: yes, 2389 characters
+trace: part 2 of 2: 424 tokens in, 537 out, generated in 4.0s, 133 tokens/s, prompt read in 0.0s, thinking: yes, 1632 characters
+trace: final pass: 211 tokens in, 1633 out, generated in 12.0s, 136 tokens/s, prompt read in 0.0s, thinking: yes, 6694 characters
+CASE dev_closed repeat 2
+trace: notes: 390 tokens in, 387 out, generated in 2.9s, 134 tokens/s, prompt read in 0.0s, thinking: yes, 1298 characters
+CASE dev_pricing_discussion repeat 2
+trace: notes: 389 tokens in, 2818 out, generated in 21.2s, 133 tokens/s, prompt read in 0.0s, thinking: yes, 11201 characters
+CASE dev_cross_reversal repeat 2
+trace: part 1 of 2: 2661 tokens in, 566 out, generated in 4.4s, 127 tokens/s, prompt read in 0.0s, thinking: yes, 2006 characters
+trace: part 2 of 2: 417 tokens in, 881 out, generated in 6.5s, 135 tokens/s, prompt read in 0.0s, thinking: yes, 3342 characters
+trace: final pass: 231 tokens in, 1150 out, generated in 8.4s, 136 tokens/s, prompt read in 0.0s, thinking: yes, 4554 characters
+CASE held_decide_later repeat 2
+trace: notes: 397 tokens in, 928 out, generated in 6.9s, 135 tokens/s, prompt read in 0.0s, thinking: yes, 3648 characters
+CASE held_cross_reopen repeat 2
+trace: part 1 of 2: 2657 tokens in, 649 out, generated in 5.1s, 126 tokens/s, prompt read in 0.0s, thinking: yes, 2142 characters
+trace: part 2 of 2: 424 tokens in, 744 out, generated in 5.5s, 134 tokens/s, prompt read in 0.0s, thinking: yes, 2340 characters
+trace: final pass: 271 tokens in, 945 out, generated in 6.9s, 136 tokens/s, prompt read in 0.0s, thinking: yes, 3326 characters

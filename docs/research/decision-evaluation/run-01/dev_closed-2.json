@@ -1,0 +1,101 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 3.0003821,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [
+          {
+            "all_ids_in_this_prompt": true,
+            "all_ids_resolve": true,
+            "evidence": ["sys_0001"],
+            "semantic_support": "NOT AUTOMATICALLY ASSESSED",
+            "text": "Thursday is agreed as the release date; Tuesday is out."
+          }
+        ],
+        "raw_decision_count": 1
+      },
+      "prompt": "MEETING: Release planning\nDATE: 2026-11-01\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: We need to choose Tuesday or Thursday for the release. I propose Thursday.\n[sys_0001] (00:01) them: Thursday is agreed. That is the release date; Tuesday is out.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [],
+        "decisions": [
+          {
+            "confidence": 0.949999988079071,
+            "evidence": ["sys_0001"],
+            "text": "Thursday is agreed as the release date; Tuesday is out."
+          }
+        ],
+        "key_points": [],
+        "open_questions": [],
+        "summary": "The team agreed to set Thursday as the release date, dismissing Tuesday."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 8.3 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "dev_closed",
+  "elapsed_seconds": 3.0399541,
+  "error": null,
+  "expected": {
+    "decisions": [
+      {
+        "evidence": [["sys_0001"], ["mic_0000", "sys_0001"]],
+        "meaning": "The release was set for Thursday."
+      }
+    ],
+    "forbidden": "Tuesday chosen, or only a proposal to release Thursday.",
+    "other": "No assigned action is required."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "dev_closed",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:35:28.189315400+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Release planning",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "We need to choose Tuesday or Thursday for the release. I propose Thursday."
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "Thursday is agreed. That is the release date; Tuesday is out."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 2,
+  "split": "development",
+  "validated": {
+    "action_items": [],
+    "decisions": [
+      {
+        "confidence": 0.949999988079071,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "Thursday is agreed as the release date; Tuesday is out."
+      }
+    ],
+    "generated_at": "2026-11-01T04:35:31.229251+01:00",
+    "key_points": [],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [],
+    "summary": "The team agreed to set Thursday as the release date, dismissing Tuesday."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

@@ -1,0 +1,11 @@
+   Compiling trace v0.41.0 (C:\Users\nfbco\Documents\GITHUB\TRACE\t3-a34fa253\src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.63s
+     Running unittests examples\decision_eval.rs (src-tauri\target\debug\examples\decision_eval-2fa422cac3e7da81.exe)
+
+running 3 tests
+test tests::audit_separates_global_resolution_from_window_visibility_and_meaning ... ok
+test tests::corpus_rejects_broken_evidence_and_stream_identity ... ok
+test tests::corpus_preserves_splits_sources_and_real_window_boundaries ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

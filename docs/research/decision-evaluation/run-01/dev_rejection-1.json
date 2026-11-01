@@ -1,0 +1,127 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 14.7428639,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [
+          {
+            "all_ids_in_this_prompt": true,
+            "all_ids_resolve": true,
+            "evidence": ["sys_0001"],
+            "semantic_support": "NOT AUTOMATICALLY ASSESSED",
+            "text": "We have decided against buying the premium support upgrade this year."
+          },
+          {
+            "all_ids_in_this_prompt": true,
+            "all_ids_resolve": true,
+            "evidence": ["mic_0002"],
+            "semantic_support": "NOT AUTOMATICALLY ASSESSED",
+            "text": "Reject the premium support upgrade for this year."
+          }
+        ],
+        "raw_decision_count": 2
+      },
+      "prompt": "MEETING: Renewal\nDATE: 2026-11-01\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: Shall we buy the premium support upgrade?\n[sys_0001] (00:01) them: No. We have decided against buying that upgrade this year.\n[mic_0002] (00:02) you: Agreed, reject the upgrade for this year.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [],
+        "decisions": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "text": "We have decided against buying the premium support upgrade this year."
+          },
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["mic_0002"],
+            "text": "Reject the premium support upgrade for this year."
+          }
+        ],
+        "key_points": [],
+        "open_questions": [],
+        "summary": "The team decided against purchasing the premium support upgrade this year, and the user agreed to reject it."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 13.8 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "dev_rejection",
+  "elapsed_seconds": 14.7779923,
+  "error": null,
+  "expected": {
+    "decisions": [
+      {
+        "evidence": [["sys_0001"], ["mic_0002"], ["sys_0001", "mic_0002"]],
+        "meaning": "The premium support upgrade was rejected for this year."
+      }
+    ],
+    "forbidden": "Buying the upgrade or an indefinitely permanent ban.",
+    "other": "Explicit rejection closes a question and is a positive decision case."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "dev_rejection",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:32:33.194231600+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Renewal",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "Shall we buy the premium support upgrade?"
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "No. We have decided against buying that upgrade this year."
+      },
+      {
+        "end_ms": 2900,
+        "id": "mic_0002",
+        "source": "microphone",
+        "start_ms": 2000,
+        "text": "Agreed, reject the upgrade for this year."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "development",
+  "validated": {
+    "action_items": [],
+    "decisions": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "We have decided against buying the premium support upgrade this year."
+      },
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["mic_0002"]
+        },
+        "text": "Reject the premium support upgrade for this year."
+      }
+    ],
+    "generated_at": "2026-11-01T04:32:47.972202700+01:00",
+    "key_points": [],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [],
+    "summary": "The team decided against purchasing the premium support upgrade this year, and the user agreed to reject it."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 15.6688306,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [],
+        "raw_decision_count": 0
+      },
+      "prompt": "MEETING: Pricing\nDATE: 2026-11-01\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: We should start discussion on pricing next week.\n[sys_0001] (00:01) them: Yes, there is a lot to explore. We have not picked a price or a pricing model.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["mic_0000"],
+            "owner": null,
+            "text": "We should start discussion on pricing next week."
+          }
+        ],
+        "decisions": [],
+        "key_points": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "text": "They have not picked a price or a pricing model."
+          }
+        ],
+        "open_questions": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "text": "What pricing model and price should be chosen?"
+          }
+        ],
+        "summary": "The user proposed starting pricing discussion next week (action item). They confirmed no price or model has been selected (key point), leaving the pricing model and price as an open question."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 14.6 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "dev_pricing_discussion",
+  "elapsed_seconds": 15.704483,
+  "error": null,
+  "expected": {
+    "decisions": [],
+    "forbidden": "Starting a pricing discussion or selecting pricing presented as a closed decision.",
+    "other": "Pricing remains open. No individual committed to an action."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "dev_pricing_discussion",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:32:04.821063300+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Pricing",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "We should start discussion on pricing next week."
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "Yes, there is a lot to explore. We have not picked a price or a pricing model."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "development",
+  "validated": {
+    "action_items": [
+      {
+        "completed": false,
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["mic_0000"]
+        },
+        "id": "act_000",
+        "text": "We should start discussion on pricing next week."
+      }
+    ],
+    "decisions": [],
+    "generated_at": "2026-11-01T04:32:20.525526900+01:00",
+    "key_points": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "They have not picked a price or a pricing model."
+      }
+    ],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "What pricing model and price should be chosen?"
+      }
+    ],
+    "summary": "The user proposed starting pricing discussion next week (action item). They confirmed no price or model has been selected (key point), leaving the pricing model and price as an open question."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

@@ -1,0 +1,2 @@
+    Checking trace v0.41.0 (C:\Users\nfbco\Documents\GITHUB\TRACE\t3-a34fa253\src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.19s

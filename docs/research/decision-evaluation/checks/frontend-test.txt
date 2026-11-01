@@ -1,0 +1,112 @@
+
+> trace@0.41.0 test C:\Users\nfbco\Documents\GITHUB\TRACE\t3-a34fa253
+> vitest run
+
+
+ RUN  v3.2.7 C:/Users/nfbco/Documents/GITHUB/TRACE/t3-a34fa253
+
+ ✓ src/features/note/sections.test.ts (18 tests) 7ms
+ ✓ src/lib/dates.test.ts (15 tests) 12ms
+ ✓ src/features/library/query.test.ts (13 tests) 4ms
+ ✓ src/design/theme.test.ts (22 tests) 9ms
+ ✓ src/features/library/signal.test.ts (9 tests) 25ms
+ ✓ src/features/activity/jobs.test.ts (9 tests) 5ms
+ ✓ src/design/screen.test.ts (15 tests) 13ms
+ ✓ src/design/appearance.test.ts (16 tests) 9ms
+ ✓ src/features/library/suggest.test.ts (13 tests) 16ms
+ ✓ src/features/palette/commands.test.ts (12 tests) 13ms
+ ✓ src/features/fun/lines.test.ts (15 tests) 9ms
+ ✓ src/features/note/RefinementNotice.test.tsx (9 tests) 239ms
+ ✓ src/features/capture/CaptureScreen.test.tsx (7 tests) 609ms
+ ✓ src/lib/version.test.ts (5 tests) 19ms
+ ✓ src/design/type.test.ts (6 tests) 5ms
+ ✓ src/features/diagnostics/report.test.ts (4 tests) 4ms
+ ✓ src/design/contrast.test.ts (10 tests) 6ms
+ ✓ src/features/scope/spectrum.test.ts (8 tests) 7ms
+ ✓ src/features/capture/trouble.test.ts (5 tests) 5ms
+ ✓ src/features/mini/MiniWindow.test.tsx (4 tests) 106ms
+ ✓ src/features/activity/ActivityToast.test.tsx (4 tests) 77ms
+ ✓ src/changelog.test.ts (4 tests) 6ms
+ ✓ src/components/ui/ContextMenu.test.tsx (5 tests) 349ms
+ ✓ src/features/mini/shortcut.test.ts (5 tests) 3ms
+ ✓ src/lib/casing.test.ts (1 test) 5ms
+ ✓ src/features/palette/Palette.test.tsx (5 tests) 745ms
+ ✓ src/lib/names.test.ts (4 tests) 2ms
+ ✓ src/features/about/changesSeen.test.ts (4 tests) 4ms
+ ✓ src/features/library/fit.test.ts (5 tests) 2ms
+ ✓ src/lib/format.test.ts (2 tests) 2ms
+ ✓ src/fixtures/scenarios.test.ts (10 tests) 6410ms
+   ✓ fake backend > answers every command the app can send  6402ms
+stderr | src/fixtures/Gallery.test.tsx > Gallery > copies a diagnostics report that says what is on the GPU
+An update to Narrator inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/fixtures/Gallery.test.tsx > Gallery > moves the note's title into the top bar once it scrolls away
+An update to NoteScreen inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/fixtures/Gallery.test.tsx (104 tests) 72684ms
+   ✓ Gallery > renders every scenario without logging an error  10675ms
+   ✓ Gallery > warns in the library when Ollama is closed, and only then  700ms
+   ✓ Gallery > shows and hides meeting summaries in the library  366ms
+   ✓ Gallery > previews a theme pointed at, and changes nothing until one is chosen  416ms
+   ✓ Gallery > keeps a screen per family, and mixes it effect by effect  861ms
+   ✓ Gallery > tests the microphone only when asked, and stops when asked  415ms
+   ✓ Gallery > runs a regenerate through to the end  5113ms
+   ✓ Gallery > stops notes part-way, says so at once, and leaves them to ↻  1020ms
+   ✓ Gallery > asks before regenerating a note edited outside TRACE, and says where the copy went  5436ms
+   ✓ Gallery > writes notes from the live transcript when the full-quality pass fails  6788ms
+   ✓ Gallery > holds notes back for memory, says why, and puts them off when asked  868ms
+   ✓ Gallery > says notes are interim and writes them with the chosen model when asked  5131ms
+   ✓ Gallery > asks before writing with a model that has no room, naming what holds it  464ms
+   ✓ Gallery > writes notes anyway when told to, and the wait clears  519ms
+   ✓ Gallery > opens on the generated half while notes are written, but never overrides a choice  2701ms
+   ✓ Gallery > offers rename and delete on a meeting  357ms
+   ✓ Gallery > removes a meeting from the list when deleted  465ms
+   ✓ Gallery > does not delete when the confirmation is declined  484ms
+   ✓ Gallery > renames a meeting in place, and Escape leaves it as it was  1062ms
+   ✓ Gallery > suggests the library's own tags while a tag is typed  413ms
+   ✓ Gallery > autofills people and filters in the search line  351ms
+   ✓ Gallery > hides the sidebar by hand and keeps the recording in view  374ms
+   ✓ Gallery > searches transcripts, not just titles, and says why each matched  501ms
+   ✓ Gallery > requires every term to appear  649ms
+   ✓ Gallery > restores the grouped list when the query is cleared  551ms
+   ✓ Gallery > shows a note's tags and lets one be added  563ms
+   ✓ Gallery > removes a tag  306ms
+   ✓ Gallery > orders the library oldest first on request  635ms
+   ✓ Gallery > lists every tag under Filters  399ms
+   ✓ Gallery > frames each section of a note so it can be closed, with the transcript closed  351ms
+   ✓ Gallery > filters by length and summary from the Filters menu, writing it into the search line  423ms
+   ✓ Gallery > saves context and names, then regenerates with them  1115ms
+   ✓ Gallery > opens the palette with every command, the best one ready for Enter  378ms
+   ✓ Gallery > lets the narrator speak where it is on, and answer a poke  312ms
+   ✓ Gallery > has the narrator report a download the bar has no progress for  2506ms
+   ✓ Gallery > boots line by line, to READY  1137ms
+   ✓ Gallery > shows the scope above the notes, and opens it full screen with a line for notes  565ms
+   ✓ Gallery > shows the mini window recording, idle and saved  623ms
+   ✓ Gallery > checks for an update only when the version is clicked, and says it is current  1106ms
+   ✓ Gallery > downloads an update from the status bar with a bar, then restarts to install it  3174ms
+   ✓ Gallery > does not offer an update's download while a meeting records  459ms
+   ✓ Gallery > keeps What's new closed on About until it is opened, and open when sent to it  1052ms
+
+ Test Files  32 passed (32)
+      Tests  368 passed (368)
+   Start at  04:29:10
+   Duration  77.60s (transform 2.21s, setup 25.20s, collect 5.20s, tests 81.41s, environment 46.73s, prepare 8.92s)
+

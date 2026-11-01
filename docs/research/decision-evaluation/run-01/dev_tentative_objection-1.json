@@ -1,0 +1,95 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 4.0599133,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [],
+        "raw_decision_count": 0
+      },
+      "prompt": "MEETING: Hosting\nDATE: 2026-11-01\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: Maybe we could move to North hosting. I lean that way.\n[sys_0001] (00:01) them: I object until we know its backup policy. Which regions would hold our data?\n[mic_0002] (00:02) you: Fair question. Leave the choice open.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [],
+        "decisions": [],
+        "key_points": [],
+        "open_questions": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "text": "Backup policy and data regions for North hosting"
+          }
+        ],
+        "summary": "Discussion about moving to North hosting, with objections raised about backup policy and data regions. The user agreed to leave the choice open."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 14.1 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "dev_tentative_objection",
+  "elapsed_seconds": 4.0983105,
+  "error": null,
+  "expected": {
+    "decisions": [],
+    "forbidden": "North selected, rejected outright, or retaining the current host as a settled strategy.",
+    "other": "Backup policy and data regions are open questions; objection is not final rejection."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "dev_tentative_objection",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:32:24.998789300+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Hosting",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "Maybe we could move to North hosting. I lean that way."
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "I object until we know its backup policy. Which regions would hold our data?"
+      },
+      {
+        "end_ms": 2900,
+        "id": "mic_0002",
+        "source": "microphone",
+        "start_ms": 2000,
+        "text": "Fair question. Leave the choice open."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "development",
+  "validated": {
+    "action_items": [],
+    "decisions": [],
+    "generated_at": "2026-11-01T04:32:29.097084100+01:00",
+    "key_points": [],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "Backup policy and data regions for North hosting"
+      }
+    ],
+    "summary": "Discussion about moving to North hosting, with objections raised about backup policy and data regions. The user agreed to leave the choice open."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

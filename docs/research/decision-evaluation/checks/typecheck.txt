@@ -1,0 +1,4 @@
+
+> trace@0.41.0 check C:\Users\nfbco\Documents\GITHUB\TRACE\t3-a34fa253
+> tsc --noEmit
+

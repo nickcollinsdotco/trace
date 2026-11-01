@@ -1,0 +1,170 @@
+
+> trace@0.41.0 lint C:\Users\nfbco\Documents\GITHUB\TRACE\t3-a34fa253
+> biome check .
+
+docs\research\decision-evaluation\corpus.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+      4   4 │     "cases": [
+      5   5 │       {
+      6     │ - ······"id":·"dev_closed",·"split":·"development",·"repeat":·true,
+      7     │ - ······"title":·"Release·planning",·"notes":·"",·"context":·null,
+          6 │ + ······"id":·"dev_closed",
+          7 │ + ······"split":·"development",
+          8 │ + ······"repeat":·true,
+          9 │ + ······"title":·"Release·planning",
+         10 │ + ······"notes":·"",
+         11 │ + ······"context":·null,
+      8  12 │         "lines": [
+      9     │ - ········["mic_0000",·"microphone",·"We·need·to·choose·Tuesday·or·Thursday·for·the·release.·I·propose·Thursday."],
+         13 │ + ········[
+         14 │ + ··········"mic_0000",
+         15 │ + ··········"microphone",
+         16 │ + ··········"We·need·to·choose·Tuesday·or·Thursday·for·the·release.·I·propose·Thursday."
+         17 │ + ········],
+     10  18 │           ["sys_0001", "system", "Thursday is agreed. That is the release date; Tuesday is out."]
+     11  19 │         ],
+     12     │ - ······"expected":·{"decisions":·[{"meaning":·"The·release·was·set·for·Thursday.",·"evidence":·[["sys_0001"],·["mic_0000",·"sys_0001"]]}],·"forbidden":·"Tuesday·chosen,·or·only·a·proposal·to·release·Thursday.",·"other":·"No·assigned·action·is·required."}
+         20 │ + ······"expected":·{
+         21 │ + ········"decisions":·[
+         22 │ + ··········{
+         23 │ + ············"meaning":·"The·release·was·set·for·Thursday.",
+         24 │ + ············"evidence":·[["sys_0001"],·["mic_0000",·"sys_0001"]]
+         25 │ + ··········}
+         26 │ + ········],
+         27 │ + ········"forbidden":·"Tuesday·chosen,·or·only·a·proposal·to·release·Thursday.",
+         28 │ + ········"other":·"No·assigned·action·is·required."
+         29 │ + ······}
+     13  30 │       },
+     14  31 │       {
+     15     │ - ······"id":·"dev_pricing_discussion",·"split":·"development",·"repeat":·true,
+     16     │ - ······"title":·"Pricing",·"notes":·"",·"context":·null,
+         32 │ + ······"id":·"dev_pricing_discussion",
+         33 │ + ······"split":·"development",
+         34 │ + ······"repeat":·true,
+         35 │ + ······"title":·"Pricing",
+         36 │ + ······"notes":·"",
+         37 │ + ······"context":·null,
+     17  38 │         "lines": [
+     18  39 │           ["mic_0000", "microphone", "We should start discussion on pricing next week."],
+     19     │ - ········["sys_0001",·"system",·"Yes,·there·is·a·lot·to·explore.·We·have·not·picked·a·price·or·a·pricing·model."]
+         40 │ + ········[
+         41 │ + ··········"sys_0001",
+         42 │ + ··········"system",
+         43 │ + ··········"Yes,·there·is·a·lot·to·explore.·We·have·not·picked·a·price·or·a·pricing·model."
+         44 │ + ········]
+     20  45 │         ],
+     21     │ - ······"expected":·{"decisions":·[],·"forbidden":·"Starting·a·pricing·discussion·or·selecting·pricing·presented·as·a·closed·decision.",·"other":·"Pricing·remains·open.·No·individual·committed·to·an·action."}
+         46 │ + ······"expected":·{
+         47 │ + ········"decisions":·[],
+         48 │ + ········"forbidden":·"Starting·a·pricing·discussion·or·selecting·pricing·presented·as·a·closed·decision.",
+         49 │ + ········"other":·"Pricing·remains·open.·No·individual·committed·to·an·action."
+         50 │ + ······}
+     22  51 │       },
+     23  52 │       {
+     24     │ - ······"id":·"dev_action_only",·"split":·"development",·"repeat":·false,
+     25     │ - ······"title":·"Vendor·research",·"notes":·"",·"context":·null,
+         53 │ + ······"id":·"dev_action_only",
+         54 │ + ······"split":·"development",
+         55 │ + ······"repeat":·false,
+         56 │ + ······"title":·"Vendor·research",
+         57 │ + ······"notes":·"",
+         58 │ + ······"context":·null,
+     26  59 │         "lines": [
+     27     │ - ········["sys_0000",·"system",·"I·am·Mira.·I·will·compare·the·two·vendors·and·send·the·costs·on·Monday."],
+     28     │ - ········["mic_0001",·"microphone",·"Thanks.·We·will·choose·after·reading·that.·Nothing·is·selected·today."]
+         60 │ + ········[
+         61 │ + ··········"sys_0000",
+         62 │ + ··········"system",
+         63 │ + ··········"I·am·Mira.·I·will·compare·the·two·vendors·and·send·the·costs·on·Monday."
+         64 │ + ········],
+         65 │ + ········[
+         66 │ + ··········"mic_0001",
+         67 │ + ··········"microphone",
+         68 │ + ··········"Thanks.·We·will·choose·after·reading·that.·Nothing·is·selected·today."
+         69 │ + ········]
+     29  70 │         ],
+     30     │ - ······"expected":·{"decisions":·[],·"forbidden":·"Research·assignment·or·a·vendor·choice·in·decisions.",·"other":·"Mira·comparing·vendors·and·sending·costs·is·an·action,·supported·by·sys_0000."}
+         71 │ + ······"expected":·{
+         72 │ + ········"decisions":·[],
+         73 │ + ········"forbidden":·"Research·assignment·or·a·vendor·choice·in·decisions.",
+         74 │ + ········"other":·"Mira·comparing·vendors·and·sending·costs·is·an·action,·supported·by·sys_0000."
+         75 │ + ······}
+     31  76 │       },
+     32  77 │       {
+     33     │ - ······"id":·"dev_tentative_objection",·"split":·"development",·"repeat":·false,
+     34     │ - ······"title":·"Hosting",·"notes":·"",·"context":·null,
+         78 │ + ······"id":·"dev_tentative_objection",
+         79 │ + ······"split":·"development",
+         80 │ + ······"repeat":·false,
+         81 │ + ······"title":·"Hosting",
+         82 │ + ······"notes":·"",
+         83 │ + ······"context":·null,
+     35  84 │         "lines": [
+     36  85 │           ["mic_0000", "microphone", "Maybe we could move to North hosting. I lean that way."],
+     37     │ - ········["sys_0001",·"system",·"I·object·until·we·know·its·backup·policy.·Which·regions·would·hold·our·data?"],
+         86 │ + ········[
+         87 │ + ··········"sys_0001",
+         88 │ + ··········"system",
+         89 │ + ··········"I·object·until·we·know·its·backup·policy.·Which·regions·would·hold·our·data?"
+         90 │ + ········],
+     38  91 │           ["mic_0002", "microphone", "Fair question. Leave the choice open."]
+     39  92 │         ],
+     40     │ - ······"expected":·{"decisions":·[],·"forbidden":·"North·selected,·rejected·outright,·or·retaining·the·current·host·as·a·settled·strategy.",·"other":·"Backup·policy·and·data·regions·are·open·questions;·objection·is·not·final·rejection."}
+         93 │ + ······"expected":·{
+         94 │ + ········"decisions":·[],
+         95 │ + ········"forbidden":·"North·selected,·rejected·outright,·or·retaining·the·current·host·as·a·settled·strategy.",
+         96 │ + ········"other":·"Backup·policy·and·data·regions·are·open·questions;·objection·is·not·final·rejection."
+         97 │ + ······}
+     41  98 │       },
+     42  99 │       {
+     43     │ - ······"id":·"dev_conditional",·"split":·"development",·"repeat":·false,
+     44     │ - ······"title":·"Migration",·"notes":·"",·"context":·null,
+        100 │ + ······"id":·"dev_conditional",
+        101 │ + ······"split":·"development",
+        102 │ + ······"repeat":·false,
+        103 │ + ······"title":·"Migration",
+        104 │ + ······"notes":·"",
+        105 │ + ······"context":·null,
+     45 106 │         "lines": [
+     46 107 │           ["mic_0000", "microphone", "If the load test passes, perhaps we could migrate on Friday."],
+     47     │ - ········["sys_0001",·"system",·"It·has·not·run.·Even·if·it·passes·we·still·need·to·decide.·I·will·run·it·tomorrow."]
+        108 │ + ········[
+        109 │ + ··········"sys_0001",
+        110 │ + ··········"system",
+        111 │ + ··········"It·has·not·run.·Even·if·it·passes·we·still·need·to·decide.·I·will·run·it·tomorrow."
+        112 │ + ········]
+     48 113 │         ],
+     49     │ - ······"expected":·{"decisions":·[],·"forbidden":·"Friday·migration·committed,·even·with·a·condition;·the·proposal·was·explicitly·still·undecided.",·"other":·"Running·the·load·test·is·an·action·supported·by·sys_0001."}
+        114 │ + ······"expected":·{
+        115 │ + ········"decisions":·[],
+        116 │ + ········"forbidden":·"Friday·migration·committed,·even·with·a·condition;·the·proposal·was·explicitly·still·undecided.",
+        117 │ + ········"other":·"Running·the·load·test·is·an·action·supported·by·sys_0001."
+        118 │ + ······}
+     50 119 │       },
+     51 120 │       {
+     52     │ - ······"id":·"dev_rejection",·"split":·"development",·"repeat":·false,
+     53     │ - ······"title":·"Renewal",·"notes":·"",·"context":·null,
+        121 │ + ······"id":·"dev_rejection",
+        122 │ + ······"split":·"development",
+        123 │ + ······"repeat":·false,
+        124 │ + ······"title":·"Renewal",
+        125 │ + ······"notes":·"",
+        126 │ + ······"context":·null,
+     54 127 │         "lines": [
+     55 128 │           ["mic_0000", "microphone", "Shall we buy the premium support upgrade?"],
+    ······· │ 
+     57 130 │           ["mic_0002", "microphone", "Agreed, reject the upgrade for this year."]
+     58 131 │         ],
+  284 more lines truncated
+  
+
+Checked 137 files in 183ms. No fixes applied.
+Found 1 error.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+
+ ELIFECYCLE  Command failed with exit code 1.

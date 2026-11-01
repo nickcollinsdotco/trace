@@ -1,0 +1,22 @@
+   Compiling trace v0.41.0 (C:\Users\nfbco\Documents\GITHUB\TRACE\t3-a34fa253\src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.97s
+     Running unittests examples\decision_eval.rs (src-tauri\target\debug\examples\decision_eval-2fa422cac3e7da81.exe)
+
+running 1 test
+test tests::corpus_preserves_splits_sources_and_real_window_boundaries ... FAILED
+
+failures:
+
+---- tests::corpus_preserves_splits_sources_and_real_window_boundaries stdout ----
+
+thread 'tests::corpus_preserves_splits_sources_and_real_window_boundaries' (60244) panicked at examples\decision_eval.rs:371:31:
+called `Result::unwrap()` on an `Err` value: "unexpected window layout: dev_cross_reversal"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    tests::corpus_preserves_splits_sources_and_real_window_boundaries
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--example decision_eval`

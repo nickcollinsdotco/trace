@@ -1,0 +1,58 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 46.3573341,
+      "error": "the model returned output that could not be read: the model ran out of room before finishing its answer, usually from repeating itself",
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": null,
+      "prompt": "MEETING: Naming\nDATE: 2026-11-01\n\nNOTES TYPED BY THE USER DURING THE MEETING\nThese are citable and carry high signal — the user chose to write them down.\n\n[note_0000] Agreed: the public product name is Cedar, not Birch.\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: I have written our final naming choice in the notes.\n[sys_0001] (00:01) them: Yes, those notes accurately record what we just agreed.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": null,
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 11.2 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "held_typed_decision",
+  "elapsed_seconds": 46.3926856,
+  "error": "the model returned output that could not be read: the model ran out of room before finishing its answer, usually from repeating itself",
+  "expected": {
+    "decisions": [
+      {
+        "evidence": [["note_0000"], ["note_0000", "sys_0001"]],
+        "meaning": "Cedar was chosen as the public product name instead of Birch."
+      }
+    ],
+    "forbidden": "Birch selected or ignoring the only source naming Cedar.",
+    "other": "Citable typed notes can legitimately supply the decision."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "held_typed_decision",
+    "notes": "Agreed: the public product name is Cedar, not Birch.",
+    "participants": [],
+    "started_at": "2026-11-01T04:34:03.736785700+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Naming",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "I have written our final naming choice in the notes."
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "Yes, those notes accurately record what we just agreed."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "held_out",
+  "validated": null,
+  "validation_report": null
+}

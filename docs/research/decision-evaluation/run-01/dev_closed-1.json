@@ -1,0 +1,127 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 24.1486356,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [
+          {
+            "all_ids_in_this_prompt": true,
+            "all_ids_resolve": true,
+            "evidence": ["sys_0001"],
+            "semantic_support": "NOT AUTOMATICALLY ASSESSED",
+            "text": "The release date is set to Thursday."
+          }
+        ],
+        "raw_decision_count": 1
+      },
+      "prompt": "MEETING: Release planning\nDATE: 2026-11-01\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: We need to choose Tuesday or Thursday for the release. I propose Thursday.\n[sys_0001] (00:01) them: Thursday is agreed. That is the release date; Tuesday is out.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [],
+        "decisions": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "text": "The release date is set to Thursday."
+          }
+        ],
+        "key_points": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["mic_0000"],
+            "text": "The user proposed Thursday as the release date."
+          },
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "text": "The team agreed to Thursday and dismissed Tuesday as the release date."
+          }
+        ],
+        "open_questions": [],
+        "summary": "The team agreed to set the release date to Thursday, dismissing Tuesday as an option."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 6.2 GiB (estimated); RAM 15.6 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 10.5 GiB of 15.6 GiB free; loading it on the GPU"
+    }
+  ],
+  "case": "dev_closed",
+  "elapsed_seconds": 24.2261109,
+  "error": null,
+  "expected": {
+    "decisions": [
+      {
+        "evidence": [["sys_0001"], ["mic_0000", "sys_0001"]],
+        "meaning": "The release was set for Thursday."
+      }
+    ],
+    "forbidden": "Tuesday chosen, or only a proposal to release Thursday.",
+    "other": "No assigned action is required."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "dev_closed",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:31:40.594431500+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Release planning",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "We need to choose Tuesday or Thursday for the release. I propose Thursday."
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "Thursday is agreed. That is the release date; Tuesday is out."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "development",
+  "validated": {
+    "action_items": [],
+    "decisions": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "The release date is set to Thursday."
+      }
+    ],
+    "generated_at": "2026-11-01T04:32:04.820526500+01:00",
+    "key_points": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["mic_0000"]
+        },
+        "text": "The user proposed Thursday as the release date."
+      },
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "The team agreed to Thursday and dismissed Tuesday as the release date."
+      }
+    ],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [],
+    "summary": "The team agreed to set the release date to Thursday, dismissing Tuesday as an option."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

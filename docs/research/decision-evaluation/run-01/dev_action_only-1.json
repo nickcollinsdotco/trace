@@ -1,0 +1,127 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 4.4354033,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [
+          {
+            "all_ids_in_this_prompt": true,
+            "all_ids_resolve": true,
+            "evidence": ["mic_0001"],
+            "semantic_support": "NOT AUTOMATICALLY ASSESSED",
+            "text": "Nothing is selected today."
+          }
+        ],
+        "raw_decision_count": 1
+      },
+      "prompt": "MEETING: Vendor research\nDATE: 2026-11-01\n\nTRANSCRIPT\n\n[sys_0000] (00:00) them: I am Mira. I will compare the two vendors and send the costs on Monday.\n[mic_0001] (00:01) you: Thanks. We will choose after reading that. Nothing is selected today.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [
+          {
+            "confidence": 0.949999988079071,
+            "evidence": ["sys_0000"],
+            "owner": null,
+            "text": "I will compare the two vendors and send the costs on Monday."
+          }
+        ],
+        "decisions": [
+          {
+            "confidence": 0.949999988079071,
+            "evidence": ["mic_0001"],
+            "text": "Nothing is selected today."
+          }
+        ],
+        "key_points": [],
+        "open_questions": [
+          {
+            "confidence": 0.949999988079071,
+            "evidence": ["mic_0001"],
+            "text": "We will choose after reading that."
+          }
+        ],
+        "summary": "Mira committed to comparing vendors and sending costs on Monday. The user stated nothing is selected today, and they will choose after reviewing the costs."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 14.5 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "dev_action_only",
+  "elapsed_seconds": 4.4721269,
+  "error": null,
+  "expected": {
+    "decisions": [],
+    "forbidden": "Research assignment or a vendor choice in decisions.",
+    "other": "Mira comparing vendors and sending costs is an action, supported by sys_0000."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "dev_action_only",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:32:20.526131200+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Vendor research",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "sys_0000",
+        "source": "system",
+        "start_ms": 0,
+        "text": "I am Mira. I will compare the two vendors and send the costs on Monday."
+      },
+      {
+        "end_ms": 1900,
+        "id": "mic_0001",
+        "source": "microphone",
+        "start_ms": 1000,
+        "text": "Thanks. We will choose after reading that. Nothing is selected today."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "development",
+  "validated": {
+    "action_items": [
+      {
+        "completed": false,
+        "confidence": 0.949999988079071,
+        "evidence": {
+          "segment_ids": ["sys_0000"]
+        },
+        "id": "act_000",
+        "text": "I will compare the two vendors and send the costs on Monday."
+      }
+    ],
+    "decisions": [
+      {
+        "confidence": 0.949999988079071,
+        "evidence": {
+          "segment_ids": ["mic_0001"]
+        },
+        "text": "Nothing is selected today."
+      }
+    ],
+    "generated_at": "2026-11-01T04:32:24.998245200+01:00",
+    "key_points": [],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [
+      {
+        "confidence": 0.949999988079071,
+        "evidence": {
+          "segment_ids": ["mic_0001"]
+        },
+        "text": "We will choose after reading that."
+      }
+    ],
+    "summary": "Mira committed to comparing vendors and sending costs on Monday. The user stated nothing is selected today, and they will choose after reviewing the costs."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

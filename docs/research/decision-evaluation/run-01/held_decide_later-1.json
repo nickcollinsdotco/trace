@@ -1,0 +1,105 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 42.0172297,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [],
+        "raw_decision_count": 0
+      },
+      "prompt": "MEETING: Decide the pricing strategy\nDATE: 2026-11-01\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: Let's decide the pricing strategy at next month's workshop, after we have the interviews.\n[sys_0001] (00:01) them: That sounds useful. Today is only about listing questions, not choosing a strategy.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["mic_0000"],
+            "owner": null,
+            "text": "decide the pricing strategy next month after interviews"
+          }
+        ],
+        "decisions": [],
+        "key_points": [],
+        "open_questions": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "text": "Today is only about listing questions, not choosing a strategy"
+          }
+        ],
+        "summary": "The meeting discussed deferring pricing strategy decisions to a future workshop after interviews. No decisions were made, and the focus was on preparing questions rather than selecting a strategy."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 12.6 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "held_decide_later",
+  "elapsed_seconds": 42.0551676,
+  "error": null,
+  "expected": {
+    "decisions": [],
+    "forbidden": "A future decision workshop or any pricing strategy shown as a decision reached today.",
+    "other": "Pricing remains an open question; agreement to discuss is not closure."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "held_decide_later",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:33:11.083661500+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Decide the pricing strategy",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "Let's decide the pricing strategy at next month's workshop, after we have the interviews."
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "That sounds useful. Today is only about listing questions, not choosing a strategy."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 1,
+  "split": "held_out",
+  "validated": {
+    "action_items": [
+      {
+        "completed": false,
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["mic_0000"]
+        },
+        "id": "act_000",
+        "text": "decide the pricing strategy next month after interviews"
+      }
+    ],
+    "decisions": [],
+    "generated_at": "2026-11-01T04:33:53.138813700+01:00",
+    "key_points": [],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "Today is only about listing questions, not choosing a strategy"
+      }
+    ],
+    "summary": "The meeting discussed deferring pricing strategy decisions to a future workshop after interviews. No decisions were made, and the focus was on preparing questions rather than selecting a strategy."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

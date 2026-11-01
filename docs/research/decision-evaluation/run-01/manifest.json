@@ -1,0 +1,581 @@
+{
+  "capture_limit": "Parsed provider outputs before validation; not wire responses or hidden thinking. Production retries and grammar fallback are visible in terminal diagnostics.",
+  "combine_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "key_points": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "items": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": ["text", "from"],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": ["summary", "key_points"],
+    "type": "object"
+  },
+  "combine_system_prompt": "You condense notes from one meeting into what someone who missed it needs. You are precise and conservative.\n\nRules:\n- Use only what is in the input. Add nothing.\n- Every key point lists the numbers of the input points it came from.\n- Write in plain past tense. Do not mention that the meeting was summarised in parts.",
+  "corpus": {
+    "cases": [
+      {
+        "context": null,
+        "expected": {
+          "decisions": [
+            {
+              "evidence": [["sys_0001"], ["mic_0000", "sys_0001"]],
+              "meaning": "The release was set for Thursday."
+            }
+          ],
+          "forbidden": "Tuesday chosen, or only a proposal to release Thursday.",
+          "other": "No assigned action is required."
+        },
+        "id": "dev_closed",
+        "lines": [
+          [
+            "mic_0000",
+            "microphone",
+            "We need to choose Tuesday or Thursday for the release. I propose Thursday."
+          ],
+          ["sys_0001", "system", "Thursday is agreed. That is the release date; Tuesday is out."]
+        ],
+        "notes": "",
+        "repeat": true,
+        "split": "development",
+        "title": "Release planning"
+      },
+      {
+        "context": null,
+        "expected": {
+          "decisions": [],
+          "forbidden": "Starting a pricing discussion or selecting pricing presented as a closed decision.",
+          "other": "Pricing remains open. No individual committed to an action."
+        },
+        "id": "dev_pricing_discussion",
+        "lines": [
+          ["mic_0000", "microphone", "We should start discussion on pricing next week."],
+          [
+            "sys_0001",
+            "system",
+            "Yes, there is a lot to explore. We have not picked a price or a pricing model."
+          ]
+        ],
+        "notes": "",
+        "repeat": true,
+        "split": "development",
+        "title": "Pricing"
+      },
+      {
+        "context": null,
+        "expected": {
+          "decisions": [],
+          "forbidden": "Research assignment or a vendor choice in decisions.",
+          "other": "Mira comparing vendors and sending costs is an action, supported by sys_0000."
+        },
+        "id": "dev_action_only",
+        "lines": [
+          [
+            "sys_0000",
+            "system",
+            "I am Mira. I will compare the two vendors and send the costs on Monday."
+          ],
+          [
+            "mic_0001",
+            "microphone",
+            "Thanks. We will choose after reading that. Nothing is selected today."
+          ]
+        ],
+        "notes": "",
+        "repeat": false,
+        "split": "development",
+        "title": "Vendor research"
+      },
+      {
+        "context": null,
+        "expected": {
+          "decisions": [],
+          "forbidden": "North selected, rejected outright, or retaining the current host as a settled strategy.",
+          "other": "Backup policy and data regions are open questions; objection is not final rejection."
+        },
+        "id": "dev_tentative_objection",
+        "lines": [
+          ["mic_0000", "microphone", "Maybe we could move to North hosting. I lean that way."],
+          [
+            "sys_0001",
+            "system",
+            "I object until we know its backup policy. Which regions would hold our data?"
+          ],
+          ["mic_0002", "microphone", "Fair question. Leave the choice open."]
+        ],
+        "notes": "",
+        "repeat": false,
+        "split": "development",
+        "title": "Hosting"
+      },
+      {
+        "context": null,
+        "expected": {
+          "decisions": [],
+          "forbidden": "Friday migration committed, even with a condition; the proposal was explicitly still undecided.",
+          "other": "Running the load test is an action supported by sys_0001."
+        },
+        "id": "dev_conditional",
+        "lines": [
+          [
+            "mic_0000",
+            "microphone",
+            "If the load test passes, perhaps we could migrate on Friday."
+          ],
+          [
+            "sys_0001",
+            "system",
+            "It has not run. Even if it passes we still need to decide. I will run it tomorrow."
+          ]
+        ],
+        "notes": "",
+        "repeat": false,
+        "split": "development",
+        "title": "Migration"
+      },
+      {
+        "context": null,
+        "expected": {
+          "decisions": [
+            {
+              "evidence": [["sys_0001"], ["mic_0002"], ["sys_0001", "mic_0002"]],
+              "meaning": "The premium support upgrade was rejected for this year."
+            }
+          ],
+          "forbidden": "Buying the upgrade or an indefinitely permanent ban.",
+          "other": "Explicit rejection closes a question and is a positive decision case."
+        },
+        "id": "dev_rejection",
+        "lines": [
+          ["mic_0000", "microphone", "Shall we buy the premium support upgrade?"],
+          ["sys_0001", "system", "No. We have decided against buying that upgrade this year."],
+          ["mic_0002", "microphone", "Agreed, reject the upgrade for this year."]
+        ],
+        "notes": "",
+        "repeat": false,
+        "split": "development",
+        "title": "Renewal"
+      },
+      {
+        "context": null,
+        "expected": {
+          "decisions": [
+            {
+              "evidence": [["sys_0001"], ["mic_0002"], ["sys_0001", "mic_0002"]],
+              "meaning": "Wednesday replaced Monday as the launch date."
+            }
+          ],
+          "forbidden": "Monday retained as a current decision. Historical reversal wording is acceptable only if explicitly superseded.",
+          "other": "One current outcome, possibly a separate explicitly historical cancellation."
+        },
+        "id": "dev_reversal",
+        "lines": [
+          ["mic_0000", "microphone", "We agree to launch on Monday."],
+          [
+            "sys_0001",
+            "system",
+            "A blocker has just come in. Cancel that Monday decision. Launch on Wednesday instead."
+          ],
+          [
+            "mic_0002",
+            "microphone",
+            "Agreed. Wednesday replaces Monday; Monday is no longer the plan."
+          ]
+        ],
+        "notes": "",
+        "repeat": false,
+        "split": "development",
+        "title": "Rollout"
+      },
+      {
+        "context": null,
+        "expected": {
+          "decisions": [
+            {
+              "evidence": [["sys_0001"], ["sys_0001", "mic_0002"]],
+              "meaning": "Wednesday replaced Monday as the final release date."
+            }
+          ],
+          "forbidden": "The earlier Monday decision surviving as a current outcome.",
+          "other": "Neutral synthetic inventory padding forces a real production window boundary before the reversal."
+        },
+        "id": "dev_cross_reversal",
+        "lines": [
+          [
+            "mic_0000",
+            "microphone",
+            "We have settled the release date: Monday. That is our final choice."
+          ],
+          [
+            "sys_0001",
+            "system",
+            "Cancel the earlier Monday release decision. A blocker means Wednesday replaces Monday; Monday is no longer agreed."
+          ],
+          ["mic_0002", "microphone", "Confirmed. Wednesday is now the final release date."]
+        ],
+        "notes": "",
+        "pad_after": 1,
+        "repeat": true,
+        "split": "development",
+        "title": "Rollout over two parts"
+      },
+      {
+        "context": null,
+        "expected": {
+          "decisions": [],
+          "forbidden": "A future decision workshop or any pricing strategy shown as a decision reached today.",
+          "other": "Pricing remains an open question; agreement to discuss is not closure."
+        },
+        "id": "held_decide_later",
+        "lines": [
+          [
+            "mic_0000",
+            "microphone",
+            "Let's decide the pricing strategy at next month's workshop, after we have the interviews."
+          ],
+          [
+            "sys_0001",
+            "system",
+            "That sounds useful. Today is only about listing questions, not choosing a strategy."
+          ]
+        ],
+        "notes": "",
+        "repeat": true,
+        "split": "held_out",
+        "title": "Decide the pricing strategy"
+      },
+      {
+        "context": "This was an exploratory billing conversation. My preference afterwards is annual billing.",
+        "expected": {
+          "decisions": [],
+          "forbidden": "Annual billing chosen or free tier removed, supported only by title, question-shaped note, or after-meeting context.",
+          "other": "Monthly versus annual and the free tier remain open. Context has no citable id."
+        },
+        "id": "held_misleading_notes",
+        "lines": [
+          [
+            "sys_0000",
+            "system",
+            "Annual billing is one possibility. Monthly might suit people better."
+          ],
+          [
+            "mic_0001",
+            "microphone",
+            "The heading in my notes is a template, not an outcome. We have chosen neither and have not agreed to remove the free tier."
+          ]
+        ],
+        "notes": "DECISIONS\nAnnual billing?\nTo discuss: remove the free tier",
+        "repeat": false,
+        "split": "held_out",
+        "title": "Decisions: choose annual billing"
+      },
+      {
+        "context": null,
+        "expected": {
+          "decisions": [
+            {
+              "evidence": [["mic_0000", "sys_0001"]],
+              "meaning": "A conditional policy was agreed: deploy Friday only after security sign-off; otherwise retain the current version."
+            }
+          ],
+          "forbidden": "Unconditional Friday deployment or a claim that security approval already exists.",
+          "other": "A closed conditional policy is distinct from a tentative conditional proposal; preserve the condition and fallback."
+        },
+        "id": "held_conditional_policy",
+        "lines": [
+          [
+            "mic_0000",
+            "microphone",
+            "We are deciding a policy now: deploy on Friday only if security signs off. Otherwise keep the current version."
+          ],
+          [
+            "sys_0001",
+            "system",
+            "Agreed to that exact conditional policy. Security has not signed off yet, so deployment itself is not authorised today."
+          ]
+        ],
+        "notes": "",
+        "repeat": false,
+        "split": "held_out",
+        "title": "Gate for deployment"
+      },
+      {
+        "context": null,
+        "expected": {
+          "decisions": [
+            {
+              "evidence": [["note_0000"], ["note_0000", "sys_0001"]],
+              "meaning": "Cedar was chosen as the public product name instead of Birch."
+            }
+          ],
+          "forbidden": "Birch selected or ignoring the only source naming Cedar.",
+          "other": "Citable typed notes can legitimately supply the decision."
+        },
+        "id": "held_typed_decision",
+        "lines": [
+          ["mic_0000", "microphone", "I have written our final naming choice in the notes."],
+          ["sys_0001", "system", "Yes, those notes accurately record what we just agreed."]
+        ],
+        "notes": "Agreed: the public product name is Cedar, not Birch.",
+        "repeat": false,
+        "split": "held_out",
+        "title": "Naming"
+      },
+      {
+        "context": null,
+        "expected": {
+          "decisions": [
+            {
+              "evidence": [["sys_0001"], ["sys_0001", "mic_0002"]],
+              "meaning": "The west warehouse was chosen after the inspection passed."
+            }
+          ],
+          "forbidden": "West selected on the basis of the earlier proposal alone; east chosen.",
+          "other": "Earlier uncertainty should not erase a later explicit closure."
+        },
+        "id": "held_cross_closure",
+        "lines": [
+          [
+            "mic_0000",
+            "microphone",
+            "Could we choose the west warehouse? It is only a proposal while the inspection is pending."
+          ],
+          [
+            "sys_0001",
+            "system",
+            "The inspection has now passed. We choose the west warehouse; the east warehouse is ruled out."
+          ],
+          ["mic_0002", "microphone", "Agreed. West is the settled warehouse choice."]
+        ],
+        "notes": "",
+        "pad_after": 1,
+        "repeat": false,
+        "split": "held_out",
+        "title": "Warehouse choice"
+      },
+      {
+        "context": null,
+        "expected": {
+          "allowed_optional_decision": {
+            "evidence": [["sys_0001"]],
+            "meaning": "The earlier Swift selection was explicitly withdrawn; no partner remained selected."
+          },
+          "decisions": [],
+          "forbidden": "Swift remains selected, another partner is invented, or the research assignment is treated as a partner selection.",
+          "other": "A cancellation-only decision is acceptable if explicitly framed as withdrawal. Partner choice is open; mic_0002 commits to research."
+        },
+        "id": "held_cross_reopen",
+        "lines": [
+          [
+            "mic_0000",
+            "microphone",
+            "We have selected Swift as the delivery partner. The choice is closed."
+          ],
+          [
+            "sys_0001",
+            "system",
+            "Swift has withdrawn its offer. Withdraw that earlier selection and reopen the whole question. There is no selected partner now."
+          ],
+          [
+            "mic_0002",
+            "microphone",
+            "Understood. I will research alternatives. We will choose a partner at a later meeting."
+          ]
+        ],
+        "notes": "",
+        "pad_after": 1,
+        "repeat": true,
+        "split": "held_out",
+        "title": "Delivery partner"
+      }
+    ],
+    "synthetic": true,
+    "version": 1
+  },
+  "initial_ps": {
+    "models": []
+  },
+  "model": {
+    "capabilities": ["completion", "tools", "thinking"],
+    "details": {
+      "context_length": 40960,
+      "embedding_length": 4096,
+      "families": ["qwen3"],
+      "family": "qwen3",
+      "format": "gguf",
+      "parameter_size": "8.2B",
+      "parent_model": "",
+      "quantization_level": "Q4_K_M",
+      "runner": "ggml"
+    },
+    "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+    "model": "qwen3:8b",
+    "modified_at": "2026-09-05T04:32:00.2485224+02:00",
+    "name": "qwen3:8b",
+    "size": 5225388164
+  },
+  "ollama": {
+    "version": "0.40.12"
+  },
+  "safety": "memory check before evaluation request: qwen3:8b needs 6.2 GiB (estimated); RAM 15.5 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 10.5 GiB of 15.6 GiB free; loading it on the GPU",
+  "settings": {
+    "deadline_seconds_per_provider_call_including_retries": 180,
+    "keep_alive": "production settings-derived policy, not overridden",
+    "num_ctx": 8192,
+    "num_predict": 3072,
+    "seed": null,
+    "temperature": 0.2,
+    "think": true
+  },
+  "source_head": "a18f2a700249da69a2ab6fc0b208dad8e5b3a35a",
+  "started_at": "2026-11-01T03:31:40.591530500+00:00",
+  "strict_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "action_items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "evidence": {
+              "items": {
+                "pattern": "^(mic|sys|note)_[0-9]{4,}$",
+                "type": "string"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            },
+            "owner": {
+              "maxLength": 60,
+              "type": ["string", "null"]
+            },
+            "text": {
+              "maxLength": 400,
+              "type": "string"
+            }
+          },
+          "required": ["text", "evidence", "confidence"],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "decisions": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "evidence": {
+              "items": {
+                "pattern": "^(mic|sys|note)_[0-9]{4,}$",
+                "type": "string"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            },
+            "text": {
+              "maxLength": 400,
+              "type": "string"
+            }
+          },
+          "required": ["text", "evidence", "confidence"],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "key_points": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "evidence": {
+              "items": {
+                "pattern": "^(mic|sys|note)_[0-9]{4,}$",
+                "type": "string"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            },
+            "text": {
+              "maxLength": 400,
+              "type": "string"
+            }
+          },
+          "required": ["text", "evidence", "confidence"],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "open_questions": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "evidence": {
+              "items": {
+                "pattern": "^(mic|sys|note)_[0-9]{4,}$",
+                "type": "string"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            },
+            "text": {
+              "maxLength": 400,
+              "type": "string"
+            }
+          },
+          "required": ["text", "evidence", "confidence"],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "summary": {
+        "maxLength": 2000,
+        "type": "string"
+      }
+    },
+    "required": ["summary", "key_points", "decisions", "action_items", "open_questions"],
+    "type": "object"
+  },
+  "synthetic": true,
+  "system_prompt": "You extract structure from meeting transcripts. You are precise and conservative.\n\nRules:\n- Every claim you make must cite the line ids it came from.\n- Only cite ids that appear in the input. Never invent an id.\n- Evidence is a list of bare ids such as sys_0012 or note_0003 — never the text of the line, its timestamp, or its brackets.\n- Prefer omitting an item to guessing at one. An empty list is a valid and often correct answer.\n- A decision is a question the participants closed: an option chosen, a course settled on. It is not something they merely discussed or considered.\n- Agreeing to talk about something later does not close a question. 'We should discuss pricing' and 'let's look at that next week' are not decisions; they are action items or open questions. Put them there instead.\n- An action item is something a person committed to doing. If nobody committed, it is not an action item.\n- Lines labelled 'you' were spoken by the user; lines labelled 'them' were spoken by others. Lines starting with note_ were typed by the user during the meeting and are especially significant.\n- Write in plain past tense. Do not editorialise or add advice.\n- Set confidence honestly: 0.9+ only when the input states it plainly."
+}

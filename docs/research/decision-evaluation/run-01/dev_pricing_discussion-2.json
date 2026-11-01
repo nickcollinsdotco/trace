@@ -1,0 +1,105 @@
+{
+  "calls": [
+    {
+      "elapsed_seconds": 21.218055,
+      "error": null,
+      "kind": "extract",
+      "label": "notes",
+      "mechanical": {
+        "decisions": [],
+        "raw_decision_count": 0
+      },
+      "prompt": "MEETING: Pricing\nDATE: 2026-11-01\n\nTRANSCRIPT\n\n[mic_0000] (00:00) you: We should start discussion on pricing next week.\n[sys_0001] (00:01) them: Yes, there is a lot to explore. We have not picked a price or a pricing model.\n\nExtract the structure. Cite ids exactly as they appear above.\n",
+      "raw_parsed_output": {
+        "action_items": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["mic_0000"],
+            "owner": null,
+            "text": "We should start discussion on pricing next week."
+          }
+        ],
+        "decisions": [],
+        "key_points": [],
+        "open_questions": [
+          {
+            "confidence": 0.8999999761581421,
+            "evidence": ["sys_0001"],
+            "text": "We have not picked a price or a pricing model."
+          }
+        ],
+        "summary": "The user proposed starting pricing discussion next week, which is an action item. They also mentioned that a price or pricing model has not been decided yet, indicating an open question."
+      },
+      "safety": "memory check before evaluation request: qwen3:8b needs 5.9 GiB (measured), already loaded (5.9 GiB on the GPU of 5.9 GiB); RAM 8.2 GiB of 31.1 GiB available; GPU NVIDIA GeForce RTX 5070 Ti 4.3 GiB of 15.6 GiB free; keeping it"
+    }
+  ],
+  "case": "dev_pricing_discussion",
+  "elapsed_seconds": 21.2531047,
+  "error": null,
+  "expected": {
+    "decisions": [],
+    "forbidden": "Starting a pricing discussion or selecting pricing presented as a closed decision.",
+    "other": "Pricing remains open. No individual committed to an action."
+  },
+  "meeting": {
+    "date": "2026-11-01",
+    "id": "dev_pricing_discussion",
+    "notes": "",
+    "participants": [],
+    "started_at": "2026-11-01T04:35:31.229755700+01:00",
+    "status": "active",
+    "tags": [],
+    "title": "Pricing",
+    "transcript": [
+      {
+        "end_ms": 900,
+        "id": "mic_0000",
+        "source": "microphone",
+        "start_ms": 0,
+        "text": "We should start discussion on pricing next week."
+      },
+      {
+        "end_ms": 1900,
+        "id": "sys_0001",
+        "source": "system",
+        "start_ms": 1000,
+        "text": "Yes, there is a lot to explore. We have not picked a price or a pricing model."
+      }
+    ],
+    "type": "general"
+  },
+  "repeat": 2,
+  "split": "development",
+  "validated": {
+    "action_items": [
+      {
+        "completed": false,
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["mic_0000"]
+        },
+        "id": "act_000",
+        "text": "We should start discussion on pricing next week."
+      }
+    ],
+    "decisions": [],
+    "generated_at": "2026-11-01T04:35:52.482847900+01:00",
+    "key_points": [],
+    "model": "ollama/qwen3:8b",
+    "open_questions": [
+      {
+        "confidence": 0.8999999761581421,
+        "evidence": {
+          "segment_ids": ["sys_0001"]
+        },
+        "text": "We have not picked a price or a pricing model."
+      }
+    ],
+    "summary": "The user proposed starting pricing discussion next week, which is an action item. They also mentioned that a price or pricing model has not been decided yet, indicating an open question."
+  },
+  "validation_report": {
+    "empty": 0,
+    "fabricated": 0,
+    "uncited": 0
+  }
+}

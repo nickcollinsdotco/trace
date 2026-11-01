@@ -60,6 +60,11 @@ tauri-plugin-notification = "2"
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
+[dev-dependencies]
+# The contention diagnostic configures the ORT already used by transcribe-rs.
+# Keeping it here leaves the application's environment and pools unchanged.
+ort = "=2.0.0-rc.12"
+
 # Debug info for dependencies was most of target/debug - many gigabytes for
 # Tauri, ONNX Runtime and windows-rs internals nobody steps into. Our own
 # crate keeps it, so backtraces and the debugger still work on our code.

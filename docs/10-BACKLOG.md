@@ -707,12 +707,21 @@ What the audit found besides, worst first. Evidence is `file:line` as of
 9. **Two speech engines and the summary model at once.** Back-to-back
    meetings: the lane serialises the full-quality pass and summaries, not
    the live transcriber, so meeting two's live engine runs beside meeting
-   one's re-pass engine, and under "ready during meetings" the summary model
-   too. Each engine is three ONNX sessions on ORT's default thread pool
-   (`transcribe-rs` `onnx/session.rs`: `create_session` passes no count), at
-   normal priority. *Fix:* thread counts need `transcribe-rs` to pass
-   `create_session_with_threads` through `ParakeetModel::load` (an upstream
-   PR); then a capped, below-normal pool for the re-pass. Medium.
+   one's re-pass engine. Under "ready during meetings" the summary model can
+   also be resident or loading. Summary generation follows the re-pass in the
+   lane, but can then overlap the next meeting's live engine under either
+   memory setting. **Investigated, not fixed:** see
+   [the reproducible contention study](research/resource-contention.md).
+   Each engine creates three CPU ONNX sessions, with default intra-op and
+   inter-op pools and parallel execution. The installed `ort` API already
+   supports a shared pool with explicit counts and spin control, without a
+   `transcribe-rs` fork; the diagnostic exercises it. Parakeet still has no
+   per-engine options API, so selective re-pass pools/priority remain a
+   different change. Measured steady-state overlap adds modest live latency
+   on the tested 8-core machine; disabling shared-pool spinning reduces CPU
+   cost. This does not establish stalls, capture loss, behaviour on smaller
+   machines or active-LLM contention. Keep those limits with the results
+   before choosing a production policy.
 10. ~~**No way to stop a slow summary or re-pass, and a slow Ollama fails at
     once.**~~ **Fixed in 0.33.0.** Stop on the note and in the status bar.
     The summary request is now streamed over a plain socket

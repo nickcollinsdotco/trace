@@ -584,6 +584,40 @@ export const SCENARIOS: Scenario[] = [
     state: {},
   },
   {
+    id: "library-notes-unavailable",
+    name: "Meetings, notes drive unavailable",
+    group: "Library",
+    note: "A disconnected notes drive is an error, not an empty library. Reconnect it and try again, or open the notes folder settings.",
+    screen: "library",
+    state: {
+      failures: {
+        list_notes: "Notes folder unavailable (D:/Meeting notes): the drive is disconnected.",
+        notes_root: "Notes folder unavailable (D:/Meeting notes): the drive is disconnected.",
+      },
+      notesFolder: {
+        current: "D:/Meeting notes",
+        pending: null,
+        error: "The drive is disconnected.",
+      },
+    },
+  },
+  {
+    id: "library-notes-copy-failed",
+    name: "Meetings, notes folder copy failed",
+    group: "Library",
+    note: "A failed copy is visible on arrival, above the still-active original library. Settings offers cancellation or another empty destination.",
+    screen: "library",
+    state: {
+      ...POPULATED,
+      notesFolder: {
+        current: "C:/Users/you/Documents/TRACE",
+        pending: "D:/Meeting notes",
+        error:
+          "The destination contains notes that are no longer in the current folder. No files were deleted.",
+      },
+    },
+  },
+  {
     id: "library-recovery",
     name: "Interrupted meeting",
     group: "Library",

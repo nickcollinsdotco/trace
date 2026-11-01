@@ -102,6 +102,12 @@ pub fn run() {
             }
             // Before the page asks what can be recovered, which reads them.
             app.state::<CaptureManager>().move_old_sessions();
+            // Configured windows are not created automatically: even a hidden
+            // webview mounts the frontend and can invoke data-changing commands.
+            // Only the process holding the notes lock may start that frontend.
+            for config in &app.config().app.windows {
+                tauri::WebviewWindowBuilder::from_config(app, config)?.build()?;
+            }
             if cfg!(debug_assertions) {
                 for window in app.webview_windows().values() {
                     window.set_title("TRACE (dev)")?;
@@ -210,4 +216,21 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running TRACE");
+}
+
+#[cfg(test)]
+mod startup_tests {
+    #[test]
+    fn the_shipped_configuration_cannot_start_webviews_before_the_notes_lock() {
+        let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
+        let windows = &context.config().app.windows;
+        assert!(
+            !windows.is_empty(),
+            "the successful startup still needs a window"
+        );
+        assert!(
+            windows.iter().all(|window| !window.create),
+            "automatic webviews run IPC before setup can reject an unlocked process"
+        );
+    }
 }

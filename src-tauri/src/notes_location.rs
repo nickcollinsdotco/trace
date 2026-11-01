@@ -368,6 +368,15 @@ fn apply(config: &Path, location: &mut Location, private: &Path) -> Result<(), S
                 .into(),
         );
     }
+    // A previous attempt may have copied a note that was since renamed or
+    // deleted in the still-active source. Never turn that stale copy back into
+    // a live note, or absorb files someone added to the destination meanwhile.
+    let mut copied = Vec::new();
+    markdown_files(&target, &target, &mut copied)?;
+    copied.sort();
+    if copied != files {
+        return Err("The destination contains notes that are no longer in the current folder, or were added separately. The current folder is still in use. Cancel the change in Settings and choose another empty folder; no files were deleted.".into());
+    }
     for relative in &files {
         if fs::read(source.join(relative)).map_err(|e| e.to_string())?
             != fs::read(target.join(relative)).map_err(|e| e.to_string())?
@@ -569,6 +578,49 @@ mod tests {
         );
         assert_eq!(fs::read(s.target().join("a.md")).unwrap(), b"before");
         assert_eq!(resolved(&load(&s.config()).unwrap()).unwrap(), s.source());
+    }
+
+    #[test]
+    fn retry_does_not_resurrect_deleted_or_renamed_notes() {
+        for renamed in [false, true] {
+            let s = Sandbox::new();
+            s.write("a.md", b"original note");
+            s.write("z.md", b"last note");
+            let mut location = s.queued();
+            fs::write(s.target().join("z.md"), b"conflict").unwrap();
+            assert!(apply(&s.config(), &mut location, &s.private()).is_err());
+            assert!(s.target().join("a.md").exists());
+            if renamed {
+                fs::rename(s.source().join("a.md"), s.source().join("renamed.md")).unwrap();
+            } else {
+                fs::remove_file(s.source().join("a.md")).unwrap();
+            }
+            fs::remove_file(s.target().join("z.md")).unwrap();
+            let mut restarted = load(&s.config()).unwrap();
+            assert!(apply(&s.config(), &mut restarted, &s.private())
+                .unwrap_err()
+                .contains("destination contains notes"));
+            assert_eq!(root_at(&s.config()).unwrap(), s.source());
+            assert!(!s.source().join("a.md").exists());
+            assert_eq!(s.source().join("renamed.md").exists(), renamed);
+            assert_eq!(fs::read(s.target().join("a.md")).unwrap(), b"original note");
+        }
+    }
+
+    #[test]
+    fn unrelated_destination_notes_are_preserved_but_never_adopted() {
+        let s = Sandbox::new();
+        s.write("a.md", b"original");
+        let mut location = s.queued();
+        fs::write(s.target().join("unrelated.md"), b"someone else's note").unwrap();
+        assert!(apply(&s.config(), &mut location, &s.private())
+            .unwrap_err()
+            .contains("destination contains notes"));
+        assert_eq!(root_at(&s.config()).unwrap(), s.source());
+        assert_eq!(
+            fs::read(s.target().join("unrelated.md")).unwrap(),
+            b"someone else's note"
+        );
     }
 
     #[test]

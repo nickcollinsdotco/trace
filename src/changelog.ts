@@ -31,7 +31,8 @@ export const CHANGELOG: Change[] = [
     title: "Choose where your notes live",
     notes: [
       "Choose an empty folder in Settings for your Markdown notes. Fully quit and reopen TRACE to copy them there; original files stay in the old folder as a backup. Audio and journals stay in local application data.",
-      "If copying fails, the current folder stays in use and Settings explains what happened. Cancel the change or restart to retry. Existing files are never overwritten; attachments and hidden folders stay where they are.",
+      "If copying fails, the current folder stays in use and Meetings explains what happened. Open Settings to cancel the change or restart to retry. Existing files are never overwritten; attachments and hidden folders stay where they are.",
+      "A disconnected notes drive shows a message and a retry button in Meetings, instead of looking like an empty library.",
     ],
     screens: {
       settings:
@@ -42,6 +43,10 @@ export const CHANGELOG: Change[] = [
         "A destination conflict leaves the originals active and explains how to recover.",
       "settings-notes-unavailable":
         "A disconnected notes drive remains selected rather than falling back to Documents.",
+      "library-notes-unavailable":
+        "A disconnected drive has reconnect guidance, Try again and Notes folder settings; no empty-library message.",
+      "library-notes-copy-failed":
+        "The failed copy is explained above the original notes, with a way to Settings.",
     },
   },
   {

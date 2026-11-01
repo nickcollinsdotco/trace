@@ -57,11 +57,13 @@ function saveView(view: View): void {
 export function LibraryScreen({
   onNewMeeting,
   onOpenNote,
+  onSettings,
   initialSearch = "",
   signal,
 }: {
   onNewMeeting: () => void;
   onOpenNote: (path: string) => void;
+  onSettings: () => void;
   /** Pre-filled query, so clicking a tag on a note lands here searching it. */
   initialSearch?: string;
   /** How the signal panel opens, for the gallery. */
@@ -72,6 +74,8 @@ export function LibraryScreen({
   const [interrupted, setInterrupted] = useState<InterruptedNotes[]>([]);
   const [loading, setLoading] = useState(true);
   const [root, setRoot] = useState<string>("");
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [folderError, setFolderError] = useState<string | null>(null);
   const [query, setQuery] = useState(initialSearch);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [view, setView] = useState(loadView);
@@ -142,16 +146,29 @@ export function LibraryScreen({
       setLoading(false);
       return;
     }
-    const [list, sessions, cutOff, notesRoot] = await Promise.all([
-      ipc.listNotes().catch(() => []),
-      ipc.recoverableSessions().catch(() => []),
-      ipc.interruptedNotes().catch(() => []),
-      ipc.notesRoot().catch(() => ""),
+    const [list, sessions, cutOff, notesRoot, folder] = await Promise.allSettled([
+      ipc.listNotes(),
+      ipc.recoverableSessions(),
+      ipc.interruptedNotes(),
+      ipc.notesRoot(),
+      ipc.notesFolderStatus(),
     ]);
-    setNotes(list);
-    setRecoverable(sessions);
-    setInterrupted(cutOff);
-    setRoot(notesRoot);
+    setNotes(list.status === "fulfilled" ? list.value : []);
+    setRecoverable(sessions.status === "fulfilled" ? sessions.value : []);
+    setInterrupted(cutOff.status === "fulfilled" ? cutOff.value : []);
+    setRoot(notesRoot.status === "fulfilled" ? notesRoot.value : "");
+    // An unavailable drive is not a first-run empty library. Keep the error
+    // visible even if recovery or the settings lookup can still succeed.
+    setLibraryError(
+      list.status === "rejected"
+        ? String(list.reason)
+        : notesRoot.status === "rejected"
+          ? String(notesRoot.reason)
+          : null,
+    );
+    setFolderError(
+      folder.status === "fulfilled" && folder.value.pending ? folder.value.error : null,
+    );
     setLoading(false);
   }, []);
 
@@ -232,7 +249,43 @@ export function LibraryScreen({
         Meetings
       </h1>
 
-      {hasBackend() && !loading && <SignalPanel notes={notes} initial={signal} />}
+      {(libraryError || folderError) && (
+        <section role="alert" className="flex flex-col gap-3 text-sm text-error">
+          <h2 className="font-medium">
+            {libraryError ? "Could not read your notes" : "Notes folder change did not finish"}
+          </h2>
+          <p className="break-words">{libraryError ?? folderError}</p>
+          <p className="text-ink-muted">
+            {libraryError
+              ? "Reconnect the notes drive or restore access to the folder, then try again. You can check the selected folder in Settings."
+              : "Your original notes folder is still in use. Open Settings to cancel the change or choose another empty folder. Fully quit and reopen TRACE to retry the copy."}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {libraryError && (
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => {
+                  setLoading(true);
+                  void refresh();
+                }}
+                className="trace-btn trace-btn-secondary trace-press"
+              >
+                {loading ? "Trying again…" : "Try again"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onSettings}
+              className="trace-btn trace-btn-quiet trace-press"
+            >
+              Notes folder settings
+            </button>
+          </div>
+        </section>
+      )}
+
+      {hasBackend() && !loading && !libraryError && <SignalPanel notes={notes} initial={signal} />}
 
       {/* Interrupted meetings come first: there is unsaved work here and it
             is the only thing on this screen that can still be lost. */}
@@ -250,7 +303,7 @@ export function LibraryScreen({
 
       <LlmNotice status={llm.status} onRecheck={llm.recheck} context="library" />
 
-      {hasBackend() && notes.length > 0 && (
+      {hasBackend() && !libraryError && notes.length > 0 && (
         <SearchBar
           query={query}
           parsed={parsed}
@@ -264,7 +317,7 @@ export function LibraryScreen({
         />
       )}
 
-      {shownHits !== null ? (
+      {libraryError ? null : shownHits !== null ? (
         <SearchResults hits={shownHits} query={parsed.terms.join(" ")} onOpen={onOpenNote} />
       ) : loading ? (
         <p className="font-mono text-xs text-ink-faint">

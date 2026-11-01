@@ -40,8 +40,10 @@ route is to cancel and choose another empty folder. There is no automatic
 rollback or cleanup that could accidentally erase an external edit.
 
 A process-lifetime Windows file lock prevents two copies of this version from
-sharing the preference and writing during migration. A second instance displays
-an error asking the user to close the first. Older TRACE versions do not know
+sharing the preference and writing during migration. Configured webviews have
+automatic creation disabled; setup creates them only after acquiring the lock.
+A rejected second instance therefore has no frontend or window able to invoke
+commands while its error dialog is open. Older TRACE versions do not know
 about this lock: close them and external editors before changing folders.
 The final verification detects source changes during copying, but cannot stop
 an unrelated editor changing a retained original immediately afterwards.
@@ -52,8 +54,17 @@ All note-root consumers use CaptureManager's preference-aware root: library,
 search, tags, writes, recovery, regeneration lookup, upgrades, diagnostics and
 open-folder. Journal paths used by interrupted-note discovery and resume are
 accepted only inside the active library; otherwise the session id locates the
-copied note. `TRACE_NOTES_ROOT` remains a separate test override; its session
-sandbox behaviour is unchanged and folder selection is disabled under it.
+copied note. The destination's complete Markdown inventory must also match the
+source before switching. If a partial copy left a note that was since renamed
+or deleted, or someone added an unrelated note there, the retry refuses the
+destination and preserves all files. This avoids resurrecting old notes.
+
+An unavailable library is shown on Meetings with reconnect guidance, retry,
+and a link to Settings. A failed startup copy is also shown there, above the
+still-active original library. Neither requires discovering the problem by
+starting another recording. `TRACE_NOTES_ROOT` remains a separate test override;
+its session sandbox behaviour is unchanged and folder selection is disabled
+under it.
 
 Verification uses temporary roots only. Unit tests cover byte preservation,
 unknown files and audio staying put, collisions after partial progress, restart
@@ -66,9 +77,9 @@ still require manual UI testing; no installed copy or real user data is used.
 
 Verification recorded for this change:
 
-- `pnpm lint`, `pnpm check`, `pnpm test`: pass; 33 files, 372 frontend tests.
+- `pnpm lint`, `pnpm check`, `pnpm test`: pass; 34 files, 376 frontend tests.
 - `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`,
-  `cargo test`: pass; 421 Rust tests, plus main/doc-test targets.
+  `cargo test`: pass; 424 Rust tests, plus main/doc-test targets.
 - `pnpm build`: pass. The built index bundle contains all three new IPC
   commands, confirmation/cancellation text and 0.42.0. The gallery bundle
   contains all three new failure/pending scenarios. Built CSS contains
@@ -76,6 +87,14 @@ Verification recorded for this change:
 - Mutation checks: allowing `.sessions` into the copy failed the exclusion
   assertion; accepting the old journal path failed the active-folder assertion;
   saving before confirmation failed the UI tests. All mutations were restored.
+- Review regressions cover retry after a deletion or rename, unrelated notes
+  added to the destination, unavailable-library retry and Settings navigation,
+  and a failed copy above the original library. A test inspects Tauri's generated
+  configuration to ensure no webview starts automatically before setup acquires
+  the lock. Removing the inventory check, restoring automatic window creation,
+  and hiding the library error each failed its regression test; all were restored
+  before the full gate. Built JS contains both new library states and their
+  controls, and built CSS contains the error text's wrapping utilities.
 - Frontend tests emitted one existing `NoteScreen` `act(...)` warning in the
   gallery title-scroll test. All tests passed. No visual browser/native-dialog
   verification, installer changes, live migration, device recording or release.

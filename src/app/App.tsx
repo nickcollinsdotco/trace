@@ -125,6 +125,7 @@ export function App() {
               initialSearch={route.search ?? ""}
               onNewMeeting={() => setRoute({ name: "capture" })}
               onOpenNote={(path) => setRoute({ name: "note", path })}
+              onSettings={() => setRoute({ name: "settings" })}
             />
           )}
 

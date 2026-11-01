@@ -584,6 +584,40 @@ export const SCENARIOS: Scenario[] = [
     state: {},
   },
   {
+    id: "library-notes-unavailable",
+    name: "Meetings, notes drive unavailable",
+    group: "Library",
+    note: "A disconnected notes drive is an error, not an empty library. Reconnect it and try again, or open the notes folder settings.",
+    screen: "library",
+    state: {
+      failures: {
+        list_notes: "Notes folder unavailable (D:/Meeting notes): the drive is disconnected.",
+        notes_root: "Notes folder unavailable (D:/Meeting notes): the drive is disconnected.",
+      },
+      notesFolder: {
+        current: "D:/Meeting notes",
+        pending: null,
+        error: "The drive is disconnected.",
+      },
+    },
+  },
+  {
+    id: "library-notes-copy-failed",
+    name: "Meetings, notes folder copy failed",
+    group: "Library",
+    note: "A failed copy is visible on arrival, above the still-active original library. Settings offers cancellation or another empty destination.",
+    screen: "library",
+    state: {
+      ...POPULATED,
+      notesFolder: {
+        current: "C:/Users/you/Documents/TRACE",
+        pending: "D:/Meeting notes",
+        error:
+          "The destination contains notes that are no longer in the current folder. No files were deleted.",
+      },
+    },
+  },
+  {
     id: "library-recovery",
     name: "Interrupted meeting",
     group: "Library",
@@ -1576,6 +1610,52 @@ export const SCENARIOS: Scenario[] = [
     note: "Only the settings that change what happens to a meeting.",
     screen: "settings",
     state: POPULATED,
+  },
+  {
+    id: "settings-notes-pending",
+    name: "Settings, folder change queued",
+    group: "Pages",
+    note: "The current folder stays active until the next launch finishes copying. Cancel leaves it unchanged.",
+    screen: "settings",
+    state: {
+      ...POPULATED,
+      notesFolder: {
+        current: "C:/Users/you/Documents/TRACE",
+        pending: "D:/Meeting notes",
+        error: null,
+      },
+    },
+  },
+  {
+    id: "settings-notes-failed",
+    name: "Settings, folder copy failed",
+    group: "Pages",
+    note: "A conflicting destination file stopped the copy. Originals are safe; cancel and choose another empty folder.",
+    screen: "settings",
+    state: {
+      ...POPULATED,
+      notesFolder: {
+        current: "C:/Users/you/Documents/TRACE",
+        pending: "D:/Meeting notes",
+        error:
+          "A different file already exists at D:/Meeting notes/2026/10/review.md. Nothing was overwritten. Choose another empty folder.",
+      },
+    },
+  },
+  {
+    id: "settings-notes-unavailable",
+    name: "Settings, notes drive unavailable",
+    group: "Pages",
+    note: "The saved folder remains selected when a drive is disconnected. Reconnect it; TRACE does not fall back to Documents.",
+    screen: "settings",
+    state: {
+      ...POPULATED,
+      notesFolder: {
+        current: "D:/Meeting notes",
+        pending: null,
+        error: "Notes folder unavailable: reconnect the drive and reopen Settings.",
+      },
+    },
   },
   {
     id: "settings-audio-beyond",

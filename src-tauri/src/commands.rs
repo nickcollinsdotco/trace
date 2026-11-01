@@ -191,6 +191,8 @@ pub fn start_capture(
     } else {
         title
     };
+    let root = manager.notes_root().map_err(err)?;
+    crate::notes_location::check_writable(&root)?;
     // The mic check and the meeting would both hold the device; the meeting
     // wins, and the check has done its job by now anyway.
     crate::audio::preview::stop();
@@ -433,6 +435,38 @@ pub fn notes_root(manager: State<'_, CaptureManager>) -> CmdResult<String> {
         .notes_root()
         .map(|p| p.display().to_string())
         .map_err(err)
+}
+
+#[tauri::command]
+pub async fn choose_notes_folder(app: AppHandle) -> CmdResult<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_title("Choose an empty folder for Markdown notes")
+            .blocking_pick_folder()
+            .map(|folder| {
+                folder
+                    .into_path()
+                    .map(|path| path.display().to_string())
+                    .map_err(err)
+            })
+            .transpose()
+    })
+    .await
+    .map_err(err)?
+}
+
+#[tauri::command]
+pub fn notes_folder_status() -> CmdResult<crate::notes_location::Status> {
+    crate::notes_location::status()
+}
+
+#[tauri::command]
+pub fn schedule_notes_folder(
+    destination: Option<String>,
+) -> CmdResult<crate::notes_location::Status> {
+    crate::notes_location::schedule(destination)
 }
 
 /* ------------------------------------------------------------------ *
@@ -1296,7 +1330,7 @@ pub async fn diagnostics_report(
     let notes_root = manager
         .notes_root()
         .map(|p| p.display().to_string())
-        .unwrap_or_default();
+        .unwrap_or_else(|error| error.to_string());
     // Off the async runtime: it probes Ollama and reads the machine.
     tauri::async_runtime::spawn_blocking(move || {
         crate::diagnostics::report(version, models::active_speech_model(), notes_root)

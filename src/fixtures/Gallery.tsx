@@ -585,6 +585,7 @@ function Preview({ scenario }: { scenario: Scenario }) {
             signal={scenario.signal}
             onNewMeeting={noop}
             onOpenNote={noop}
+            onSettings={noop}
           />
         )}
         {scenario.screen === "capture" && (

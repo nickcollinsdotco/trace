@@ -67,6 +67,12 @@ export type MiniAuto = "off" | "minimised" | "switch_away" | "always";
 /** What closing the main window does. */
 export type CloseAction = "quit" | "tray";
 
+export interface NotesFolderStatus {
+  current: string;
+  pending: string | null;
+  error: string | null;
+}
+
 export interface Settings {
   audioRetention: AudioRetention;
   /** Id of the speech model meetings use. */
@@ -533,6 +539,10 @@ export const ipc = {
   listNotes: () => call<NoteSummary[]>("list_notes"),
   readNote: (path: string) => call<string>("read_note", { path }),
   notesRoot: () => call<string>("notes_root"),
+  chooseNotesFolder: () => call<string | null>("choose_notes_folder"),
+  notesFolderStatus: () => call<NotesFolderStatus>("notes_folder_status"),
+  scheduleNotesFolder: (destination: string | null) =>
+    call<NotesFolderStatus>("schedule_notes_folder", { destination }),
   searchNotes: (query: string) => call<SearchHit[]>("search_notes", { query }),
   noteTags: (notePath: string) => call<string[]>("note_tags", { notePath }),
   setNoteTags: (notePath: string, tags: string[]) =>

@@ -24,6 +24,7 @@ import {
   type ModelStatus,
   type NoteContext,
   type NoteSummary,
+  type NotesFolderStatus,
   type OfferedModel,
   type RecoverableSession,
   type Settings,
@@ -101,6 +102,7 @@ export interface BackendState {
   /** Facts shown on the first-run report. */
   systemReport: SystemReport;
   settings: Settings;
+  notesFolder: NotesFolderStatus | null;
   /** Commands that should reject, mapped to their message. */
   failures: Record<string, string>;
   /** Whether Ollama is usable. Opening it from the notice makes it ready. */
@@ -181,6 +183,7 @@ export const DEFAULT_STATE: BackendState = {
     miniShortcutTaken: false,
     closeAction: "quit",
   },
+  notesFolder: null,
   failures: {},
   llm: { state: "ready", model: "qwen3:14b" },
   summaryRoom: {
@@ -315,6 +318,7 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
   // "Ready" instead of snapping back to "no model" when the download finishes.
   let model = state.model;
   let settings = state.settings;
+  let notesFolder = state.notesFolder ?? { current: state.root, pending: null, error: null };
   let llm = state.llm;
   let audioBeyond = state.audioBeyond;
   let speechModels = state.speechModels.map((m) => ({ ...m }));
@@ -587,6 +591,17 @@ export function makeBackend(partial: Partial<BackendState> = {}): FakeBackend {
           if (body === undefined) throw new Error(`no such note: ${path}`);
           return body;
         }
+        case "choose_notes_folder":
+          return "D:/Meeting notes";
+        case "notes_folder_status":
+          return notesFolder;
+        case "schedule_notes_folder":
+          notesFolder = {
+            ...notesFolder,
+            pending: (args?.destination as string | null) ?? null,
+            error: null,
+          };
+          return notesFolder;
         case "notes_root":
           return state.root;
 

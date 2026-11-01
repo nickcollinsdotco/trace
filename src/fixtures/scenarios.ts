@@ -1578,6 +1578,52 @@ export const SCENARIOS: Scenario[] = [
     state: POPULATED,
   },
   {
+    id: "settings-notes-pending",
+    name: "Settings, folder change queued",
+    group: "Pages",
+    note: "The current folder stays active until the next launch finishes copying. Cancel leaves it unchanged.",
+    screen: "settings",
+    state: {
+      ...POPULATED,
+      notesFolder: {
+        current: "C:/Users/you/Documents/TRACE",
+        pending: "D:/Meeting notes",
+        error: null,
+      },
+    },
+  },
+  {
+    id: "settings-notes-failed",
+    name: "Settings, folder copy failed",
+    group: "Pages",
+    note: "A conflicting destination file stopped the copy. Originals are safe; cancel and choose another empty folder.",
+    screen: "settings",
+    state: {
+      ...POPULATED,
+      notesFolder: {
+        current: "C:/Users/you/Documents/TRACE",
+        pending: "D:/Meeting notes",
+        error:
+          "A different file already exists at D:/Meeting notes/2026/10/review.md. Nothing was overwritten. Choose another empty folder.",
+      },
+    },
+  },
+  {
+    id: "settings-notes-unavailable",
+    name: "Settings, notes drive unavailable",
+    group: "Pages",
+    note: "The saved folder remains selected when a drive is disconnected. Reconnect it; TRACE does not fall back to Documents.",
+    screen: "settings",
+    state: {
+      ...POPULATED,
+      notesFolder: {
+        current: "D:/Meeting notes",
+        pending: null,
+        error: "Notes folder unavailable: reconnect the drive and reopen Settings.",
+      },
+    },
+  },
+  {
     id: "settings-audio-beyond",
     name: "Settings, audio left behind",
     group: "Pages",

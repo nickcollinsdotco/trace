@@ -13,6 +13,7 @@ import {
 } from "../../lib/ipc";
 import { publishShortcut } from "../mini/shortcut";
 import { AudioRetentionField } from "./AudioRetentionField";
+import { NotesFolderField } from "./NotesFolderField";
 import { ShortcutField } from "./ShortcutField";
 
 const MEMORY_OPTIONS: Array<{ value: SummaryMemory; label: string; note: string }> = [
@@ -144,6 +145,7 @@ export function SettingsScreen() {
 
       {settings && (
         <>
+          <NotesFolderField />
           <Section title="Recording">
             <Field label="Microphone" note="Selected first when you start a meeting.">
               <select

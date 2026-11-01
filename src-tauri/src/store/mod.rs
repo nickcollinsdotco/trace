@@ -88,6 +88,16 @@ pub struct Interrupted {
     pub replay: journal::Replay,
 }
 
+/// A journal may still name the retained original after a folder change.
+/// Recovery and resume must both choose the copy in the active library.
+pub fn replay_note_path(notes_root: &std::path::Path, replay: &journal::Replay) -> Option<PathBuf> {
+    replay
+        .note_path
+        .clone()
+        .filter(|p| p.starts_with(notes_root) && p.exists())
+        .or_else(|| find_note(notes_root, &replay.meeting.id))
+}
+
 /// Find meetings whose notes never finished.
 ///
 /// `scan_recoverable` finds meetings cut off while recording; this finds the
@@ -115,11 +125,7 @@ pub fn scan_interrupted(
             if !replay.was_finished || !replay.notes_interrupted {
                 return None;
             }
-            let note_path = replay
-                .note_path
-                .clone()
-                .filter(|p| p.exists())
-                .or_else(|| find_note(notes_root, &replay.meeting.id))?;
+            let note_path = replay_note_path(notes_root, &replay)?;
             Some(Interrupted {
                 session_dir: dir,
                 note_path,
@@ -707,6 +713,38 @@ mod tests {
 
         j.append(&JournalEvent::NotesFinished).unwrap();
         assert!(scan_interrupted(&sessions, &root, |_| false).is_empty());
+    }
+
+    #[test]
+    fn interrupted_notes_follow_the_active_folder_even_when_the_original_still_exists() {
+        use journal::{Journal, JournalEvent};
+        let old = scratch("folder-original");
+        let new = scratch("folder-active");
+        let meeting = a_meeting("sess-folder", "Standup");
+        let original = write_note(&old, &meeting).unwrap();
+        let copied = write_note(&new, &meeting).unwrap();
+        let sessions = paths::sessions_beside(&old);
+        let session = paths::session_dir(&sessions, "sess-folder");
+        let mut j = Journal::open(&session).unwrap();
+        j.append(&JournalEvent::SessionStarted {
+            id: meeting.id,
+            title: meeting.title,
+            date: meeting.date,
+            started_at: "2026-09-06T10:00:00Z".into(),
+        })
+        .unwrap();
+        j.append(&JournalEvent::SessionEnded {
+            ended_at: "2026-09-06T10:30:00Z".into(),
+        })
+        .unwrap();
+        j.append(&JournalEvent::NotesStarted {
+            note_path: original.display().to_string(),
+        })
+        .unwrap();
+        let found = scan_interrupted(&sessions, &new, |_| false);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].note_path, copied);
+        assert!(original.exists(), "backup must remain untouched");
     }
 
     #[test]

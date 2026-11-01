@@ -647,8 +647,13 @@ What the audit found besides, worst first. Evidence is `file:line` as of
    **Fixed in 0.29.0.** Sessions live in `%LOCALAPPDATA%\TRACE\sessions`
    and are moved there from `.sessions` on each launch; replay finds a WAV
    beside its journal, not at the path journalled. About warns when the
-   notes folder is in OneDrive or Dropbox. Still not built: choosing the
-   notes folder. What it was:
+   notes folder is in OneDrive or Dropbox. **Choosing the notes folder is
+   built in 0.42.0:** Settings queues an empty destination; next launch copies
+   Markdown before any jobs start and switches only after verification. Original
+   files remain as a backup. Failed copies keep the old folder active and can be
+   retried or cancelled. Attachments and hidden folders are not copied; the
+   destination must support hard links (for example NTFS). See
+   `docs/19-NOTES-FOLDER.md` for the bounded migration contract. What it was:
    `store/paths.rs` puts the notes root, `.sessions` included, under
    `dirs::document_dir()`, which Known Folder Move redirects into OneDrive.
    That is ~690 MB an hour of raw meeting audio leaving the machine, plus

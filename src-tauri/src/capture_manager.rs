@@ -255,7 +255,8 @@ impl CaptureManager {
     pub fn notes_root(&self) -> Result<PathBuf, store::StoreError> {
         match self.notes_root_override() {
             Some(root) => Ok(root),
-            None => paths::default_notes_root(),
+            None => crate::notes_location::root()
+                .map_err(|e| store::StoreError::Io(std::io::Error::other(e))),
         }
     }
 
@@ -288,7 +289,12 @@ impl CaptureManager {
     /// Every launch, not once: a session in use by another running TRACE is
     /// left where it is, and the next launch finds it finished.
     pub fn move_old_sessions(&self) {
-        let (Ok(notes), Ok(sessions)) = (self.notes_root(), self.sessions_root()) else {
+        // Legacy sessions always belonged to the original Documents folder,
+        // even if the newly selected notes drive is currently disconnected.
+        let notes = self
+            .notes_root_override()
+            .map_or_else(paths::default_notes_root, Ok);
+        let (Ok(notes), Ok(sessions)) = (notes, self.sessions_root()) else {
             return;
         };
         let old = paths::sessions_beside(&notes);
@@ -961,11 +967,7 @@ pub fn resume(
     session_dir: &std::path::Path,
 ) -> Result<(), String> {
     let replay = crate::store::journal::replay(session_dir).map_err(|e| e.to_string())?;
-    let note_path = replay
-        .note_path
-        .clone()
-        .filter(|p| p.exists())
-        .or_else(|| store::find_note(notes_root, &replay.meeting.id))
+    let note_path = store::replay_note_path(notes_root, &replay)
         .ok_or("this meeting's note is no longer in the notes folder")?;
     let summary = SessionSummary {
         session_id: replay.meeting.id.clone(),

@@ -118,7 +118,7 @@ fn check_corpus(corpus: &Corpus) -> Result<(), String> {
             .iter()
             .chain(case.expected.get("allowed_optional_decision"))
         {
-            if label["meaning"].as_str().is_none_or(str::is_empty) {
+            if label["meaning"].as_str().map_or(true, str::is_empty) {
                 return Err("missing semantic label".into());
             }
             let alternatives = label["evidence"]
@@ -297,7 +297,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let initial_ps = local_get("ps")?;
     if initial_ps["models"]
         .as_array()
-        .is_none_or(|ms| !ms.is_empty())
+        .map_or(true, |ms| !ms.is_empty())
     {
         return Err("an existing model is loaded; refuse to compete with another workload".into());
     }
